@@ -1,0 +1,49 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [1.0.0] - 2026-04-30
+
+### Added
+
+- Initial public release of QwenCloud CLI
+- OAuth 2.0 Device Flow with PKCE authentication (`auth login`, `auth logout`, `auth status`)
+- Interactive REPL and one-shot command execution modes
+- Model discovery (`models list`, `models info`, `models search`)
+- Usage tracking for Free Tier, Coding Plan, and PAYG (`usage summary`, `usage breakdown`, `usage free-tier`, `usage payg`)
+- Configuration management (`config list`, `config get`, `config set`, `config unset`)
+- Environment diagnostics (`doctor`) and shell completion for zsh, bash, and fish
+- Secure credential storage: OS keychain with AES-256-GCM encrypted file fallback
+- Agent-friendly output: `--format json`, `--quiet`, and standardized exit codes (0–4, 130)
+- Global config at `~/.qwencloud/config.json` with auto-migration from `<cwd>/.qwencloud.json`
+
+---
+
+## Template for New Releases
+
+```markdown
+## [X.Y.Z] - YYYY-MM-DD
+
+### Added
+- New feature or enhancement
+
+### Changed
+- Changes in existing functionality
+
+### Deprecated
+- Soon-to-be removed features
+
+### Removed
+- Removed features
+
+### Fixed
+- Bug fixes
+
+### Security
+- Vulnerability fixes
+```

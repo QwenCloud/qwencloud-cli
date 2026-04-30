@@ -1,0 +1,85 @@
+// Usage summary response
+export interface UsageSummaryResponse {
+  period: { from: string; to: string };
+  free_tier: FreeTierUsage[];
+  coding_plan: CodingPlan;
+  pay_as_you_go: PayAsYouGo;
+}
+
+export interface FreeTierUsage {
+  model_id: string;
+  quota: {
+    remaining: number;
+    total: number;
+    unit: string;
+    used_pct: number;
+    status?: 'valid' | 'exhaust' | 'expire';
+    resetDate: string | null;
+  } | null;
+}
+
+export interface CodingPlan {
+  subscribed: boolean;
+  plan?: string;
+  price?: { amount: number; currency: string; cycle: string };
+  included_models?: string[];
+  windows?: {
+    per_5h: CodingPlanWindow;
+    weekly: CodingPlanWindow;
+    monthly: CodingPlanWindow;
+  };
+}
+
+export interface CodingPlanWindow {
+  remaining: number;
+  total: number;
+  used_pct: number;
+  next_reset_at: string;
+}
+
+export interface PayAsYouGo {
+  models: PayAsYouGoModel[];
+  total: { cost: number; currency: string };
+}
+
+export interface PayAsYouGoModel {
+  model_id: string;
+  usage: Record<string, number>; // tokens_in, tokens_out, images, characters, seconds
+  cost: number;
+  currency: string;
+}
+
+// Usage breakdown response
+export interface UsageBreakdownResponse {
+  model_id: string;
+  billing?: string; // 'coding_plan' for Coding Plan models
+  period: { from: string; to: string };
+  granularity: 'day' | 'month' | 'quarter';
+  rows: UsageBreakdownRow[];
+  total: UsageBreakdownTotal;
+}
+
+export interface UsageBreakdownUsage {
+  tokens_in?: number;
+  tokens_out?: number;
+  images?: number;
+  characters?: number;
+  seconds?: number;
+}
+
+export interface UsageBreakdownRow {
+  period: string;
+  tokens_in?: number;
+  tokens_out?: number;
+  usage?: UsageBreakdownUsage;
+  cost?: number;
+  currency?: string;
+}
+
+export interface UsageBreakdownTotal {
+  tokens_in?: number;
+  tokens_out?: number;
+  usage?: UsageBreakdownUsage;
+  cost?: number;
+  currency?: string;
+}

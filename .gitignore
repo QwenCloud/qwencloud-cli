@@ -1,0 +1,17 @@
+node_modules/
+dist/
+release/
+*.tsbuildinfo
+.DS_Store
+*.log
+.env
+.env.*
+coverage/
+.idea/
+
+.agents/
+.qoder/
+.claude/
+.playwright-mcp/
+ref/
+*copilot*
