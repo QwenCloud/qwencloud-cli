@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-05-14
+
+### Added
+
+- Install scripts: `install.sh` (macOS/Linux) and `install.ps1` (Windows, PowerShell 5.1 / CLM compatible)
+- Upgrade check with update notification in the `version` command
+
+### Changed
+
+- Unified CLI option formatting; optimized free model and pricing display
+- Usage breakdown: rename `isToday` → `isCurrent` for period-agnostic semantics
+- Windows standalone binary: when falling back to the encrypted credential file, derive the encryption key from the persisted device ID instead of the hardware fingerprint
+
 ## [1.0.0] - 2026-04-30
 
 ### Added

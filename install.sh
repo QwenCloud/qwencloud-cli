@@ -5,7 +5,7 @@
 #   sh install.sh --version v1.2.0
 #
 # Arguments:
-#   --version, -v      - version to install (e.g. v1.0.0, default: v1.0.0)
+#   --version, -v      - version to install (e.g. v1.0.0, default: v1.0.1)
 #   --help, -h         - show help message
 #
 # Behavior:

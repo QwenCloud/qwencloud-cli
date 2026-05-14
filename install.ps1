@@ -4,7 +4,7 @@
 #   .\install.ps1 -Version v1.2.0
 #
 # Parameters:
-#   -Version           - version to install (e.g. v1.0.0, default: v1.0.0)
+#   -Version           - version to install (e.g. v1.0.0, default: v1.0.1)
 #
 # Behavior:
 #   - If a previous installation exists in the install directory, the existing
