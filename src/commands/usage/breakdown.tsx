@@ -164,11 +164,13 @@ function BreakdownTable({ vm }: { vm: UsageBreakdownViewModel }) {
     align: col.align || ('left' as 'left' | 'right'),
   }));
 
+  const currentLabel = '← current';
+
   const tableRows = vm.rows.map((row) => {
     const cells: Record<string, string> = {};
     for (const col of vm.columns) {
       if (col.key === 'period') {
-        cells.period = row.isToday ? `${row.period}  ← today` : row.period;
+        cells.period = row.isCurrent ? `${row.period}  ${currentLabel}` : row.period;
       } else {
         cells[col.key] = row.cells[col.key] ?? '—';
       }

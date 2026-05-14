@@ -19,6 +19,7 @@ import { Section, Table, theme, progressColor } from '../../ui/index.js';
 import { buildProgressBar } from '../../ui/theme.js';
 import { withSpinner } from '../../ui/spinner.js';
 import { renderWithInk } from '../../ui/render.js';
+import { formatCmd } from '../../utils/runtime-mode.js';
 
 /**
  * Register the `usage summary` action.
@@ -116,7 +117,7 @@ function FreeTierSection({ data }: { data: NonNullable<UsageSummaryViewModel['fr
 
   const footer =
     hiddenCount > 0
-      ? `+ ${hiddenCount} more  ${theme.symbols.dot}  qwencloud usage free-tier to browse all`
+      ? `+ ${hiddenCount} more  ${theme.symbols.dot}  ${formatCmd('usage free-tier')} to browse all`
       : data.footer;
 
   return (
@@ -132,7 +133,7 @@ function buildFreeTierRowData(row: FreeTierRowViewModel): Record<string, string>
       modelId: row.modelId,
       remaining: '—',
       total: '—',
-      bar: theme.dim('Free access'),
+      bar: theme.dim('Enable to unlock free-tier'),
     };
   }
 
@@ -206,7 +207,7 @@ function PayAsYouGoSection({ data }: { data: NonNullable<UsageSummaryViewModel['
 
   const footer =
     hiddenCount > 0
-      ? `+ ${hiddenCount} more  ${theme.symbols.dot}  qwencloud usage payg to browse all`
+      ? `+ ${hiddenCount} more  ${theme.symbols.dot}  ${formatCmd('usage payg')} to browse all`
       : undefined;
 
   const tableFooter = {

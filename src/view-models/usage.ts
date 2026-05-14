@@ -256,6 +256,7 @@ export interface UsageBreakdownViewModel {
   title: string; // "Daily Breakdown" / "Monthly Breakdown" / "Quarterly Breakdown"
   modelId: string;
   period: string; // "2026-04-01 → 2026-04-07"
+  granularity: 'day' | 'month' | 'quarter';
   subtitle?: string; // "Pay-as-you-go (overflow only)"
   note?: string; // Coding Plan exclusion note
   columns: BreakdownColumn[];
@@ -274,7 +275,7 @@ export interface BreakdownColumn {
 export interface BreakdownRowViewModel {
   period: string;
   cells: Record<string, string>;
-  isToday?: boolean;
+  isCurrent?: boolean;
 }
 
 export interface BreakdownTotalViewModel {
@@ -304,11 +305,11 @@ export function buildUsageBreakdownViewModel(
   const title = buildBreakdownTitle(response.granularity);
 
   const rows = response.rows.map((row, _index) => {
-    const isToday = isRowToday(row.period, response.granularity);
+    const isCurrent = isRowCurrent(row.period, response.granularity);
     return {
       period: row.period,
       cells: buildBreakdownCells(row, billingUnit, { tokensSplit }),
-      isToday,
+      isCurrent,
     };
   });
 
@@ -347,6 +348,7 @@ export function buildUsageBreakdownViewModel(
     title,
     modelId: response.model_id,
     period: `${response.period.from} → ${response.period.to}`,
+    granularity: response.granularity,
     columns,
     rows,
     total,
@@ -454,7 +456,7 @@ function buildBreakdownCells(
   return cells;
 }
 
-function isRowToday(period: string, granularity: 'day' | 'month' | 'quarter'): boolean {
+function isRowCurrent(period: string, granularity: 'day' | 'month' | 'quarter'): boolean {
   const today = new Date();
   switch (granularity) {
     case 'day': {

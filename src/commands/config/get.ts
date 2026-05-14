@@ -2,6 +2,7 @@ import { isPublicKey } from '../../config/schema.js';
 import { getConfigValue, getConfigValueWithSource } from '../../config/manager.js';
 import { resolveFormat, outputJSON, outputText, outputErrorJSON } from '../../output/format.js';
 import { configError } from '../../utils/errors.js';
+import { formatCmd } from '../../utils/runtime-mode.js';
 import type { ConfigKey, OutputFormat } from '../../types/config.js';
 
 export function configGet(key: string, opts: { format?: string }, parentFormat?: string): void {
@@ -14,12 +15,12 @@ export function configGet(key: string, opts: { format?: string }, parentFormat?:
     if (format === 'json') {
       outputErrorJSON(
         configError(
-          `Unknown config key '${key}'. Run \`qwencloud config list\` to see available keys.`,
+          `Unknown config key '${key}'. Run \`${formatCmd('config list')}\` to see available keys.`,
         ).toJSON(),
       );
     } else {
       console.error(
-        `Error: Unknown config key '${key}'. Run \`qwencloud config list\` to see available keys.`,
+        `Error: Unknown config key '${key}'. Run \`${formatCmd('config list')}\` to see available keys.`,
       );
     }
     process.exit(1);

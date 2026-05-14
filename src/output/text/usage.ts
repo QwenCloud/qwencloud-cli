@@ -122,23 +122,24 @@ export function renderTextUsageBreakdown(vm: UsageBreakdownViewModel): void {
   lines.push('');
 
   // Build table
+  const currentLabel = '← current';
   const headers = vm.columns.map((c) => c.header);
   const rows = vm.rows.map((row) => {
     const cells = [row.period];
     for (const col of vm.columns) {
       if (col.key !== 'period') {
         let val = row.cells[col.key] ?? '';
-        if (row.isToday && col.key === 'period') {
-          val = `${val}  ← today`;
+        if (row.isCurrent && col.key === 'period') {
+          val = `${val}  ${currentLabel}`;
         }
         cells.push(val);
       }
     }
-    // Add today marker
-    if (row.isToday) {
+    // Add current marker
+    if (row.isCurrent) {
       const periodIdx = vm.columns.findIndex((c) => c.key === 'period');
       if (periodIdx >= 0) {
-        cells[0] = `${cells[0]}  ← today`;
+        cells[0] = `${cells[0]}  ${currentLabel}`;
       }
     }
     return cells;

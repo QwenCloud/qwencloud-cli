@@ -174,7 +174,7 @@ describe('buildUsageBreakdownViewModel', () => {
     expect(vm.total.cells.cost).toBe('$0.35');
   });
 
-  it('marks today row correctly', () => {
+  it('marks current row correctly', () => {
     const today = new Date().toISOString().slice(0, 10);
     const response: UsageBreakdownResponse = {
       ...mockResponse,
@@ -183,7 +183,8 @@ describe('buildUsageBreakdownViewModel', () => {
     };
 
     const vm = buildUsageBreakdownViewModel(response);
-    expect(vm.rows[0].isToday).toBe(true);
+    expect(vm.rows[0].isCurrent).toBe(true);
+    expect(vm.granularity).toBe('day');
   });
 
   it('changes title based on granularity', () => {

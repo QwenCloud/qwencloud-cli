@@ -324,7 +324,7 @@ describe('usage breakdown command (one-shot)', () => {
       expect(el.props.vm.emptyHint).toBeTruthy();
     });
 
-    it('renders BreakdownInk with month granularity (no isToday markings)', async () => {
+    it('renders BreakdownInk with month granularity (no isCurrent markings for non-current months)', async () => {
       holder.client = makeMockApiClient({
         listModels: async () => ({ models: [makeModel({ id: 'qwen3-max' })], total: 1 }),
         getUsageBreakdown: async () => ({
@@ -347,8 +347,8 @@ describe('usage breakdown command (one-shot)', () => {
       expect(el.props.vm.rows.length).toBe(3);
     });
 
-    it('renders BreakdownInk that includes today row (period column gets "← today")', async () => {
-      // Today's date in YYYY-MM-DD (UTC-ish — view-model marks isToday
+    it('renders BreakdownInk that includes current day row (period column gets "← current")', async () => {
+      // Today's date in YYYY-MM-DD (UTC-ish — view-model marks isCurrent
       // based on string equality with todayUTC)
       const todayIso = new Date().toISOString().slice(0, 10);
       holder.client = makeMockApiClient({
@@ -367,7 +367,7 @@ describe('usage breakdown command (one-shot)', () => {
         ['usage', 'breakdown', '--model', 'qwen3-max', '--format', 'table']);
       expect(r.exitCode).toBeUndefined();
       expect(renderWithInkSpy).toHaveBeenCalledTimes(1);
-      // Don't strictly assert isToday flag (depends on TZ); just ensure no crash
+      // Don't strictly assert isCurrent flag (depends on TZ); just ensure no crash
       const el = renderWithInkSpy.mock.calls[0][0];
       expect(el.props.vm.rows[0].period).toBe(todayIso);
     });

@@ -315,7 +315,7 @@ describe('buildModelsUiData (UI data with progress bar)', () => {
     expect(uiData.rows[0].priceUnit).toBe('/1M tok');
   });
 
-  it('detects all-zero tiers as free', () => {
+  it('treats all-zero tiers without isFreeOnly as no price data (em-dash)', () => {
     const models = [
       {
         id: 'free-model',
@@ -333,7 +333,9 @@ describe('buildModelsUiData (UI data with progress bar)', () => {
       },
     ] as unknown as Model[];
     const uiData = buildModelsUiData(models);
-    expect(uiData.rows[0].price).toBe('Free');
+    // All-zero tiers no longer imply 'Free' — only free_tier.mode==='only' does.
+    // Here mode is 'standard', so the row degrades to em-dash (no price data).
+    expect(uiData.rows[0].price).toBe('\u2014');
   });
 });
 

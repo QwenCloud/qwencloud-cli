@@ -443,7 +443,22 @@ describe('HttpApiClient.ping', () => {
 });
 
 describe('HttpApiClient.checkVersion', () => {
-  it('returns local version with no remote check (V1 stub)', async () => {
+  it('queries GitHub and reports an available update when remote > local', async () => {
+    activeMock = mockFetch({
+      'api.github.com/repos/QwenCloud/qwencloud-cli/releases/latest': {
+        body: { tag_name: 'v99.0.0' },
+      },
+    });
+    const { HttpApiClient } = await import('../../src/api/http-client.js');
+    const client = new HttpApiClient();
+    const result = await client.checkVersion();
+    expect(result.latest).toBe('99.0.0');
+    expect(result.update_available).toBe(true);
+    expect(activeMock.wasCalled('api.github.com')).toBe(true);
+  });
+
+  it('silently falls back to no-update when the GitHub call fails', async () => {
+    // Empty route map → fetch returns 599 "not mocked" → fetchLatestVersion returns null.
     activeMock = mockFetch({});
     const { HttpApiClient } = await import('../../src/api/http-client.js');
     const client = new HttpApiClient();
@@ -454,8 +469,6 @@ describe('HttpApiClient.checkVersion', () => {
       update_available: false,
     });
     expect(result.current).toBe(result.latest);
-    // No HTTP call expected.
-    expect(activeMock.calls).toHaveLength(0);
   });
 });
 

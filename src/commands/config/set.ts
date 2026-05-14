@@ -2,6 +2,7 @@ import { isPublicKey, validateConfigValue } from '../../config/schema.js';
 import { setConfigValue, getConfigValue } from '../../config/manager.js';
 import { resolveFormat, outputJSON, outputErrorJSON } from '../../output/format.js';
 import { theme } from '../../ui/theme.js';
+import { formatCmd } from '../../utils/runtime-mode.js';
 import type { ConfigKey, OutputFormat } from '../../types/config.js';
 
 export interface ConfigSetOptions {
@@ -20,7 +21,7 @@ export function configSet(
   );
 
   if (!isPublicKey(key)) {
-    const msg = `Unknown config key '${key}'. Run \`qwencloud config list\` to see available keys.`;
+    const msg = `Unknown config key '${key}'. Run \`${formatCmd('config list')}\` to see available keys.`;
     if (format === 'json') {
       outputErrorJSON({ error: { code: 'CONFIG_ERROR', message: msg } });
     } else {

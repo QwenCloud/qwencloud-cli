@@ -8,6 +8,7 @@
  * JSON output should NEVER use this function - always output raw numbers.
  */
 export function humanizeNumber(n: number): string {
+  if (!Number.isFinite(n)) return '\u2014';
   if (n >= 1_000_000) {
     const val = n / 1_000_000;
     return val % 1 === 0 ? `${val}M` : `${parseFloat(val.toFixed(1))}M`;
@@ -24,6 +25,7 @@ export function humanizeNumber(n: number): string {
  * Examples: "850K tok", "1M tok", "50 img", "10K char"
  */
 export function humanizeWithUnit(n: number, unit: string): string {
+  if (!Number.isFinite(n)) return '\u2014';
   const shortUnit = unitAbbrev(unit);
   return `${humanizeNumber(n)} ${shortUnit}`;
 }

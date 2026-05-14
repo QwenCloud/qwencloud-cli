@@ -25,17 +25,12 @@ const baseModels = [
     id: 'free-mod',
     modality: { input: ['text'], output: ['text'] },
     can_try: true,
+    // free-only model: price column renders 'Free' via the isFreeOnly branch.
     free_tier: {
-      mode: 'standard',
-      quota: {
-        remaining: 1_000_000,
-        total: 1_000_000,
-        unit: 'tokens',
-        used_pct: 0,
-        status: 'valid',
-      },
+      mode: 'only',
+      quota: null,
     },
-    pricing: { tiers: [{ label: 'free', input: 0, output: 0, unit: 'USD/1M' }] },
+    pricing: { tiers: [] },
   },
   {
     id: 'paid-mod',
@@ -164,7 +159,7 @@ describe('<ModelsTableInk /> rendering', () => {
     expect(freeLine).toBeDefined();
     expect(paidLine).toBeDefined();
     expect(expiredLine).toBeDefined();
-    // free-mod tier label is 'free' → priced at $0/$0 → 'Free' label
+    // free-mod is a free-only model (free_tier.mode='only') → 'Free' label
     expect(freeLine!).toContain('Free');
     // paid-mod has $1.50 input price
     expect(paidLine!).toContain('$1.50');
