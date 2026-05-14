@@ -71,15 +71,24 @@ export function formatFreeTier(model: Model): string {
  * Format price column from a Pricing object.
  */
 export function formatPriceFromPricing(pricing: Pricing, isFreeOnly: boolean): string {
+  const DASH = '\u2014';
+  const isValidNum = (v: unknown): v is number =>
+    typeof v === 'number' && Number.isFinite(v);
+
   if (isFreeOnly) return 'Free';
 
   if ('tiers' in pricing) {
     const tiers = pricing.tiers;
-    if (tiers.length === 0) return '\u2014';
-    if (tiers.every((t) => t.input === 0 && t.output === 0)) return 'Free';
+    if (!Array.isArray(tiers) || tiers.length === 0) return DASH;
 
-    const paid = tiers.filter((t) => t.input > 0 || t.output > 0);
-    if (paid.length === 0) return 'Free';
+    // Only tiers with numeric, finite input/output are considered understandable.
+    const valid = tiers.filter((t) => isValidNum(t?.input) && isValidNum(t?.output));
+    if (valid.length === 0) return DASH;
+
+    const paid = valid.filter((t) => t.input > 0 || t.output > 0);
+    // All-zero or no paid tier → treat as "no price data" rather than "Free",
+    // since only `free_tier.mode === 'only'` carries reliable free-only semantics.
+    if (paid.length === 0) return DASH;
 
     const cheapest = paid.reduce((min, t) => (t.input < min.input ? t : min), paid[0]);
     const suffix = paid.length > 1 ? ' +' : '';
@@ -87,7 +96,9 @@ export function formatPriceFromPricing(pricing: Pricing, isFreeOnly: boolean): s
   }
 
   if ('per_second' in pricing) {
-    const prices = pricing.per_second.map((r) => r.price);
+    const rows = Array.isArray(pricing.per_second) ? pricing.per_second : [];
+    const prices = rows.map((r) => r?.price).filter(isValidNum);
+    if (prices.length === 0) return DASH;
     const min = Math.min(...prices);
     const max = Math.max(...prices);
     if (min === max) return `$${min.toFixed(2)} /sec`;
@@ -95,22 +106,30 @@ export function formatPriceFromPricing(pricing: Pricing, isFreeOnly: boolean): s
   }
 
   if ('per_image' in pricing) {
-    return `$${pricing.per_image.price.toFixed(2)} /img`;
+    const p = pricing.per_image?.price;
+    if (!isValidNum(p)) return DASH;
+    return `$${p.toFixed(2)} /img`;
   }
 
   if ('per_character' in pricing) {
-    return `$${pricing.per_character.price.toFixed(2)} /10K char`;
+    const p = pricing.per_character?.price;
+    if (!isValidNum(p)) return DASH;
+    return `$${p.toFixed(2)} /10K char`;
   }
 
   if ('per_second_audio' in pricing) {
-    return `$${pricing.per_second_audio.price.toFixed(5)} /sec`;
+    const p = pricing.per_second_audio?.price;
+    if (!isValidNum(p)) return DASH;
+    return `$${p.toFixed(5)} /sec`;
   }
 
   if ('per_token' in pricing) {
-    return `$${pricing.per_token.price.toFixed(2)} /1M tok`;
+    const p = pricing.per_token?.price;
+    if (!isValidNum(p)) return DASH;
+    return `$${p.toFixed(2)} /1M tok`;
   }
 
-  return '\u2014';
+  return DASH;
 }
 
 // ── Model List ViewModel ──────────────────────────────────────────────
@@ -157,10 +176,14 @@ export function buildModelListViewModelFromModels(
 
     const { amount: priceAmt, unit: priceUnit } = splitPrice(priceStr);
     const { amount: ftAmt, unit: ftUnit, expired: ftExpired } = formatFreeTierSplit(model);
+    const usedPct = model.free_tier.quota?.used_pct;
+    const usedPctFinite = typeof usedPct === 'number' && Number.isFinite(usedPct);
     const freeTierRemainingPct = model.free_tier.quota
       ? model.free_tier.quota.status === 'expire'
         ? 0
-        : Math.round((100 - model.free_tier.quota.used_pct) * 10) / 10
+        : usedPctFinite
+          ? Math.round((100 - usedPct) * 10) / 10
+          : undefined
       : undefined;
     return {
       id: model.id,
@@ -285,7 +308,8 @@ export function buildModelDetailViewModel(detail: ModelDetail): ModelDetailViewM
   // Free Tier summary
   if (detail.free_tier.mode === 'standard' && detail.free_tier.quota) {
     const q = detail.free_tier.quota;
-    const pct = Math.round((100 - q.used_pct) * 10) / 10;
+    const usedPctFinite = typeof q.used_pct === 'number' && Number.isFinite(q.used_pct);
+    const pct = usedPctFinite ? Math.round((100 - q.used_pct) * 10) / 10 : undefined;
     const statusLabel =
       q.status === 'exhaust' ? '(exhaust)' : q.status === 'expire' ? '(expired)' : undefined;
     vm.freeTier = {

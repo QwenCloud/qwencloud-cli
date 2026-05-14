@@ -1807,9 +1807,13 @@ export class HttpApiClient implements ApiClient {
   }
 
   async checkVersion(): Promise<{ current: string; latest: string; update_available: boolean }> {
-    // Return locally-known version; no remote check in V1.
     const current = typeof __VERSION__ !== 'undefined' ? __VERSION__ : '1.0.0';
-    return { current, latest: current, update_available: false };
+    const { fetchLatestVersion, compareVersions } = await import('../upgrade/check.js');
+    const latest = await fetchLatestVersion();
+    if (!latest) {
+      return { current, latest: current, update_available: false };
+    }
+    return { current, latest, update_available: compareVersions(current, latest) < 0 };
   }
 }
 
