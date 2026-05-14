@@ -17,7 +17,7 @@ set -e
 
 # ─── Default Version ────────────────────────────────────────────────────────
 # Update this value when releasing a new version.
-VERSION="v1.0.0"
+VERSION="v1.0.1"
 
 # ─── Brand Colors ────────────────────────────────────────────────────────────
 # Generate real ESC character for POSIX sh compatibility

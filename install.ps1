@@ -1,4 +1,4 @@
-# QwenCloud CLI Installer for Windows
+﻿# QwenCloud CLI Installer for Windows
 # Usage:
 #   irm https://raw.githubusercontent.com/QwenCloud/qwencloud-cli/main/install.ps1 | iex
 #   .\install.ps1 -Version v1.2.0
@@ -7,9 +7,13 @@
 #   -Version           - version to install (e.g. v1.0.0, default: v1.0.0)
 #
 # Behavior:
-#   If a previous installation exists in the install directory, the existing
-#   binary will be backed up with a '-old' suffix (e.g. qwencloud.exe → qwencloud-old.exe)
-#   before being overwritten. This allows easy rollback if needed.
+#   - If a previous installation exists in the install directory, the existing
+#     binary will be backed up with a '-old' suffix (e.g. qwencloud.exe → qwencloud-old.exe)
+#     before being overwritten.
+#   - Under Constrained Language Mode (CLM, typically enforced by AppLocker / WDAC),
+#     the script transparently switches to a curl.exe-based transport and
+#     registry/setx-based PATH management. curl.exe is bundled with Windows 10
+#     1803+ and Windows 11.
 
 param(
     [string]$Version = ""
@@ -17,9 +21,16 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# ─── Constrained Language Mode (CLM) Detection ──────────────────────────────
+# CLM (enforced by AppLocker / WDAC) blocks the .NET method calls used by the
+# rich install path (HttpWebRequest, Environment, IO.Path, IO.File, Add-Type
+# for VT processing, etc.). When detected, we set a flag and the relevant
+# branches downgrade to curl.exe + registry/setx + ASCII output.
+$script:IsCLM = ($ExecutionContext.SessionState.LanguageMode -eq 'ConstrainedLanguage')
+
 # ─── Default Version ────────────────────────────────────────────────────────
 # Update this value when releasing a new version.
-$DefaultVersion = "v1.0.0"
+$DefaultVersion = "v1.0.1"
 
 # ─── Brand Colors ────────────────────────────────────────────────────────────
 # #987BFE via ANSI 24-bit true color escape sequences (matching install.sh)
@@ -36,6 +47,7 @@ $YELLOW = "${ESC}[33m"
 
 # Enable VT processing on Windows (for ANSI escape support)
 function Enable-VTProcessing {
+    if ($script:IsCLM) { return }  # Add-Type / [Console] disallowed under CLM
     if ($PSVersionTable.PSVersion.Major -ge 7) { return }
     try {
         $null = [Console]::OutputEncoding
@@ -155,6 +167,35 @@ function Test-InPath {
 function Add-ToUserPath {
     param([string]$Dir)
 
+    if ($script:IsCLM) {
+        # CLM: read User PATH from registry, persist via setx (1024-char limit).
+        try {
+            $prop = Get-ItemProperty -Path 'HKCU:\Environment' -Name Path -ErrorAction SilentlyContinue
+            $currentPath = if ($prop -and $prop.Path) { $prop.Path } else { '' }
+            if ($currentPath) {
+                foreach ($p in ($currentPath -split ';')) {
+                    if ($p.TrimEnd('\') -eq $Dir.TrimEnd('\')) {
+                        $env:PATH = "$Dir;$env:PATH"
+                        return $true
+                    }
+                }
+                $newPath = "$Dir;$currentPath"
+            } else {
+                $newPath = $Dir
+            }
+            if ($newPath.Length -ge 1024) {
+                # setx truncates at 1024 chars; refuse to damage existing PATH.
+                $env:PATH = "$Dir;$env:PATH"
+                return $false
+            }
+            & setx PATH "$newPath" | Out-Null
+            $env:PATH = "$Dir;$env:PATH"
+            return $true
+        } catch {
+            return $false
+        }
+    }
+
     try {
         $currentPath = [Environment]::GetEnvironmentVariable("PATH", "User")
         if ($currentPath) {
@@ -176,6 +217,34 @@ function Add-ToUserPath {
     } catch {
         return $false
     }
+}
+
+# ─── Download (CLM-safe via curl.exe) ───────────────────────────────────────
+# Used only when running under Constrained Language Mode. curl.exe ships with
+# Windows 10 1803+ / Windows 11 and uses schannel TLS independent of .NET, so
+# it sidesteps both the CLM ban on [Net.ServicePointManager] and the PS 5.1
+# default TLS 1.0 issue when talking to GitHub.
+function Invoke-CurlDownload {
+    param(
+        [string]$Url,
+        [string]$Out
+    )
+    $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
+    if (-not $curl) {
+        Write-Error2 "curl.exe not found. Required on Windows 10 1803+ / Windows 11."
+        return $false
+    }
+    try {
+        & curl.exe --tlsv1.2 -fsSL --retry 2 --connect-timeout 15 -o $Out $Url
+        if ($LASTEXITCODE -eq 0 -and (Test-Path $Out) -and (Get-Item $Out).Length -gt 0) {
+            return $true
+        }
+        Write-Error2 "curl.exe failed with exit code $LASTEXITCODE"
+    } catch {
+        Write-Error2 "curl.exe error: $_"
+    }
+    if (Test-Path $Out) { Remove-Item $Out -Force -ErrorAction SilentlyContinue }
+    return $false
 }
 
 # ─── Main Installation ──────────────────────────────────────────────────────
@@ -213,49 +282,61 @@ function Install-QwenCloudCLI {
     $downloadUrl = "https://github.com/QwenCloud/qwencloud-cli/releases/download/$ver/$filename"
     Write-Info "Downloading ${BRAND}${filename}${RESET}..."
 
-    # Create temp directory
-    $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ("qwencloud-install-" + [System.Guid]::NewGuid().ToString("N").Substring(0, 8))
+    # Create temp directory (CLM-safe path avoids [System.IO.Path] / [System.Guid])
+    if ($script:IsCLM) {
+        $rand   = -join (1..8 | ForEach-Object { '{0:x}' -f (Get-Random -Maximum 16) })
+        $tmpDir = Join-Path $env:TEMP "qwencloud-install-$rand"
+    } else {
+        $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ("qwencloud-install-" + [System.Guid]::NewGuid().ToString("N").Substring(0, 8))
+    }
     New-Item -ItemType Directory -Path $tmpDir -Force | Out-Null
     $tmpZip = Join-Path $tmpDir $filename
 
     try {
-        # Download with progress bar
-        try {
-            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-
-            $webRequest = [System.Net.HttpWebRequest]::Create($downloadUrl)
-            $webRequest.AllowAutoRedirect = $true
-            $webRequest.UserAgent = "QwenCloud-Installer"
-            $response = $webRequest.GetResponse()
-            $totalBytes = $response.ContentLength
-            $responseStream = $response.GetResponseStream()
-            $fileStream = [System.IO.File]::Create($tmpZip)
-            $buffer = New-Object byte[] 8192
-            $bytesRead = 0
-            $totalRead = 0
-            $barWidth = 30
-
-            while (($bytesRead = $responseStream.Read($buffer, 0, $buffer.Length)) -gt 0) {
-                $fileStream.Write($buffer, 0, $bytesRead)
-                $totalRead += $bytesRead
-
-                if ($totalBytes -gt 0) {
-                    $pct = [math]::Floor(($totalRead / $totalBytes) * 100)
-                    $filled = [math]::Floor(($totalRead / $totalBytes) * $barWidth)
-                    $empty = $barWidth - $filled
-                    $bar = ("█" * $filled) + ("░" * $empty)
-                    $sizeMB = "{0:N1}" -f ($totalRead / 1MB)
-                    $totalMB = "{0:N1}" -f ($totalBytes / 1MB)
-                    Write-Host -NoNewline "`r  $bar ${pct}%  ${sizeMB}/${totalMB} MB"
-                }
+        if ($script:IsCLM) {
+            # CLM transport: curl.exe only (no progress bar, no ANSI).
+            if (-not (Invoke-CurlDownload -Url $downloadUrl -Out $tmpZip)) {
+                Write-Fatal "Download via curl.exe failed.`n  URL: $downloadUrl`n  Hints: check proxy / network connectivity, ensure curl.exe is available (Windows 10 1803+)."
             }
+        } else {
+            # Download with progress bar
+            try {
+                [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-            $fileStream.Close()
-            $responseStream.Close()
-            $response.Close()
-            Write-Host ""
-        } catch {
-            Write-Fatal "Download failed. Please check your network connection and verify the version exists.`n  URL: $downloadUrl`n  Error: $_"
+                $webRequest = [System.Net.HttpWebRequest]::Create($downloadUrl)
+                $webRequest.AllowAutoRedirect = $true
+                $webRequest.UserAgent = "QwenCloud-Installer"
+                $response = $webRequest.GetResponse()
+                $totalBytes = $response.ContentLength
+                $responseStream = $response.GetResponseStream()
+                $fileStream = [System.IO.File]::Create($tmpZip)
+                $buffer = New-Object byte[] 8192
+                $bytesRead = 0
+                $totalRead = 0
+                $barWidth = 30
+
+                while (($bytesRead = $responseStream.Read($buffer, 0, $buffer.Length)) -gt 0) {
+                    $fileStream.Write($buffer, 0, $bytesRead)
+                    $totalRead += $bytesRead
+
+                    if ($totalBytes -gt 0) {
+                        $pct = [math]::Floor(($totalRead / $totalBytes) * 100)
+                        $filled = [math]::Floor(($totalRead / $totalBytes) * $barWidth)
+                        $empty = $barWidth - $filled
+                        $bar = ("█" * $filled) + ("░" * $empty)
+                        $sizeMB = "{0:N1}" -f ($totalRead / 1MB)
+                        $totalMB = "{0:N1}" -f ($totalBytes / 1MB)
+                        Write-Host -NoNewline "`r  $bar ${pct}%  ${sizeMB}/${totalMB} MB"
+                    }
+                }
+
+                $fileStream.Close()
+                $responseStream.Close()
+                $response.Close()
+                Write-Host ""
+            } catch {
+                Write-Fatal "Download failed. Please check your network connection and verify the version exists.`n  URL: $downloadUrl`n  Error: $_"
+            }
         }
 
         # Verify download
