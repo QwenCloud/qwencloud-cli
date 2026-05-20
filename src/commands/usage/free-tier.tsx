@@ -69,7 +69,20 @@ export function usageFreeTierAction(cmd: Command): (...args: any[]) => void | Pr
       }
 
       // Table (TTY) — interactive paginated view
-      await renderFreeTierInteractive(vm.freeTier.rows, vm.freeTier.totalCount);
+      if (process.stdout.isTTY) {
+        await renderFreeTierInteractive(vm.freeTier.rows, vm.freeTier.totalCount);
+      } else {
+        // Non-TTY fallback: use text rendering path
+        for (const row of vm.freeTier.rows) {
+          if (row.isFreeOnly) {
+            console.log(`${row.modelId}  Enable to unlock free-tier`);
+          } else {
+            console.log(
+              `${row.modelId}  ${row.remaining} / ${row.total}  (${row.progressBar.label})`,
+            );
+          }
+        }
+      }
     } catch (error) {
       handleError(error, format);
     }

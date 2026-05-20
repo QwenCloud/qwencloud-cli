@@ -25,6 +25,7 @@ export function makeMockApiClient(overrides: Partial<ApiClient> = {}): ApiClient
       period: { from: '2026-04-01', to: '2026-04-20' },
       free_tier: [],
       coding_plan: { subscribed: false },
+      token_plan: { subscribed: false },
       pay_as_you_go: { models: [], total: { cost: 0, currency: 'USD' } },
     }),
     getUsageBreakdown: async (opts) => ({

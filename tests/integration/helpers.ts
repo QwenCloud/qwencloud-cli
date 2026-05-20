@@ -39,18 +39,22 @@ export async function runCommand(args: string[]): Promise<CommandResult> {
   let exitCode = 0;
 
   // Save originals
+  // eslint-disable-next-line no-console
   const origLog = console.log;
+  // eslint-disable-next-line no-console
   const origError = console.error;
   const origStdoutWrite = process.stdout.write.bind(process.stdout);
   const origStderrWrite = process.stderr.write.bind(process.stderr);
   const origExit = process.exit;
 
   // Intercept console.log → stdout
+  // eslint-disable-next-line no-console
   console.log = (...args: any[]) => {
     stdoutChunks.push(args.map(String).join(' ') + '\n');
   };
 
   // Intercept console.error → stderr
+  // eslint-disable-next-line no-console
   console.error = (...args: any[]) => {
     stderrChunks.push(args.map(String).join(' ') + '\n');
   };
@@ -86,7 +90,9 @@ export async function runCommand(args: string[]): Promise<CommandResult> {
     // Commander exitOverride / process.exit mock throws — swallow it.
     // Output and exit code have already been captured.
   } finally {
+    // eslint-disable-next-line no-console
     console.log = origLog;
+    // eslint-disable-next-line no-console
     console.error = origError;
     process.stdout.write = origStdoutWrite;
     process.stderr.write = origStderrWrite;

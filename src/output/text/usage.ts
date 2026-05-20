@@ -49,6 +49,21 @@ export function renderTextUsageSummary(vm: UsageSummaryViewModel): void {
     lines.push('');
   }
 
+  // Token Plan section
+  if (vm.tokenPlan) {
+    const tp = vm.tokenPlan;
+    lines.push(formatSectionLine('Token Plan', `${tp.planName}  \u00b7  ${tp.status}`));
+    lines.push('');
+    lines.push(`  Usage:      ${tp.usageDisplay}`);
+    lines.push(`  Quota Left: ${tp.progressBar.label}`);
+    lines.push(`  Status:     ${tp.status}`);
+    lines.push(`  Resets:     ${tp.resetDate}`);
+    if (tp.addonRemaining) {
+      lines.push(`  Add-on:     ${tp.addonRemaining}`);
+    }
+    lines.push('');
+  }
+
   console.log(lines.join('\n'));
 }
 

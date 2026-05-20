@@ -1,5 +1,3 @@
-import type { ModelDetail } from '../../../src/types/model.js';
-
 export const mockModels = [
   // 1. qwen3.6-plus — Multimodal LLM (Text+Img+Video→Text), tiered pricing with cache, built-in tools, context 1M
   {

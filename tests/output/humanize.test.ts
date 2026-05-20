@@ -4,6 +4,7 @@ import {
   humanizeWithUnit,
   formatPrice,
   formatCost,
+  formatAmount,
   humanizeCurrency,
   humanizePercentage,
   humanizeDuration,
@@ -26,7 +27,7 @@ describe('humanizeNumber', () => {
   it('formats millions with M suffix', () => {
     expect(humanizeNumber(1000000)).toBe('1M');
     expect(humanizeNumber(1500000)).toBe('1.5M');
-    expect(humanizeNumber(2480000)).toBe('2.5M'); // 2.48 rounds to 2.5 with 1 decimal
+    expect(humanizeNumber(2480000)).toBe('2.5M');
     expect(humanizeNumber(991800)).toBe('991.8K'); // just under 1M
   });
 
@@ -35,6 +36,7 @@ describe('humanizeNumber', () => {
     expect(humanizeNumber(55160)).toBe('55.2K');
     expect(humanizeNumber(850000)).toBe('850K');
   });
+
 });
 
 describe('humanizeWithUnit', () => {
@@ -60,17 +62,38 @@ describe('humanizeWithUnit', () => {
   });
 });
 
+describe('formatAmount', () => {
+  it('in full mode (default), shows cleaned number without trailing zeros', () => {
+    expect(formatAmount(0.112)).toBe('0.112');
+    expect(formatAmount(0.5)).toBe('0.5');
+    expect(formatAmount(1.0)).toBe('1');
+    expect(formatAmount(0.00345)).toBe('0.00345');
+  });
+
+  it('cleans floating-point artifacts', () => {
+    // Simulates 0.14 * 0.8 that might still carry residual noise
+    // eslint-disable-next-line no-loss-of-precision
+    const artifact = 0.11200000000000001;
+    expect(formatAmount(artifact)).toBe('0.112');
+  });
+
+  it('preserves significant digits for small prices', () => {
+    expect(formatAmount(0.000003)).toBe('0.000003');
+    expect(formatAmount(0.0025)).toBe('0.0025');
+  });
+});
+
 describe('formatPrice / formatCost', () => {
-  it('formats prices with 2 decimals', () => {
-    expect(formatPrice(0.50)).toBe('$0.50');
-    expect(formatPrice(2.00)).toBe('$2.00');
+  it('formats prices in full mode (default, no trailing zeros)', () => {
+    expect(formatPrice(0.50)).toBe('$0.5');
+    expect(formatPrice(2.00)).toBe('$2');
     expect(formatPrice(0.14)).toBe('$0.14');
   });
 
-  it('formats costs consistently', () => {
+  it('formats costs consistently in full mode', () => {
     expect(formatCost(0.38)).toBe('$0.38');
     expect(formatCost(2.07)).toBe('$2.07');
-    expect(formatCost(0.000035)).toBe('$0.00'); // Very small rounds to $0.00
+    expect(formatCost(0.000035)).toBe('$0.000035');
   });
 });
 
@@ -86,8 +109,8 @@ describe('humanizeCurrency', () => {
     expect(humanizeCurrency(0.005)).toBe('$0.00500');
   });
 
-  it('supports CNY', () => {
-    expect(humanizeCurrency(100, 'CNY')).toBe('¥100.00');
+  it('uses space for non-USD currency', () => {
+    expect(humanizeCurrency(100, 'CNY')).toBe(' 100.00');
   });
 });
 

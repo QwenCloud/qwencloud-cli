@@ -55,6 +55,7 @@ describe('renderTextUsageSummary', () => {
         monthly: { remaining: 82500, total: 90000, used_pct: 8, next_reset_at: '2099-01-01T00:00:00Z' },
       },
     },
+    token_plan: { subscribed: false },
     pay_as_you_go: {
       models: [
         {

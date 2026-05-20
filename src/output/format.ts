@@ -123,7 +123,7 @@ export function formatTextTable(headers: string[], rows: string[][], padding: nu
 
   // Build data lines
   const dataLines = rows.map(
-    (row) => pad + row.map((cell, i) => cell.padEnd(colWidths[i])).join('  '),
+    (row) => pad + row.map((cell, i) => (cell ?? '\u2014').padEnd(colWidths[i])).join('  '),
   );
 
   return [headerLine, ...dataLines].join('\n');

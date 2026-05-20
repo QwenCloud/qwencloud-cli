@@ -80,13 +80,21 @@ export function usagePaygAction(cmd: Command): (...args: any[]) => void | Promis
 
       if (format === 'text') {
         for (const row of payg.rows) {
-          console.log(`${row.modelId}  ${row.requests} req  ${row.usage}  ${row.cost}`);
+          console.log(`${row.modelId}  ${row.usage}  ${row.cost}`);
         }
-        console.log(`Total  ${payg.total.requests} req  ${payg.total.cost}`);
+        console.log(`Total  ${payg.total.cost}`);
         return;
       }
 
-      await renderPaygInteractive(payg.rows, payg.totalCount, payg.total, payg.period);
+      if (process.stdout.isTTY) {
+        await renderPaygInteractive(payg.rows, payg.totalCount, payg.total, payg.period);
+      } else {
+        // Non-TTY fallback: use text rendering path
+        for (const row of payg.rows) {
+          console.log(`${row.modelId}  ${row.usage}  ${row.cost}`);
+        }
+        console.log(`Total  ${payg.total.cost}`);
+      }
     } catch (error) {
       handleError(error, format);
     }
@@ -100,19 +108,17 @@ const PER_PAGE = 15;
 async function renderPaygInteractive(
   rows: PayAsYouGoRowViewModel[],
   totalCount: number,
-  total: { requests: string; cost: string },
+  total: { cost: string },
   period: string,
 ): Promise<void> {
   const columns = [
     { key: 'modelId', header: 'Model' },
-    { key: 'requests', header: 'Requests' },
     { key: 'usage', header: 'Usage' },
     { key: 'cost', header: 'Cost' },
   ];
 
   const allBuilt = rows.map((row) => ({
     modelId: row.modelId,
-    requests: row.requests,
     usage: row.usage,
     cost: row.cost,
   }));
@@ -126,7 +132,6 @@ async function renderPaygInteractive(
 
   const tableFooter = {
     modelId: theme.bold('Total'),
-    requests: theme.bold(total.requests),
     usage: theme.bold('—'),
     cost: theme.bold(total.cost),
   };

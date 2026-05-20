@@ -158,9 +158,7 @@ function FreeTierContent({ vm, width }: { vm: ModelDetailViewModel; width: numbe
   if (ft.mode === 'only') {
     return (
       <CardLine width={width}>
-        <Text>
-          {theme.success('Free')} {theme.muted('(Early Access — no paid option)')}
-        </Text>
+        <Text>{theme.success('FreeTier Only')}</Text>
       </CardLine>
     );
   }
@@ -172,7 +170,7 @@ function FreeTierContent({ vm, width }: { vm: ModelDetailViewModel; width: numbe
     ft.remainingPct !== undefined
   ) {
     const bar = progressBar(ft.remainingPct);
-    const pctStr = ft.statusLabel ?? `${ft.remainingPct.toFixed(1)}%`;
+    const pctStr = ft.statusLabel ?? `${parseFloat(ft.remainingPct.toFixed(2))}%`;
     return (
       <>
         <CardLine width={width}>
@@ -209,24 +207,39 @@ function PricingContent({
   builtInTools: BuiltInToolViewModel[];
   width: number;
 }) {
+  // no_pricing: uniform single-line placeholder regardless of modality
+  if (pricingType === 'no_pricing' || pricingLines.length === 0) {
+    return (
+      <CardLine width={width}>
+        <Text>{theme.muted('\u2014')}</Text>
+      </CardLine>
+    );
+  }
   if (pricingType === 'llm') {
     return <LlmPricing pricingLines={pricingLines} builtInTools={builtInTools} width={width} />;
   }
   if (pricingType === 'video') {
     return <VideoPricing pricingLines={pricingLines} width={width} />;
   }
-  // image, tts, asr, embedding — single price line
-  const first = pricingLines[0];
-  if (!first) return null;
-  const label = first.cells.label ? first.cells.label + '  ' : '';
-  const price = first.cells.price ?? '';
+  if (pricingType === 'itemized') {
+    return <ItemizedPricing pricingLines={pricingLines} width={width} />;
+  }
+  // image, tts, asr, embedding — render all pricing lines
   return (
-    <CardLine width={width}>
-      <Text>
-        {theme.muted(label)}
-        {theme.accent(price)}
-      </Text>
-    </CardLine>
+    <>
+      {pricingLines.map((line, i) => {
+        const label = line.cells.label ? line.cells.label + '  ' : '';
+        const price = line.cells.price ?? '';
+        return (
+          <CardLine key={i} width={width}>
+            <Text>
+              {theme.muted(label)}
+              {theme.accent(price)}
+            </Text>
+          </CardLine>
+        );
+      })}
+    </>
   );
 }
 
@@ -239,26 +252,21 @@ function LlmPricing({
   builtInTools: BuiltInToolViewModel[];
   width: number;
 }) {
-  const innerWidth = Math.max(0, width - 6);
-  const hasCache = pricingLines.some((l) => l.cells.cacheCreation != null);
-  const allFree = pricingLines.every(
-    (l) => l.cells.input.includes('$0.00') && l.cells.output.includes('$0.00'),
-  );
-
-  if (allFree && pricingLines.length === 1) {
+  if (pricingLines.length === 0) {
     return (
       <CardLine width={width}>
-        <Text bold>
-          {theme.success('Free')} {theme.muted('(Early Access)')}
-        </Text>
+        <Text>{theme.muted('\u2014')}</Text>
       </CardLine>
     );
   }
 
+  const innerWidth = Math.max(0, width - 6);
+  const hasCache = pricingLines.some((l) => l.cells.cacheCreation != null);
+
   // Column widths (content only — separators ` │ ` are added between)
-  const COL_TIER = Math.max(4, ...pricingLines.map((l) => l.cells.label.length));
-  const COL_IN = Math.max(5, ...pricingLines.map((l) => l.cells.input.length));
-  const COL_OUT = Math.max(6, ...pricingLines.map((l) => l.cells.output.length));
+  const COL_TIER = Math.max(4, ...pricingLines.map((l) => (l.cells.label ?? '').length));
+  const COL_IN = Math.max(5, ...pricingLines.map((l) => (l.cells.input ?? '').length));
+  const COL_OUT = Math.max(6, ...pricingLines.map((l) => (l.cells.output ?? '').length));
   const COL_CC = hasCache
     ? Math.max(11, ...pricingLines.map((l) => (l.cells.cacheCreation ?? '—').length))
     : 0;
@@ -285,16 +293,16 @@ function LlmPricing({
   function buildRow(line: PricingLineViewModel): string {
     const parts = hasCache
       ? [
-          line.cells.label.padEnd(COL_TIER),
-          padColored(theme.accent(line.cells.input), COL_IN),
-          padColored(theme.accent(line.cells.output), COL_OUT),
+          (line.cells.label ?? '—').padEnd(COL_TIER),
+          padColored(theme.accent(line.cells.input ?? '—'), COL_IN),
+          padColored(theme.accent(line.cells.output ?? '—'), COL_OUT),
           padColored(theme.accent(line.cells.cacheCreation ?? '—'), COL_CC),
           theme.accent(line.cells.cacheRead ?? '—'),
         ]
       : [
-          line.cells.label.padEnd(COL_TIER),
-          padColored(theme.accent(line.cells.input), COL_IN),
-          theme.accent(line.cells.output),
+          (line.cells.label ?? '—').padEnd(COL_TIER),
+          padColored(theme.accent(line.cells.input ?? '—'), COL_IN),
+          theme.accent(line.cells.output ?? '—'),
         ];
     return parts.join(COL_DIV);
   }
@@ -374,6 +382,18 @@ function VideoPricing({
   width: number;
 }) {
   const innerWidth = Math.max(0, width - 6);
+
+  // Defensive: when tiers are empty the mapper returns LLM-style em-dash rows
+  // that lack `resolution`/`price`.  Fall back to a plain dash.
+  if (pricingLines.length === 0 || pricingLines[0].cells.resolution == null) {
+    const fallback = pricingLines[0]?.cells.label ?? '\u2014';
+    return (
+      <CardLine width={width}>
+        <Text>{theme.muted(fallback)}</Text>
+      </CardLine>
+    );
+  }
+
   const COL_RES = Math.max(10, ...pricingLines.map((l) => l.cells.resolution.length));
   const COL_PRICE = Math.max(5, ...pricingLines.map((l) => l.cells.price.length));
 
@@ -395,6 +415,54 @@ function VideoPricing({
         <CardLine key={`price-${i}`} width={width}>
           <Text>
             {[line.cells.resolution.padEnd(COL_RES), theme.accent(line.cells.price)].join(COL_DIV)}
+          </Text>
+        </CardLine>
+      ))}
+    </>
+  );
+}
+
+function ItemizedPricing({
+  pricingLines,
+  width,
+}: {
+  pricingLines: PricingLineViewModel[];
+  width: number;
+}) {
+  const innerWidth = Math.max(0, width - 6);
+
+  if (pricingLines.length === 0) {
+    return (
+      <CardLine width={width}>
+        <Text>{theme.muted('\u2014')}</Text>
+      </CardLine>
+    );
+  }
+
+  const COL_ITEM = Math.max(4, ...pricingLines.map((l) => visibleWidth(l.cells.label ?? '')));
+  const COL_PRICE = Math.max(5, ...pricingLines.map((l) => visibleWidth(l.cells.price ?? '')));
+
+  const headerStr = ['Item'.padEnd(COL_ITEM), 'Price'.padEnd(COL_PRICE)]
+    .join(' │ ')
+    .padEnd(innerWidth);
+
+  return (
+    <>
+      <CardLine width={width}>
+        <Text bold color={theme.tableHeader.fg} backgroundColor={theme.tableHeader.bg}>
+          {headerStr}
+        </Text>
+      </CardLine>
+      <CardLine width={width}>
+        <Text>{buildSep([COL_ITEM, COL_PRICE], innerWidth)}</Text>
+      </CardLine>
+      {pricingLines.map((line, i) => (
+        <CardLine key={`price-${i}`} width={width}>
+          <Text>
+            {[
+              padColored(line.cells.label ?? '\u2014', COL_ITEM),
+              theme.accent(line.cells.price ?? '\u2014'),
+            ].join(COL_DIV)}
           </Text>
         </CardLine>
       ))}

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { runCommand } from '../../helpers/run-command.js';
 import { makeMockApiClient } from '../../helpers/api-client.js';
 import type { ApiClient } from '../../../src/api/client.js';
@@ -63,6 +63,7 @@ describe('usage free-tier command (one-shot)', () => {
             { model_id: 'qwen3-mini', quota: { remaining: 0, total: 100_000, unit: 'tokens', used_pct: 100, resetDate: null } },
           ],
           coding_plan: { subscribed: false },
+          token_plan: { subscribed: false },
           pay_as_you_go: { models: [], total: { cost: 0, currency: 'USD' } },
         }),
       });
@@ -88,6 +89,7 @@ describe('usage free-tier command (one-shot)', () => {
             { model_id: 'qwen3-max', quota: { remaining: 500_000, total: 1_000_000, unit: 'tokens', used_pct: 50, resetDate: null } },
           ],
           coding_plan: { subscribed: false },
+          token_plan: { subscribed: false },
           pay_as_you_go: { models: [], total: { cost: 0, currency: 'USD' } },
         }),
       });
@@ -105,6 +107,7 @@ describe('usage free-tier command (one-shot)', () => {
             { model_id: 'qwen-free-only', quota: null } as any,
           ],
           coding_plan: { subscribed: false },
+          token_plan: { subscribed: false },
           pay_as_you_go: { models: [], total: { cost: 0, currency: 'USD' } },
         }),
       });
@@ -128,6 +131,7 @@ describe('usage free-tier command (one-shot)', () => {
             } as any,
           ],
           coding_plan: { subscribed: false },
+          token_plan: { subscribed: false },
           pay_as_you_go: { models: [], total: { cost: 0, currency: 'USD' } },
         }),
       });
@@ -155,6 +159,9 @@ describe('usage free-tier command (one-shot)', () => {
   // renderFreeTierInteractive + buildRow (both isFreeOnly and normal
   // branches) in free-tier.tsx get executed.
   describe('Ink rendering (table mode)', () => {
+    const originalIsTTY = process.stdout.isTTY;
+    beforeEach(() => { Object.defineProperty(process.stdout, 'isTTY', { value: true, writable: true, configurable: true }); });
+    afterEach(() => { Object.defineProperty(process.stdout, 'isTTY', { value: originalIsTTY, writable: true, configurable: true }); });
     it('builds rows + invokes renderInteractive for non-empty free_tier (mixes isFreeOnly and normal)', async () => {
       holder.client = makeMockApiClient({
         getUsageSummary: async () => ({
@@ -166,6 +173,7 @@ describe('usage free-tier command (one-shot)', () => {
             { model_id: 'qwen-free-only', quota: null } as any,
           ],
           coding_plan: { subscribed: false },
+          token_plan: { subscribed: false },
           pay_as_you_go: { models: [], total: { cost: 0, currency: 'USD' } },
         }),
       });
@@ -200,6 +208,7 @@ describe('usage free-tier command (one-shot)', () => {
             { model_id: 'm3', quota: { remaining: 800, total: 1000, unit: 'tokens', used_pct: 20 } } as any,
           ],
           coding_plan: { subscribed: false },
+          token_plan: { subscribed: false },
           pay_as_you_go: { models: [], total: { cost: 0, currency: 'USD' } },
         }),
       });
@@ -221,6 +230,7 @@ describe('usage free-tier command (one-shot)', () => {
           period: { from: '2026-04-01', to: '2026-04-20' },
           free_tier: manyRows,
           coding_plan: { subscribed: false },
+          token_plan: { subscribed: false },
           pay_as_you_go: { models: [], total: { cost: 0, currency: 'USD' } },
         }),
       });

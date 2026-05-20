@@ -68,8 +68,8 @@ describe('buildModelsViewModel (pure ViewModel)', () => {
     expect(vm.rows[0].freeTierUnit).toBe('tok');
     expect(vm.rows[0].freeTierRemainingPct).toBe(85);
     expect(vm.rows[0].canTry).toBe('Yes');
-    // Single tier: "$0.50 / $3.00" amount split (no ' /' inside the input/output price)
-    expect(vm.rows[0].price).toBe('$0.50 / $3.00');
+    // Single tier: "$0.5 / $3" amount split (no ' /' inside the input/output price)
+    expect(vm.rows[0].price).toBe('$0.5 / $3');
     expect(vm.rows[0].priceUnit).toBe('/1M tok');
 
     expect(vm.rows[1].id).toBe('qwen3.5-omni-plus');
@@ -154,7 +154,7 @@ describe('buildModelsUiData (UI data with progress bar)', () => {
     // First row: 85% remaining, progress bar should be non-empty
     expect(uiData.rows[0].freeTierAmt).toBe('1M');
     expect(uiData.rows[0].freeTierBar).toContain('█');
-    expect(uiData.rows[0].freeTierBar).toContain('85.0%');
+    expect(uiData.rows[0].freeTierBar).toContain('85%');
 
     // Second row: "Only" mode, no quota → empty bar
     expect(uiData.rows[1].freeTierAmt).toBe('Only');
@@ -162,7 +162,7 @@ describe('buildModelsUiData (UI data with progress bar)', () => {
 
     // Third row: exhaust → bar should show 0%
     expect(uiData.rows[2].freeTierAmt).toBe('50');
-    expect(uiData.rows[2].freeTierBar).toContain('0.0%');
+    expect(uiData.rows[2].freeTierBar).toContain('0%');
   });
 
   it('handles empty models list', () => {
@@ -240,9 +240,9 @@ describe('buildModelsUiData (UI data with progress bar)', () => {
     ] as unknown as Model[];
     const uiData = buildModelsUiData(models);
     // Shows cheapest tier with "+" for multi-tier
-    expect(uiData.rows[0].price).toContain('$0.10');
+    expect(uiData.rows[0].price).toContain('$0.1');
     expect(uiData.rows[0].price).toContain('+');
-    expect(uiData.rows[0].freeTierBar).toContain('50.0%');
+    expect(uiData.rows[0].freeTierBar).toContain('50%');
   });
 
   it('handles video per-second pricing', () => {
@@ -267,7 +267,7 @@ describe('buildModelsUiData (UI data with progress bar)', () => {
     expect(uiData.rows[0].price).toContain('$0.02');
     expect(uiData.rows[0].freeTierAmt).toBe('100');
     expect(uiData.rows[0].freeTierUnit).toBe('sec');
-    expect(uiData.rows[0].freeTierBar).toContain('100.0%');
+    expect(uiData.rows[0].freeTierBar).toContain('100%');
   });
 
   it('handles TTS pricing', () => {
@@ -311,7 +311,7 @@ describe('buildModelsUiData (UI data with progress bar)', () => {
       },
     ] as unknown as Model[];
     const uiData = buildModelsUiData(models);
-    expect(uiData.rows[0].price).toBe('$0.10');
+    expect(uiData.rows[0].price).toBe('$0.1');
     expect(uiData.rows[0].priceUnit).toBe('/1M tok');
   });
 

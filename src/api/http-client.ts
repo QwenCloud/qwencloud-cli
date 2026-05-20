@@ -18,13 +18,15 @@ import type {
   UsageBreakdownResponse,
   FreeTierUsage,
   CodingPlan,
+  TokenPlan,
 } from '../types/usage.js';
 import type { AuthStatus, DeviceFlowInitResponse, DeviceFlowPollResponse } from '../types/auth.js';
-import { loginCommand } from '../utils/runtime-mode.js';
+import { isReplMode, loginCommand } from '../utils/runtime-mode.js';
 import type {
   ApiModelsListResponse,
   ApiModelItem,
   FqInstanceResponse,
+  FrInstanceResponse,
   ConsumeSummaryLineItem,
   CodingPlanApiResponse,
 } from '../types/api-models.js';
@@ -34,7 +36,13 @@ import {
   flattenApiModels,
   mapFqInstanceToQuota,
 } from './model-mapper.js';
-import { getGlobalCache, CacheKeys, CacheTTL } from '../utils/cache.js';
+import {
+  getGlobalCache,
+  getGlobalFileCache,
+  setFileCacheContextResolver,
+  CacheKeys,
+  CacheTTL,
+} from '../utils/cache.js';
 import { normalizeForSearch } from '../utils/search-normalize.js';
 import { getEffectiveConfig } from '../config/manager.js';
 import { getOrCreateClientId } from '../auth/client-id.js';
@@ -44,6 +52,7 @@ import {
   tryExtractUserFromToken,
 } from '../auth/credentials.js';
 
+import { site } from '../site.js';
 import { startRequest, endRequest, addDiagnostic, isEnabled } from './debug-buffer.js';
 import {
   aggregatePaygByModel,
@@ -57,13 +66,23 @@ function getApiBaseUrl(): string {
   const endpoint = getEffectiveConfig()['api.endpoint'].replace(/\/+$/, '');
   return `${endpoint}/data/v2/api.json`;
 }
+
+// Wire the file cache to the runtime config so it picks up the current
+// api.endpoint and the (hidden) cache.ttl on every read/write. Done at module
+// load time; safe because the resolver is invoked lazily by FileCache.
+setFileCacheContextResolver(() => {
+  const cfg = getEffectiveConfig();
+  const endpoint = (cfg['api.endpoint'] as string).replace(/\/+$/, '');
+  const raw = cfg['cache.ttl'];
+  const ttlMs = /^\d+$/.test(raw) ? Number(raw) : 0;
+  return { endpoint, ttlMs };
+});
+
 const API_PRODUCT = 'AliyunDeliveryService';
 const API_ACTION_LIST_MODELS = 'ListModelSeries';
-const DEFAULT_REGION = 'ap-southeast-1';
-const DEFAULT_LANGUAGE = 'en-US';
-const MODEL_MAPPING_URL = 'https://alioth-intl.alicdn.com/model-mapping';
 const API_PRODUCT_BSS = 'BssOpenAPI-V3';
 const API_ACTION_DESCRIBE_FQ = 'DescribeFqInstance';
+const API_ACTION_DESCRIBE_FR = 'DescribeFrInstances';
 
 function getAuthHeaders(): Record<string, string> {
   const resolved = resolveCredentials();
@@ -79,6 +98,7 @@ function getAuthHeaders(): Record<string, string> {
  */
 export class HttpApiClient implements ApiClient {
   private cache = getGlobalCache();
+  private fileCache = getGlobalFileCache();
   private latestQuotaMap: Map<string, FreeTierQuota | null> = new Map();
 
   /**
@@ -189,7 +209,7 @@ export class HttpApiClient implements ApiClient {
     const payload: Record<string, unknown> = {
       product: product || API_PRODUCT,
       action,
-      region: DEFAULT_REGION,
+      region: site.defaults.region,
     };
 
     if (params && Object.keys(params).length > 0) {
@@ -204,20 +224,30 @@ export class HttpApiClient implements ApiClient {
   }
 
   /**
-   * Get the model mapping (model-id -> templateCode).
-   * Used to determine whether a model has a FreeTier.
+   * Resolve model-id → templateCode mapping (drives FreeTier check).
+   * Lookup order: L1 (memory) → L2 (file) → CDN; miss writes back both layers.
    */
   private async fetchModelMapping(): Promise<Record<string, string>> {
     const cached = this.cache.get<Record<string, string>>(CacheKeys.MODEL_MAPPING);
-    if (cached) return cached;
+    if (cached) {
+      addDiagnostic('Cache', `hit ${CacheKeys.MODEL_MAPPING} (L1)`);
+      return cached;
+    }
+
+    const fileCached = this.fileCache.get<Record<string, string>>(CacheKeys.MODEL_MAPPING);
+    if (fileCached) {
+      addDiagnostic('Cache', `hit ${CacheKeys.MODEL_MAPPING} (L2)`);
+      this.cache.set(CacheKeys.MODEL_MAPPING, fileCached, CacheTTL.MODEL_MAPPING);
+      return fileCached;
+    }
 
     try {
       const debugId = isEnabled()
-        ? startRequest('GET', MODEL_MAPPING_URL, {}, null, 'modelMapping')
+        ? startRequest('GET', site.features.cdnBaseUrl, {}, null, 'modelMapping')
         : -1;
       const mapController = new AbortController();
       const mapTimeoutId = setTimeout(() => mapController.abort(), 30_000);
-      const response = await fetch(MODEL_MAPPING_URL, {
+      const response = await fetch(site.features.cdnBaseUrl, {
         signal: mapController.signal,
         headers: {
           'User-Agent': `qwencloud-cli/${typeof __VERSION__ !== 'undefined' ? __VERSION__ : '1.0.0'}`,
@@ -231,11 +261,13 @@ export class HttpApiClient implements ApiClient {
       }
       const mapping: Record<string, string> = await response.json();
       this.cache.set(CacheKeys.MODEL_MAPPING, mapping, CacheTTL.MODEL_MAPPING);
+      this.fileCache.set(CacheKeys.MODEL_MAPPING, mapping);
       return mapping;
     } catch (error) {
       addDiagnostic(
         'FreeTier',
         `Failed to load model mapping: ${error instanceof Error ? error.message : String(error)}`,
+        'warn',
       );
       return {};
     }
@@ -293,7 +325,12 @@ export class HttpApiClient implements ApiClient {
           instance.Status === 'valid' ||
           instance.Status === 'exhaust' ||
           instance.Status === 'expire';
-        if (isValidStatus && instance.Template?.Code) {
+        if (
+          isValidStatus &&
+          instance.Template?.Code &&
+          instance.InitCapacity &&
+          instance.CurrCapacity
+        ) {
           const quota = mapFqInstanceToQuota(instance);
           quotaMap.set(instance.Template.Code, quota);
           hasMatchedInstance = true;
@@ -339,8 +376,19 @@ export class HttpApiClient implements ApiClient {
   async listModels(options?: ListModelsOptions): Promise<ModelsListResponse> {
     const cache = this.cache;
 
-    // 1. Get raw model data (cacheable)
+    // raw model data: L1 → L2 → upstream API.
     let rawItems = cache.get<ApiModelItem[]>(CacheKeys.MODELS_RAW_LIST);
+    if (rawItems) {
+      addDiagnostic('Cache', `hit ${CacheKeys.MODELS_RAW_LIST} (L1)`);
+    } else {
+      const fileHit = this.fileCache.get<ApiModelItem[]>(CacheKeys.MODELS_RAW_LIST);
+      if (fileHit) {
+        addDiagnostic('Cache', `hit ${CacheKeys.MODELS_RAW_LIST} (L2)`);
+        rawItems = fileHit;
+        // promote L2 → L1
+        cache.set(CacheKeys.MODELS_RAW_LIST, fileHit, CacheTTL.MODELS_LIST);
+      }
+    }
     let mapping: Record<string, string>;
 
     if (!rawItems) {
@@ -349,7 +397,7 @@ export class HttpApiClient implements ApiClient {
       mapping = fetchedMapping;
 
       const requestConfig = this.buildApiRequest(API_ACTION_LIST_MODELS, {
-        Language: DEFAULT_LANGUAGE,
+        Language: site.defaults.language,
       });
       const rawResponse = await this.request<ApiModelsListResponse>(requestConfig);
 
@@ -359,8 +407,9 @@ export class HttpApiClient implements ApiClient {
 
       rawItems = flattenApiModels(rawResponse.data.Data);
 
-      // Cache the raw model data (without quotas)
+      // Cache the raw model data (without quotas) in both layers.
       cache.set(CacheKeys.MODELS_RAW_LIST, rawItems, CacheTTL.MODELS_LIST);
+      this.fileCache.set(CacheKeys.MODELS_RAW_LIST, rawItems);
     } else {
       // Cache hit; still need to fetch mapping (which has its own cache)
       mapping = await this.fetchModelMapping();
@@ -419,12 +468,86 @@ export class HttpApiClient implements ApiClient {
 
   /**
    * Get a model's detail.
-   * Raw model data is cacheable; FreeTier quotas are queried in real time.
+   *
+   * In one-shot mode, uses server-side Query+MatchOnly to fetch a single model
+   * directly, avoiding the full ListModelSeries call. In REPL mode, falls back
+   * to the cache-based path so the raw-data cache stays warm.
    */
   async getModel(id: string): Promise<ModelDetail> {
+    if (!isReplMode()) {
+      return this.getModelByQuery(id);
+    }
+    return this.getModelFromCache(id);
+  }
+
+  /**
+   * Fetch a single model.
+   *
+   * L1 → L2 cache first; on hit, build from cached snapshot (quota is
+   * always re-queried as real-time data). On miss, or when the id is
+   * absent from the snapshot (e.g. newly-published model), fall back to
+   * server-side `Query + MatchOnly`.
+   */
+  private async getModelByQuery(id: string): Promise<ModelDetail> {
+    const mapping = await this.fetchModelMapping();
+
+    // L1 → L2; promote L2 hit to L1.
+    let rawItems = this.cache.get<ApiModelItem[]>(CacheKeys.MODELS_RAW_LIST);
+    if (rawItems) {
+      addDiagnostic('Cache', `hit ${CacheKeys.MODELS_RAW_LIST} (L1)`);
+    } else {
+      const fileHit = this.fileCache.get<ApiModelItem[]>(CacheKeys.MODELS_RAW_LIST);
+      if (fileHit) {
+        addDiagnostic('Cache', `hit ${CacheKeys.MODELS_RAW_LIST} (L2)`);
+        rawItems = fileHit;
+        this.cache.set(CacheKeys.MODELS_RAW_LIST, fileHit, CacheTTL.MODELS_LIST);
+      }
+    }
+
+    let apiItem = rawItems?.find((item) => item.Model === id);
+
+    if (!apiItem) {
+      // miss or id not in snapshot: precise server query.
+      const requestConfig = this.buildApiRequest(API_ACTION_LIST_MODELS, {
+        Language: site.defaults.language,
+        Query: id,
+        MatchOnly: true,
+      });
+      const rawResponse = await this.request<ApiModelsListResponse>(requestConfig);
+
+      if (String(rawResponse.code) !== '200' || !rawResponse.data?.Data) {
+        throw new Error(`Model '${id}' not found`);
+      }
+
+      const items = flattenApiModels(rawResponse.data.Data);
+      apiItem = items.find((item) => item.Model === id);
+      if (!apiItem) {
+        throw new Error(`Model '${id}' not found`);
+      }
+    }
+
+    const templateCode = mapping[apiItem.Model];
+    const hasFreeTier = !!templateCode;
+
+    let quota: FreeTierQuota | null = null;
+    if (templateCode) {
+      const quotaMap = await this.fetchFreeTierQuotas([templateCode]);
+      quota = quotaMap.get(templateCode) || null;
+    }
+
+    return mapApiModelToModelDetail(apiItem, hasFreeTier, quota);
+  }
+
+  /**
+   * Cache-based model lookup — used by REPL mode and internal callers
+   * that already have the raw-data cache populated.
+   */
+  private async getModelFromCache(id: string): Promise<ModelDetail> {
     // 1. Get raw model data (cacheable)
     let rawItems = this.cache.get<ApiModelItem[]>(CacheKeys.MODELS_RAW_LIST);
-    if (!rawItems) {
+    if (rawItems) {
+      addDiagnostic('Cache', `hit ${CacheKeys.MODELS_RAW_LIST} (L1)`);
+    } else {
       // Cache miss: trigger listModels to populate the raw-data cache
       await this.listModels();
       rawItems = this.cache.get<ApiModelItem[]>(CacheKeys.MODELS_RAW_LIST);
@@ -675,7 +798,7 @@ export class HttpApiClient implements ApiClient {
         domain: host,
         consoleSite: 'QWENCLOUD',
         console: 'ONE_CONSOLE',
-        xsp_lang: 'en-US',
+        xsp_lang: site.defaults.language,
         protocol: 'V2',
         productCode: 'p_efm',
       };
@@ -689,7 +812,7 @@ export class HttpApiClient implements ApiClient {
       const gatewayPayload: Record<string, unknown> = {
         product: this.API_PRODUCT_SFM,
         action: this.API_ACTION_GATEWAY,
-        region: DEFAULT_REGION,
+        region: site.defaults.region,
         params: this.flattenParams(params),
       };
 
@@ -715,7 +838,7 @@ export class HttpApiClient implements ApiClient {
     const genericPayload: Record<string, unknown> = {
       product: this.API_PRODUCT_SFM,
       action: this.API_ACTION_GATEWAY,
-      region: DEFAULT_REGION,
+      region: site.defaults.region,
       api: apiPath,
     };
     if (dataPayload) {
@@ -748,6 +871,7 @@ export class HttpApiClient implements ApiClient {
     if (code.includes('image')) return 'images';
     if (code.includes('video') || code.includes('duration')) return 'seconds';
     if (code.includes('char')) return 'characters';
+    if (code.includes('voice')) return 'voices';
     if (code.includes('token')) return 'tokens';
 
     const unitLower = stepUnit.toLowerCase();
@@ -755,12 +879,21 @@ export class HttpApiClient implements ApiClient {
     if (unitLower.includes('image') || unitLower.includes('page')) return 'images';
     if (unitLower.includes('second') || unitLower.includes('sec')) return 'seconds';
     if (unitLower.includes('char') || unitLower.includes('word')) return 'characters';
+    if (unitLower.includes('voice')) return 'voices';
+
+    // Fallback: extract dimension name from "Per <quantity> <unit>" format,
+    // e.g. "Per 1 request" → "request", "Per 100 calls" → "calls".
+    // Only single-word units beyond Per+\S+ would slip through.
+    const perMatch = stepUnit.match(/^Per\s+\S+\s+(.+)$/i);
+    if (perMatch) return perMatch[1].trim().toLowerCase();
+
     return 'tokens';
   }
 
   /**
    * Convert BillQuantity × StepQuantityUnit step size to raw units.
-   * e.g. "1K tokens" → ×1000, "1M tokens" → ×1_000_000
+   * e.g. "1K tokens" → ×1000, "1M tokens" → ×1_000_000.
+   * Commas in quantity (e.g. "10,000 characters") are stripped before parsing.
    */
   private computeUsageValue(billQuantity: number, stepUnit: string): number {
     const unitLower = stepUnit.toLowerCase();
@@ -768,7 +901,8 @@ export class HttpApiClient implements ApiClient {
     if (unitLower.includes('tenthousand') || unitLower === '\u4e07\u5b57') {
       return billQuantity * 10000;
     }
-    const match = stepUnit.trim().match(/(\d+(?:\.\d+)?)\s*([kmKM]?)/);
+    const clean = stepUnit.replace(/,/g, '');
+    const match = clean.trim().match(/(\d+(?:\.\d+)?)\s*([kmKM]?)/);
     if (match) {
       let multiplier = parseFloat(match[1]);
       const suffix = match[2].toUpperCase();
@@ -930,7 +1064,7 @@ export class HttpApiClient implements ApiClient {
     try {
       const requestPayload = {
         queryCodingPlanInstanceInfoRequest: {
-          commodityCode: 'sfm_codingplan_public_intl',
+          commodityCode: site.features.codingPlanCommodityCode,
           onlyLatestOne: true,
         },
       };
@@ -970,19 +1104,19 @@ export class HttpApiClient implements ApiClient {
         per_5h: {
           remaining: per5hTotal - per5hUsed,
           total: per5hTotal,
-          used_pct: per5hTotal > 0 ? Math.round((per5hUsed / per5hTotal) * 100) : 0,
+          used_pct: per5hTotal > 0 ? (per5hUsed / per5hTotal) * 100 : 0,
           next_reset_at: msToIso(q.per5HourQuotaNextRefreshTime),
         },
         weekly: {
           remaining: weeklyTotal - weeklyUsed,
           total: weeklyTotal,
-          used_pct: weeklyTotal > 0 ? Math.round((weeklyUsed / weeklyTotal) * 100) : 0,
+          used_pct: weeklyTotal > 0 ? (weeklyUsed / weeklyTotal) * 100 : 0,
           next_reset_at: msToIso(q.perWeekQuotaNextRefreshTime),
         },
         monthly: {
           remaining: monthlyTotal - monthlyUsed,
           total: monthlyTotal,
-          used_pct: monthlyTotal > 0 ? Math.round((monthlyUsed / monthlyTotal) * 100) : 0,
+          used_pct: monthlyTotal > 0 ? (monthlyUsed / monthlyTotal) * 100 : 0,
           next_reset_at: msToIso(q.perBillMonthQuotaNextRefreshTime),
         },
       };
@@ -994,9 +1128,9 @@ export class HttpApiClient implements ApiClient {
         plan: planName,
         price:
           planName === 'pro'
-            ? { amount: 50, currency: 'USD', cycle: 'monthly' }
+            ? { amount: 50, currency: site.features.currency, cycle: 'monthly' }
             : planName === 'starter'
-              ? { amount: 10, currency: 'USD', cycle: 'monthly' }
+              ? { amount: 10, currency: site.features.currency, cycle: 'monthly' }
               : undefined,
         included_models: [],
         windows,
@@ -1008,6 +1142,115 @@ export class HttpApiClient implements ApiClient {
       );
       return { subscribed: false };
     }
+  }
+
+  /**
+   * Fetch Token Plan subscription and quota via DescribeFrInstances.
+   * Queries team, personal, and addon commodity codes (intl edition) in parallel.
+   */
+  private async fetchTokenPlan(): Promise<TokenPlan> {
+    try {
+      const codes = site.features.tokenPlanCommodityCodes;
+
+      const [teamsRes, personalRes, addonRes] = await Promise.all([
+        this.fetchFrInstances(codes.teams, 10),
+        this.fetchFrInstances(codes.personal, 10),
+        this.fetchFrInstances(codes.addon, 100),
+      ]);
+
+      // Merge team + personal: pick first valid instance, team first
+      const allPlanInstances = [...(teamsRes?.Data ?? []), ...(personalRes?.Data ?? [])];
+      const validInstance =
+        allPlanInstances.find((inst) => {
+          const statusCode = typeof inst.Status === 'object' ? inst.Status?.Code : inst.Status;
+          return statusCode === 'valid';
+        }) ?? allPlanInstances[0];
+
+      // Compute addon remaining credits (sum of all addon CurrCapacityBaseValue)
+      const addonRemaining = (addonRes?.Data ?? []).reduce((sum, inst) => {
+        return sum + Number(inst.CurrCapacityBaseValue || 0);
+      }, 0);
+
+      if (!validInstance) {
+        if (addonRemaining > 0) {
+          return { subscribed: false, addonRemaining };
+        }
+        return { subscribed: false };
+      }
+
+      const statusCode =
+        typeof validInstance.Status === 'object'
+          ? validInstance.Status?.Code
+          : validInstance.Status;
+      const totalCredits = Number(validInstance.InitCapacityBaseValue || 0);
+      const capacityType = validInstance.CapacityTypeCode ?? '';
+      const remainingCredits =
+        capacityType === 'periodMonthlyShift'
+          ? Number(
+              validInstance.periodCapacityBaseValue || validInstance.CurrCapacityBaseValue || 0,
+            )
+          : Number(validInstance.CurrCapacityBaseValue || 0);
+      const usedPct =
+        totalCredits > 0 ? ((totalCredits - remainingCredits) / totalCredits) * 100 : 0;
+      const resetDate = validInstance.EndTime
+        ? new Date(validInstance.EndTime).toISOString()
+        : undefined;
+
+      return {
+        subscribed: statusCode === 'valid',
+        planName: validInstance.TemplateName ?? validInstance.CommodityName,
+        status: statusCode as TokenPlan['status'],
+        totalCredits,
+        remainingCredits,
+        usedPct,
+        resetDate,
+        addonRemaining: addonRemaining > 0 ? addonRemaining : undefined,
+      };
+    } catch (error) {
+      addDiagnostic(
+        'TokenPlan',
+        `fetch failed, treating as not subscribed: ${error instanceof Error ? error.message : String(error)}`,
+        'warn',
+      );
+      return { subscribed: false };
+    }
+  }
+
+  /**
+   * Call DescribeFrInstances for a specific commodity code.
+   */
+  private async fetchFrInstances(
+    commodityCode: string,
+    pageSize: number,
+  ): Promise<FrInstanceResponse | null> {
+    const { url, headers, body } = this.buildApiRequest(
+      API_ACTION_DESCRIBE_FR,
+      { Group: 'tokenPlan', CommodityCode: commodityCode, PageNum: 1, PageSize: pageSize },
+      API_PRODUCT_BSS,
+    );
+
+    const result = await this.request<{
+      code?: string;
+      data?: FrInstanceResponse;
+      message?: string;
+    }>({
+      url,
+      method: 'POST',
+      headers,
+      body,
+      context: 'tokenPlan',
+    });
+
+    if (String(result.code) !== '200') {
+      addDiagnostic(
+        'TokenPlan',
+        `DescribeFrInstances API error - code: ${result.code}, message: ${result.message || 'unknown'}`,
+        'warn',
+      );
+      return null;
+    }
+
+    return result.data ?? null;
   }
 
   /**
@@ -1092,6 +1335,7 @@ export class HttpApiClient implements ApiClient {
       cost: number;
       currency: string;
       billingUnit: string;
+      [key: string]: unknown;
     }>,
   ): Array<{
     period: string;
@@ -1100,14 +1344,20 @@ export class HttpApiClient implements ApiClient {
     cost: number;
     currency: string;
     billingUnit: string;
+    [key: string]: unknown;
   }> {
+    // Buckets by quarter — known units flat + dynamic `other` map (e.g. voice extras, calls, etc.).
+    const KNOWN_KEYS = ['tokens_in', 'tokens_out', 'images', 'seconds', 'characters', 'voices'];
     const byQuarter: Record<
       string,
       {
         tokens_in: number;
+        tokens_out: number;
         images: number;
         seconds: number;
         characters: number;
+        voices: number;
+        other: Record<string, number>;
         cost: number;
         units: Set<string>;
       }
@@ -1123,9 +1373,12 @@ export class HttpApiClient implements ApiClient {
       if (!byQuarter[quarterKey]) {
         byQuarter[quarterKey] = {
           tokens_in: 0,
+          tokens_out: 0,
           images: 0,
           seconds: 0,
           characters: 0,
+          voices: 0,
+          other: {},
           cost: 0,
           units: new Set(),
         };
@@ -1138,7 +1391,9 @@ export class HttpApiClient implements ApiClient {
         q.units.add('tokens');
       }
       // Handle other unit fields from the row
-      if ('tokens_out' in row && row.tokens_out) {
+      const tokensOut = (row as Record<string, number>).tokens_out;
+      if (tokensOut) {
+        q.tokens_out += tokensOut;
         q.units.add('tokens');
       }
       if ('images' in row) {
@@ -1153,6 +1408,17 @@ export class HttpApiClient implements ApiClient {
         q.characters += (row as Record<string, number>).characters ?? 0;
         q.units.add('characters');
       }
+      if ('voices' in row) {
+        q.voices += (row as Record<string, number>).voices ?? 0;
+        q.units.add('voices');
+      }
+      // Dynamic units — collect any other numeric field not in the known list.
+      for (const [k, v] of Object.entries(row)) {
+        if (KNOWN_KEYS.includes(k)) continue;
+        if (typeof v !== 'number') continue;
+        q.other[k] = (q.other[k] ?? 0) + v;
+        q.units.add(k);
+      }
     }
 
     // Build output rows
@@ -1163,14 +1429,20 @@ export class HttpApiClient implements ApiClient {
       cost: number;
       currency: string;
       billingUnit: string;
+      [key: string]: unknown;
     }> = [];
 
     for (const [key, q] of Object.entries(byQuarter).sort(([a], [b]) => a.localeCompare(b))) {
       const usage: Record<string, number> = {};
       if (q.tokens_in) usage['tokens_in'] = q.tokens_in;
+      if (q.tokens_out) usage['tokens_out'] = q.tokens_out;
       if (q.images) usage['images'] = q.images;
       if (q.seconds) usage['seconds'] = q.seconds;
       if (q.characters) usage['characters'] = q.characters;
+      if (q.voices) usage['voices'] = q.voices;
+      for (const [k, v] of Object.entries(q.other)) {
+        if (v) usage[k] = v;
+      }
 
       const unitsList = [...q.units].sort();
       const billingUnit = unitsList.length === 1 ? unitsList[0] : 'tokens';
@@ -1179,7 +1451,7 @@ export class HttpApiClient implements ApiClient {
         period: key,
         ...usage,
         cost: Math.round(q.cost * 10000) / 10000,
-        currency: 'USD',
+        currency: site.features.currency,
         billingUnit,
       });
     }
@@ -1199,6 +1471,7 @@ export class HttpApiClient implements ApiClient {
       cost: number;
       currency: string;
       billingUnit: string;
+      [key: string]: unknown;
     }>,
   ): Array<{
     period: string;
@@ -1207,7 +1480,9 @@ export class HttpApiClient implements ApiClient {
     cost: number;
     currency: string;
     billingUnit: string;
+    [key: string]: unknown;
   }> {
+    const KNOWN_KEYS = ['tokens_in', 'tokens_out', 'images', 'seconds', 'characters', 'voices'];
     const byMonth: Record<
       string,
       {
@@ -1216,6 +1491,8 @@ export class HttpApiClient implements ApiClient {
         images: number;
         seconds: number;
         characters: number;
+        voices: number;
+        other: Record<string, number>;
         cost: number;
         units: Set<string>;
       }
@@ -1230,6 +1507,8 @@ export class HttpApiClient implements ApiClient {
           images: 0,
           seconds: 0,
           characters: 0,
+          voices: 0,
+          other: {},
           cost: 0,
           units: new Set(),
         };
@@ -1245,16 +1524,37 @@ export class HttpApiClient implements ApiClient {
         m.units.add('tokens');
       }
       if ('images' in row) {
-        m.images += (row as any).images ?? 0;
+        m.images += (row as Record<string, number>).images ?? 0;
         m.units.add('images');
       }
       if ('seconds' in row) {
-        m.seconds += (row as any).seconds ?? 0;
+        m.seconds += (row as Record<string, number>).seconds ?? 0;
         m.units.add('seconds');
       }
       if ('characters' in row) {
-        m.characters += (row as any).characters ?? 0;
+        m.characters += (row as Record<string, number>).characters ?? 0;
         m.units.add('characters');
+      }
+      if ('voices' in row) {
+        m.voices += (row as Record<string, number>).voices ?? 0;
+        m.units.add('voices');
+      }
+      // Dynamic units from `otherUsage` on daily rows (or top-level numeric fields).
+      const otherUsage = (row as { otherUsage?: Record<string, number> }).otherUsage;
+      if (otherUsage) {
+        for (const [k, v] of Object.entries(otherUsage)) {
+          if (typeof v !== 'number') continue;
+          m.other[k] = (m.other[k] ?? 0) + v;
+          m.units.add(k);
+        }
+      }
+      for (const [k, v] of Object.entries(row)) {
+        if (KNOWN_KEYS.includes(k)) continue;
+        if (k === 'period' || k === 'cost' || k === 'currency' || k === 'billingUnit') continue;
+        if (k === 'otherUsage') continue;
+        if (typeof v !== 'number') continue;
+        m.other[k] = (m.other[k] ?? 0) + v;
+        m.units.add(k);
       }
     }
 
@@ -1265,6 +1565,7 @@ export class HttpApiClient implements ApiClient {
       cost: number;
       currency: string;
       billingUnit: string;
+      [key: string]: unknown;
     }> = [];
 
     for (const [key, m] of Object.entries(byMonth).sort(([a], [b]) => a.localeCompare(b))) {
@@ -1276,11 +1577,15 @@ export class HttpApiClient implements ApiClient {
       if (m.images) usage['images'] = m.images;
       if (m.seconds) usage['seconds'] = m.seconds;
       if (m.characters) usage['characters'] = m.characters;
+      if (m.voices) usage['voices'] = m.voices;
+      for (const [k, v] of Object.entries(m.other)) {
+        if (v) usage[k] = v;
+      }
       rows.push({
         period: key,
         ...usage,
         cost: Math.round(m.cost * 10000) / 10000,
-        currency: 'USD',
+        currency: site.features.currency,
         billingUnit,
       });
     }
@@ -1303,9 +1608,10 @@ export class HttpApiClient implements ApiClient {
 
     // Fetch all three sections in parallel. PAYG: pull raw items once, then
     // aggregate by model in-memory (same upstream as the breakdown view).
-    const [freeTier, codingPlan, paygItems] = await Promise.all([
+    const [freeTier, codingPlan, tokenPlan, paygItems] = await Promise.all([
       this.fetchFreeTierUsageList(),
       this.fetchCodingPlan(),
+      this.fetchTokenPlan(),
       this.fetchPaygItems(fromDate, toDate),
     ]);
     const payg = aggregatePaygByModel(paygItems);
@@ -1314,6 +1620,7 @@ export class HttpApiClient implements ApiClient {
       period: { from: fromDate, to: toDate },
       free_tier: freeTier,
       coding_plan: codingPlan,
+      token_plan: tokenPlan,
       pay_as_you_go: payg,
     };
   }
@@ -1385,7 +1692,7 @@ export class HttpApiClient implements ApiClient {
 
     const total: UsageBreakdownResponse['total'] = {
       cost: Math.round(totalCost * 10000) / 10000,
-      currency: 'USD',
+      currency: site.features.currency,
     };
     if (totalTokensIn > 0) total.tokens_in = Math.round(totalTokensIn);
     if (totalTokensOut > 0) total.tokens_out = Math.round(totalTokensOut);
@@ -1576,10 +1883,10 @@ export class HttpApiClient implements ApiClient {
    * - code_verifier: 64-char URL-safe random string (43-128 chars per spec)
    * - code_challenge: BASE64URL(SHA256(code_verifier)), no padding
    *
-   * Can be disabled via QWENCLOUD_PKCE_DISABLED=1 env var.
+   * Can be disabled via ${site.envPrefix}_PKCE_DISABLED=1 env var.
    */
   private generatePkce(): { codeVerifier: string; codeChallenge: string } | null {
-    if (process.env.QWENCLOUD_PKCE_DISABLED === '1') {
+    if (process.env[`${site.envPrefix}_PKCE_DISABLED`] === '1') {
       return null;
     }
 

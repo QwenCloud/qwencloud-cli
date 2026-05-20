@@ -97,6 +97,11 @@ function UsageSummaryInk({ vm }: { vm: UsageSummaryViewModel }) {
           <CodingPlanSection data={vm.codingPlan} />
         </Box>
       )}
+      {vm.tokenPlan && (
+        <Box marginTop={1}>
+          <TokenPlanSection data={vm.tokenPlan} />
+        </Box>
+      )}
     </Box>
   );
 }
@@ -179,6 +184,33 @@ function CodingPlanSection({ data }: { data: NonNullable<UsageSummaryViewModel['
       <Box flexDirection="column" marginTop={data.includedModels.length > 0 ? 1 : 0}>
         <Table columns={columns} data={tableData} paddingLeft={0} />
       </Box>
+    </Section>
+  );
+}
+
+function TokenPlanSection({ data }: { data: NonNullable<UsageSummaryViewModel['tokenPlan']> }) {
+  const columns = [
+    { key: 'metric', header: '' },
+    { key: 'value', header: '' },
+  ];
+
+  const bar = buildProgressBar(data.progressBar.percentage, 16, theme.data, false);
+  const label = theme.label(data.progressBar.label);
+
+  const rows = [
+    { metric: 'Usage', value: data.usageDisplay },
+    { metric: 'Quota Left', value: `${bar}  ${label}` },
+    { metric: 'Status', value: data.status },
+    { metric: 'Resets', value: data.resetDate },
+  ];
+
+  if (data.addonRemaining) {
+    rows.push({ metric: 'Add-on', value: data.addonRemaining });
+  }
+
+  return (
+    <Section title="Token Plan" subtitle={`${data.planName}  ${theme.symbols.dot}  ${data.status}`}>
+      <Table columns={columns} data={rows} paddingLeft={0} />
     </Section>
   );
 }

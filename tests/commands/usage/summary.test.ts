@@ -66,11 +66,12 @@ describe('usage summary command (one-shot)', () => {
             { model_id: 'qwen3-max', quota: { remaining: 500_000, total: 1_000_000, unit: 'tokens', used_pct: 50 } } as any,
           ],
           coding_plan: { subscribed: false },
+          token_plan: { subscribed: false },
           pay_as_you_go: {
             models: [
               {
                 model_id: 'qwen3-max',
-                usage: { tokens_in: 50_000, tokens_out: 10_000 },
+                usage: { tokens: 60_000 },
                 cost: 0.42,
                 currency: 'USD',
               },
@@ -103,6 +104,7 @@ describe('usage summary command (one-shot)', () => {
             { model_id: 'qwen3-max', quota: { remaining: 500_000, total: 1_000_000, unit: 'tokens', used_pct: 50 } } as any,
           ],
           coding_plan: { subscribed: false },
+          token_plan: { subscribed: false },
           pay_as_you_go: { models: [], total: { cost: 0, currency: 'USD' } },
         }),
       });
@@ -122,6 +124,7 @@ describe('usage summary command (one-shot)', () => {
             period: { from: opts?.from ?? '', to: opts?.to ?? '' },
             free_tier: [],
             coding_plan: { subscribed: false },
+            token_plan: { subscribed: false },
             pay_as_you_go: { models: [], total: { cost: 0, currency: 'USD' } },
           };
         },
@@ -153,6 +156,7 @@ describe('usage summary command (one-shot)', () => {
               monthly: { remaining: 80000, total: 100000, used_pct: 20, next_reset_at: '2026-05-01T00:00:00Z' },
             },
           } as any,
+          token_plan: { subscribed: false },
           pay_as_you_go: { models: [], total: { cost: 0, currency: 'USD' } },
         }),
       });
@@ -168,11 +172,12 @@ describe('usage summary command (one-shot)', () => {
           period: { from: '2026-04-01', to: '2026-04-20' },
           free_tier: [],
           coding_plan: { subscribed: false },
+          token_plan: { subscribed: false },
           pay_as_you_go: {
             models: [
               {
                 model_id: 'qwen3-max',
-                usage: { tokens_in: 10_000, tokens_out: 2_000 },
+                usage: { tokens: 12_000 },
                 cost: 0.12,
                 currency: 'USD',
               },
@@ -204,8 +209,9 @@ describe('usage summary command (one-shot)', () => {
               monthly: { remaining: 5000, total: 50000, used_pct: 90, next_reset_at: '2026-05-01T00:00:00Z' },
             },
           } as any,
+          token_plan: { subscribed: false },
           pay_as_you_go: {
-            models: [{ model_id: 'qwen-payg', usage: { tokens_in: 100, tokens_out: 50 }, cost: 0.01, currency: 'USD' }],
+            models: [{ model_id: 'qwen-payg', usage: { tokens: 150 }, cost: 0.01, currency: 'USD' }],
             total: { cost: 0.01, currency: 'USD' },
           },
         }),
@@ -253,9 +259,10 @@ describe('usage summary command (one-shot)', () => {
               monthly: { remaining: 80000, total: 100000, used_pct: 20, next_reset_at: '2026-05-01T00:00:00Z' },
             },
           } as any,
+          token_plan: { subscribed: false },
           pay_as_you_go: {
             models: [
-              { model_id: 'qwen3-payg', usage: { tokens_in: 100, tokens_out: 50 }, cost: 0.01, currency: 'USD' },
+              { model_id: 'qwen3-payg', usage: { tokens: 150 }, cost: 0.01, currency: 'USD' },
             ],
             total: { cost: 0.01, currency: 'USD' },
           },
@@ -279,6 +286,7 @@ describe('usage summary command (one-shot)', () => {
             { model_id: 'qwen-free-only', quota: null } as any,
           ],
           coding_plan: { subscribed: false },
+          token_plan: { subscribed: false },
           pay_as_you_go: { models: [], total: { cost: 0, currency: 'USD' } },
         }),
       });
@@ -297,6 +305,7 @@ describe('usage summary command (one-shot)', () => {
           period: { from: '2026-04-01', to: '2026-04-20' },
           free_tier: manyRows,
           coding_plan: { subscribed: false },
+          token_plan: { subscribed: false },
           pay_as_you_go: { models: [], total: { cost: 0, currency: 'USD' } },
         }),
       });
@@ -323,6 +332,7 @@ describe('usage summary command (one-shot)', () => {
               monthly: { remaining: 5000, total: 50000, used_pct: 90, next_reset_at: '2026-05-01T00:00:00Z' },
             },
           } as any,
+          token_plan: { subscribed: false },
           pay_as_you_go: { models: [], total: { cost: 0, currency: 'USD' } },
         }),
       });
@@ -337,6 +347,7 @@ describe('usage summary command (one-shot)', () => {
           period: { from: '2026-04-01', to: '2026-04-20' },
           free_tier: [],
           coding_plan: { subscribed: false },
+          token_plan: { subscribed: false },
           pay_as_you_go: {
             models: [],
             total: { cost: 0, currency: 'USD' },
@@ -353,7 +364,7 @@ describe('usage summary command (one-shot)', () => {
     it('renders PayAsYouGoSection with hidden-count footer when >10 rows', async () => {
       const manyPayg = Array.from({ length: 12 }, (_, i) => ({
         model_id: `qwen-payg-${i}`,
-        usage: { tokens_in: 100, tokens_out: 50 },
+        usage: { tokens: 150 },
         cost: 0.01,
         currency: 'USD',
       }));
@@ -362,6 +373,7 @@ describe('usage summary command (one-shot)', () => {
           period: { from: '2026-04-01', to: '2026-04-20' },
           free_tier: [],
           coding_plan: { subscribed: false },
+          token_plan: { subscribed: false },
           pay_as_you_go: {
             models: manyPayg,
             total: { cost: 0.12, currency: 'USD' },
@@ -383,6 +395,7 @@ describe('usage summary command (one-shot)', () => {
             { model_id: 'qwen-only-ft', quota: { remaining: 100, total: 1000, unit: 'tokens', used_pct: 90 } } as any,
           ],
           coding_plan: { subscribed: false },
+          token_plan: { subscribed: false },
           pay_as_you_go: { models: [], total: { cost: 0, currency: 'USD' } },
         }),
       });

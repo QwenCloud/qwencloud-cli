@@ -3,6 +3,7 @@ export interface UsageSummaryResponse {
   period: { from: string; to: string };
   free_tier: FreeTierUsage[];
   coding_plan: CodingPlan;
+  token_plan: TokenPlan;
   pay_as_you_go: PayAsYouGo;
 }
 
@@ -37,6 +38,17 @@ export interface CodingPlanWindow {
   next_reset_at: string;
 }
 
+export interface TokenPlan {
+  subscribed: boolean;
+  planName?: string; // e.g. "Token Plan Team (Monthly)"
+  status?: 'valid' | 'exhaust' | 'invalid';
+  totalCredits?: number; // InitCapacityBaseValue
+  remainingCredits?: number; // CurrCapacityBaseValue
+  usedPct?: number; // computed: (total - remaining) / total * 100
+  resetDate?: string; // ISO date derived from EndTime ms timestamp
+  addonRemaining?: number; // sum of all addon CurrCapacityBaseValue
+}
+
 export interface PayAsYouGo {
   models: PayAsYouGoModel[];
   total: { cost: number; currency: string };
@@ -65,6 +77,10 @@ export interface UsageBreakdownUsage {
   images?: number;
   characters?: number;
   seconds?: number;
+  voices?: number;
+  // Index signature: allow dynamic billing units extracted from
+  // unknown "Per X Y" formats (e.g. "calls", "request") to pass through.
+  [key: string]: number | undefined;
 }
 
 export interface UsageBreakdownRow {

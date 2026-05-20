@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-05-20
+
+### Added
+
+- Compatibility with itemized pricing data
+- Compatibility with dynamic billing units (e.g. `voices`)
+
+### Changed
+
+- Show full numeric digits in usage percentage and free-tier remaining
+- Unify `—` for zero-value cells
+
+### Fixed
+
+- Defensive null checks for `InitCapacity` / `CurrCapacity` in `fetchFreeTierQuotas`
+- Align displayed fields across `usage` subcommands
+
 ## [1.0.1] - 2026-05-14
 
 ### Added

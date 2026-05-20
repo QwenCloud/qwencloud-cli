@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { buildProgressBar, progressColor } from '../../src/ui/theme.js';
 
 describe('buildProgressBar', () => {
+  // eslint-disable-next-line no-control-regex
   const stripAnsi = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, '');
 
   it('builds bar with default width (10)', () => {
@@ -21,7 +22,7 @@ describe('buildProgressBar', () => {
 
   it('shows percentage when showPct=true', () => {
     const bar = buildProgressBar(85, 10, undefined, true);
-    expect(bar).toMatch(/85\.0%/);
+    expect(bar).toMatch(/85%/);
   });
 
   it('uses custom color function', () => {

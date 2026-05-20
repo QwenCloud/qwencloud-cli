@@ -33,7 +33,7 @@ describe('buildDoctorViewModel', () => {
       { name: 'auth', status: 'fail', detail: 'Not authenticated', action: 'qwencloud login' },
     ];
     // Override auth to fail (replace the pass one)
-    const allChecks = checks.filter((c, i, arr) => i < 5 || c.name !== 'auth' || c.status === 'fail');
+    const allChecks = checks.filter((c, i, _arr) => i < 5 || c.name !== 'auth' || c.status === 'fail');
     allChecks[1] = { name: 'auth', status: 'fail', detail: 'Not authenticated', action: 'qwencloud login' };
 
     const vm = buildDoctorViewModel('1.0.0', allChecks);

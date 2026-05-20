@@ -61,7 +61,7 @@ vi.mock('../../src/config/manager.js', async (importOriginal) => {
       value: defaults[key] ?? '',
       source: 'default' as const,
     }),
-    getConfigEntries: (opts?: any) => Object.entries(defaults).map(([key, value]) => ({
+    getConfigEntries: (_opts?: any) => Object.entries(defaults).map(([key, value]) => ({
       key,
       value,
       source: 'default' as const,
@@ -128,6 +128,7 @@ describe('oneshot commands (integration)', () => {
       expect(result.stdout).toContain('Auth');
       expect(result.stdout).toContain('All critical checks passed');
       // Should NOT contain ANSI escape codes
+      // eslint-disable-next-line no-control-regex
       expect(result.stdout).not.toMatch(/\x1b\[/);
     });
   });

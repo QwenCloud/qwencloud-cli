@@ -59,7 +59,7 @@ describe('buildModelListViewModel', () => {
     expect(r0.freeTierRemainingPct).toBe(85);
     expect(r0.canTry).toBe('Yes');
     // Price split: amount + unit
-    expect(r0.price).toContain('$0.50');
+    expect(r0.price).toContain('$0.5');
     expect(r0.priceUnit).toBe('/1M tok');
 
     // Second row: "Only" mode
@@ -171,7 +171,7 @@ describe('buildModelDetailViewModel', () => {
     expect(vm.builtInTools).toHaveLength(2);
     expect(vm.builtInTools[0]).toEqual({
       name: 'web_search',
-      price: '$10.00 / 1K calls',
+      price: '$10 / 1K calls',
       api: 'Responses API',
     });
     expect(vm.builtInTools[1]).toEqual({
@@ -244,7 +244,7 @@ describe('buildModelDetailViewModel', () => {
     };
     const vm = buildModelDetailViewModel(detail);
     // "per " prefix should be stripped from unit
-    expect(vm.builtInTools[0].price).toBe('$5.00 / request');
+    expect(vm.builtInTools[0].price).toBe('$5 / request');
   });
 
   it('includes category and snapshot in metadata when present', () => {
