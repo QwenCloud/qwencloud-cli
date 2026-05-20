@@ -1,12 +1,22 @@
 import type { ConfigKey, ConfigSchema } from '../types/config.js';
+import { site } from '../site.js';
+
+/**
+ * Default file-cache TTL in milliseconds. Matches the previous in-memory TTL
+ * (10 minutes) so behaviour is preserved when this hidden setting is unset.
+ * `'0'` disables the file cache entirely.
+ */
+export const DEFAULT_CACHE_TTL_MS = site.cacheTtlMs;
 
 /**
  * Default values for all config keys.
  */
 export const CONFIG_DEFAULTS: ConfigSchema = {
   'output.format': 'auto',
-  'api.endpoint': 'https://cli.qwencloud.com',
-  'auth.endpoint': 'https://t.qwencloud.com',
+  'api.endpoint': site.apiEndpoint,
+  'auth.endpoint': site.authEndpoint,
+  'cache.ttl': String(DEFAULT_CACHE_TTL_MS),
+  'pricing.precision': 'full',
 };
 
 /**
@@ -54,6 +64,9 @@ const VALIDATORS: Record<ConfigKey, (value: string) => boolean> = {
       return false;
     }
   },
+  // Non-negative integer milliseconds. '0' disables the file cache.
+  'cache.ttl': (v) => /^\d+$/.test(v),
+  'pricing.precision': (v) => ['full', 'fixed'].includes(v),
 };
 
 /**
@@ -72,6 +85,10 @@ export function validateConfigValue(key: ConfigKey, value: string): string | nul
         return `Invalid value for api.endpoint. Must be a valid URL`;
       case 'auth.endpoint':
         return `Invalid value for auth.endpoint. Must be a valid URL`;
+      case 'cache.ttl':
+        return `Invalid value for cache.ttl. Must be a non-negative integer (milliseconds); '0' disables the file cache`;
+      case 'pricing.precision':
+        return `Invalid value for pricing.precision. Allowed: full, fixed`;
       default:
         return `Invalid value for ${key}`;
     }

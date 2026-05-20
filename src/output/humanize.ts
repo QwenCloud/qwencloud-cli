@@ -1,3 +1,10 @@
+import { site } from '../site.js';
+import { getConfigValue } from '../config/manager.js';
+import type { ConfigSchema } from '../types/config.js';
+
+/** Currency symbol resolved from site config. */
+const CUR = site.features.currency === 'USD' ? '$' : ' ';
+
 /**
  * Humanize a number for TTY display.
  * Rules from PRD §9.4:
@@ -62,26 +69,50 @@ function unitAbbrev(unit: string): string {
 }
 
 /**
+ * Format a monetary amount respecting the pricing.precision config.
+ * - 'full': displays the cleaned number as-is (no trailing-zero padding)
+ * - 'fixed': displays with exactly 2 decimal places
+ */
+export function formatAmount(amount: number): string {
+  let precision: ConfigSchema['pricing.precision'] = 'full';
+  try {
+    precision = getConfigValue('pricing.precision') as ConfigSchema['pricing.precision'];
+  } catch {
+    // Config not initialized yet — default to 'full'
+  }
+  if (precision === 'fixed') {
+    return amount.toFixed(2);
+  }
+  // 'full' mode: show as-is but clean any residual FP artifacts
+  // Use toPrecision(10) to clean, then parseFloat to strip trailing zeros
+  const cleaned = parseFloat(amount.toPrecision(10));
+  return String(cleaned);
+}
+
+/**
  * Format a price for display.
  * Examples: "$0.50", "$2.00", "$0.14/$0.56"
  */
 export function formatPrice(amount: number): string {
-  return `$${amount.toFixed(2)}`;
+  return `${CUR}${formatAmount(amount)}`;
 }
 
 /**
- * Format cost (remove trailing zeros if possible but keep at least 2 decimals).
+ * Format cost (respects pricing.precision config).
  */
 export function formatCost(amount: number): string {
-  return `$${amount.toFixed(2)}`;
+  return `${CUR}${formatAmount(amount)}`;
 }
 
 /**
- * Format a currency amount with $ prefix and 2 decimal places.
+ * Format a currency amount with currency prefix and 2 decimal places.
  * For very small amounts (< 0.01), show more precision.
  */
-export function humanizeCurrency(amount: number, currency: string = 'USD'): string {
-  const symbol = currency === 'CNY' ? '¥' : '$';
+export function humanizeCurrency(
+  amount: number,
+  currency: string = site.features.currency,
+): string {
+  const symbol = currency === 'USD' ? '$' : ' ';
   if (amount < 0.01 && amount > 0) {
     return `${symbol}${amount.toFixed(5)}`;
   }

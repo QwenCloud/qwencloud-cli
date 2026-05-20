@@ -3,10 +3,20 @@ import type {
   UsageBreakdownResponse,
   FreeTierUsage,
   CodingPlan,
+  TokenPlan,
   PayAsYouGo,
   UsageBreakdownRow,
 } from '../types/usage.js';
-import { humanizeNumber, humanizeWithUnit, formatNextReset } from '../output/humanize.js';
+import {
+  humanizeNumber,
+  humanizeWithUnit,
+  formatNextReset,
+  formatAmount,
+} from '../output/humanize.js';
+import { site } from '../site.js';
+
+/** Currency symbol resolved from site config. */
+const CUR = site.features.currency === 'USD' ? '$' : ' ';
 
 // ── Usage Summary ViewModel ───────────────────────────────────────────
 
@@ -14,6 +24,7 @@ export interface UsageSummaryViewModel {
   period: string; // "2026-04-07"
   freeTier?: FreeTierSectionViewModel;
   codingPlan?: CodingPlanSectionViewModel;
+  tokenPlan?: TokenPlanSectionViewModel;
   payAsYouGo?: PayAsYouGoSectionViewModel;
 }
 
@@ -56,13 +67,25 @@ export interface CodingPlanWindowViewModel {
   nextReset: string; // "in 3h 24m"
 }
 
+export interface TokenPlanSectionViewModel {
+  planName: string; // "Token Plan Team (Monthly)"
+  status: string; // "valid" | "exhaust" | "invalid"
+  usageDisplay: string; // "0 / 25,000 Credits"
+  progressBar: {
+    percentage: number; // remaining percentage 0-100
+    mode: 'remaining';
+    label: string; // "100%"
+  };
+  resetDate: string; // "2026-06-01" or "—"
+  addonRemaining?: string; // "1,000 Credits"
+}
+
 export interface PayAsYouGoSectionViewModel {
   period: string; // "2026-04-01 → 2026-04-07"
   rows: PayAsYouGoRowViewModel[]; // sorted by cost desc, possibly truncated
   totalCount: number; // total number of PAYG models
   hiddenCount: number; // hidden due to truncation
   total: {
-    requests: string;
     cost: string;
   };
   isEmpty: boolean;
@@ -70,7 +93,6 @@ export interface PayAsYouGoSectionViewModel {
 
 export interface PayAsYouGoRowViewModel {
   modelId: string;
-  requests: string; // "—" (not available from API)
   usage: string; // "480K in · 120K out tok" or "45 img"
   cost: string; // "$0.38"
 }
@@ -95,6 +117,11 @@ export function buildUsageSummaryViewModel(response: UsageSummaryResponse): Usag
   // Coding Plan section
   if (response.coding_plan.subscribed && response.coding_plan.windows) {
     vm.codingPlan = buildCodingPlanSection(response.coding_plan);
+  }
+
+  // Token Plan section
+  if (response.token_plan?.subscribed) {
+    vm.tokenPlan = buildTokenPlanSection(response.token_plan);
   }
 
   // Pay-as-you-go section
@@ -133,7 +160,9 @@ function buildFreeTierRow(usage: FreeTierUsage): FreeTierRowViewModel {
   }
 
   const q = usage.quota;
-  const remainingPct = Math.round((100 - q.used_pct) * 10) / 10; // round to 1dp
+  // Direct compute from remaining/total to avoid the precision loss
+  // introduced by `100 - used_pct` (used_pct is already truncated upstream).
+  const remainingPct = q.total > 0 ? parseFloat(((q.remaining / q.total) * 100).toFixed(2)) : 0;
 
   // Expired quota: show total with (expired) suffix, not misleading remaining amount
   const remainingStr =
@@ -167,8 +196,8 @@ function buildCodingPlanSection(codingPlan: CodingPlan): CodingPlanSectionViewMo
   return {
     planName: codingPlan.plan?.toUpperCase() ?? 'Pro',
     price: codingPlan.price
-      ? `$${codingPlan.price.amount}/${codingPlan.price.cycle === 'monthly' ? 'mo' : 'cycle'}`
-      : '$50/mo',
+      ? `${CUR}${codingPlan.price.amount}/${codingPlan.price.cycle === 'monthly' ? 'mo' : 'cycle'}`
+      : `${CUR}50/mo`,
     includedModels: (codingPlan.included_models ?? []).join('  '),
     windows,
   };
@@ -178,11 +207,12 @@ function buildCodingWindow(
   label: string,
   window: { remaining: number; total: number; used_pct: number; next_reset_at: string },
 ): CodingPlanWindowViewModel {
-  const remainingPct = Math.round((100 - window.used_pct) * 10) / 10;
+  const remainingPct =
+    window.total > 0 ? parseFloat(((window.remaining / window.total) * 100).toFixed(2)) : 0;
   return {
     label,
-    remaining: `${window.remaining.toLocaleString()} req`,
-    total: `${window.total.toLocaleString()}`,
+    remaining: `${window.remaining.toLocaleString(undefined, { maximumFractionDigits: 20 })} req`,
+    total: `${window.total.toLocaleString(undefined, { maximumFractionDigits: 20 })}`,
     usedPct: window.used_pct,
     progressBar: {
       percentage: remainingPct,
@@ -190,6 +220,33 @@ function buildCodingWindow(
       label: `${remainingPct}%`,
     },
     nextReset: formatNextReset(window.next_reset_at),
+  };
+}
+
+function buildTokenPlanSection(tokenPlan: TokenPlan): TokenPlanSectionViewModel {
+  const total = tokenPlan.totalCredits ?? 0;
+  const remaining = tokenPlan.remainingCredits ?? 0;
+  const remainingPct = total > 0 ? parseFloat(((remaining / total) * 100).toFixed(2)) : 0;
+
+  const resetDate = tokenPlan.resetDate
+    ? tokenPlan.resetDate.split('T')[0] // ISO → YYYY-MM-DD
+    : '\u2014';
+
+  const displayStatus = tokenPlan.status ?? '\u2014';
+
+  return {
+    planName: tokenPlan.planName ?? 'Token Plan',
+    status: displayStatus,
+    usageDisplay: `${remaining.toLocaleString(undefined, { maximumFractionDigits: 20 })} / ${total.toLocaleString(undefined, { maximumFractionDigits: 20 })} Credits`,
+    progressBar: {
+      percentage: tokenPlan.status === 'exhaust' ? 0 : remainingPct,
+      mode: 'remaining',
+      label: tokenPlan.status === 'exhaust' ? '0%' : `${remainingPct}%`,
+    },
+    resetDate,
+    addonRemaining: tokenPlan.addonRemaining
+      ? `${tokenPlan.addonRemaining.toLocaleString(undefined, { maximumFractionDigits: 20 })} Credits`
+      : undefined,
   };
 }
 
@@ -205,9 +262,8 @@ function buildPayAsYouGoSection(
 
   const rows = sorted.map((model) => ({
     modelId: model.model_id,
-    requests: '—',
     usage: formatPaygUsage(model),
-    cost: `$${model.cost.toFixed(2)}`,
+    cost: `${CUR}${formatAmount(model.cost)}`,
   }));
 
   return {
@@ -216,8 +272,7 @@ function buildPayAsYouGoSection(
     totalCount,
     hiddenCount: 0,
     total: {
-      requests: '—',
-      cost: `$${payg.total.cost.toFixed(2)}`,
+      cost: `${CUR}${formatAmount(payg.total.cost)}`,
     },
     isEmpty,
   };
@@ -225,16 +280,10 @@ function buildPayAsYouGoSection(
 
 function formatPaygUsage(model: { model_id: string; usage: Record<string, number> }): string {
   const u = model.usage;
-  // Tokens: collapse to a single value when the upstream doesn't split in/out
-  // (current backend behavior). Auto-expands to "X in · Y out tok" the moment
-  // a non-zero tokens_out shows up — keeps parity with the breakdown view.
-  if (u.tokens_in != null || u.tokens_out != null) {
-    const tokensIn = u.tokens_in ?? 0;
-    const tokensOut = u.tokens_out ?? 0;
-    if (tokensOut > 0) {
-      return `${humanizeNumber(tokensIn)} in · ${humanizeNumber(tokensOut)} out tok`;
-    }
-    return `${humanizeNumber(tokensIn)} tok`;
+  // Tokens: the upstream API returns an undifferentiated count with no in/out
+  // split; stored under the neutral 'tokens' key by the aggregator.
+  if (u.tokens != null) {
+    return `${humanizeNumber(u.tokens)} tok`;
   }
   if (u.images != null) {
     return `${humanizeNumber(u.images)} img`;
@@ -244,6 +293,15 @@ function formatPaygUsage(model: { model_id: string; usage: Record<string, number
   }
   if (u.seconds != null) {
     return `${humanizeNumber(u.seconds)} sec`;
+  }
+  if (u.voices != null) {
+    return `${humanizeNumber(u.voices)} voice`;
+  }
+  // Dynamic unit fallback (e.g. "calls", "request") — first non-zero key wins.
+  for (const [k, v] of Object.entries(u)) {
+    if (typeof v === 'number' && v > 0) {
+      return `${humanizeNumber(v)} ${k}`;
+    }
   }
   return '—';
 }
@@ -284,13 +342,15 @@ export interface BreakdownTotalViewModel {
 
 export function buildUsageBreakdownViewModel(
   response: UsageBreakdownResponse,
-  options: { billingUnitOverride?: 'tokens' | 'images' | 'characters' | 'seconds' } = {},
+  options: { billingUnitOverride?: string } = {},
 ): UsageBreakdownViewModel {
   // Prefer caller-provided override (derived from model metadata) so the
   // headers match the model's actual unit even when rows are empty/zero.
-  const billingUnit =
-    options.billingUnitOverride ??
-    (response.rows.length > 0 ? inferBillingUnit(response.rows[0]) : 'tokens');
+  // The override is only used when it actually matches a unit present in
+  // the rows; otherwise we fall back to inference so dynamic units (e.g.
+  // "calls") still produce a valid header.
+  const inferred = response.rows.length > 0 ? inferBillingUnit(response.rows[0]) : 'tokens';
+  const billingUnit = pickBillingUnit(options.billingUnitOverride, inferred, response.rows);
 
   // For tokens, the upstream billing API doesn't split input/output — every
   // line item is a single quantity that we currently bucket into tokens_in.
@@ -315,29 +375,37 @@ export function buildUsageBreakdownViewModel(
 
   const totalCells: Record<string, string> = {
     period: 'Total',
-    cost: response.total.cost != null ? `$${response.total.cost.toFixed(2)}` : '—',
+    cost: response.total.cost != null ? `${CUR}${formatAmount(response.total.cost)}` : '—',
   };
   // Populate the unit-specific total cell so the Total row always aligns with
-  // the chosen columns. Default to 0 (not "—") for the empty case so a totals
-  // row never shows a mix of zeros and dashes.
-  const totalUsage = (response.total as any).usage || {};
+  // the chosen columns. Zero values render as "—" (em-dash) uniformly across
+  // every unit — text/table modes only. JSON output is unaffected (always raw
+  // numbers).
+  const totalUsage = (response.total as { usage?: Record<string, number> }).usage ?? {};
   switch (billingUnit) {
     case 'tokens':
       if (tokensSplit) {
-        totalCells.tokensIn = humanizeNumber(response.total.tokens_in ?? 0);
-        totalCells.tokensOut = humanizeNumber(response.total.tokens_out ?? 0);
+        totalCells.tokensIn = formatUsageCell(response.total.tokens_in ?? 0);
+        totalCells.tokensOut = formatUsageCell(response.total.tokens_out ?? 0);
       } else {
-        totalCells.tokens = humanizeNumber(response.total.tokens_in ?? 0);
+        totalCells.tokens = formatUsageCell(response.total.tokens_in ?? 0);
       }
       break;
     case 'images':
-      totalCells.images = humanizeNumber(totalUsage.images ?? 0);
+      totalCells.images = formatUsageCell(totalUsage.images ?? 0);
       break;
     case 'characters':
-      totalCells.characters = humanizeNumber(totalUsage.characters ?? 0);
+      totalCells.characters = formatUsageCell(totalUsage.characters ?? 0);
       break;
     case 'seconds':
-      totalCells.seconds = humanizeNumber(totalUsage.seconds ?? 0);
+      totalCells.seconds = formatUsageCell(totalUsage.seconds ?? 0);
+      break;
+    case 'voices':
+      totalCells.voices = formatUsageCell(totalUsage.voices ?? 0);
+      break;
+    default:
+      // Dynamic unit (e.g. "calls", "request") — cell key matches the unit name.
+      totalCells[billingUnit] = formatUsageCell(totalUsage[billingUnit] ?? 0);
       break;
   }
   const total = { cells: totalCells };
@@ -371,12 +439,43 @@ export function buildUsageBreakdownViewModel(
   return vm;
 }
 
-function inferBillingUnit(row: UsageBreakdownRow): 'tokens' | 'images' | 'characters' | 'seconds' {
+// Known fixed billing units we recognize in the breakdown view. Used by
+// `pickBillingUnit` to decide whether a tokens-fallthrough override should be
+// preserved or replaced by an inferred dynamic unit.
+const FIXED_UNITS = new Set(['tokens', 'images', 'characters', 'seconds', 'voices']);
+
+function pickBillingUnit(
+  override: string | undefined,
+  inferred: string,
+  _rows: UsageBreakdownRow[],
+): string {
+  if (!override) return inferred;
+  // Trust any non-tokens override outright — model metadata (images / characters
+  // / seconds / voices) is authoritative even when all rows are zero/empty.
+  if (override !== 'tokens') return override;
+  // For the tokens default, only honor it when the rows actually carry tokens
+  // data, OR no other unit was inferred. This protects dynamic units ("calls",
+  // "request") whose model metadata falls through `inferBillingUnitFromModel`
+  // to the 'tokens' fallback.
+  if (FIXED_UNITS.has(inferred) || inferred === 'tokens') return 'tokens';
+  // Inferred is a dynamic unit (not in the fixed set) — prefer it over the
+  // fallthrough tokens override so the table headers match row data.
+  return inferred;
+}
+
+function inferBillingUnit(row: UsageBreakdownRow): string {
   if (row.tokens_in != null || row.tokens_out != null) return 'tokens';
-  if (row.usage?.tokens_in != null || row.usage?.tokens_out != null) return 'tokens';
-  if (row.usage?.images != null) return 'images';
-  if (row.usage?.characters != null) return 'characters';
-  if (row.usage?.seconds != null) return 'seconds';
+  const usage = row.usage;
+  if (!usage) return 'tokens';
+  if (usage.tokens_in != null || usage.tokens_out != null) return 'tokens';
+  if (usage.images != null) return 'images';
+  if (usage.characters != null) return 'characters';
+  if (usage.seconds != null) return 'seconds';
+  if (usage.voices != null) return 'voices';
+  // Dynamic unit fallback — first numeric key wins (deterministic by insertion order).
+  for (const [k, v] of Object.entries(usage)) {
+    if (typeof v === 'number') return k;
+  }
   return 'tokens';
 }
 
@@ -404,6 +503,15 @@ function buildBreakdownColumns(
     case 'seconds':
       base.push({ key: 'seconds', header: 'Duration (sec)', align: 'right' });
       break;
+    case 'voices':
+      base.push({ key: 'voices', header: 'Voice', align: 'right' });
+      break;
+    default: {
+      // Dynamic unit — capitalize for the header (e.g. "calls" → "Calls").
+      const header = billingUnit.charAt(0).toUpperCase() + billingUnit.slice(1);
+      base.push({ key: billingUnit, header, align: 'right' });
+      break;
+    }
   }
 
   base.push({ key: 'cost', header: 'Cost', align: 'right' });
@@ -434,26 +542,43 @@ function buildBreakdownCells(
   switch (billingUnit) {
     case 'tokens':
       if (opts.tokensSplit) {
-        cells.tokensIn = humanizeNumber(row.tokens_in ?? usage.tokens_in ?? 0);
-        cells.tokensOut = humanizeNumber(row.tokens_out ?? usage.tokens_out ?? 0);
+        cells.tokensIn = formatUsageCell(row.tokens_in ?? usage.tokens_in ?? 0);
+        cells.tokensOut = formatUsageCell(row.tokens_out ?? usage.tokens_out ?? 0);
       } else {
         // Single-column mode: API doesn't split in/out, so present the total.
-        cells.tokens = humanizeNumber(row.tokens_in ?? usage.tokens_in ?? 0);
+        cells.tokens = formatUsageCell(row.tokens_in ?? usage.tokens_in ?? 0);
       }
       break;
     case 'images':
-      cells.images = humanizeNumber(usage.images ?? 0);
+      cells.images = formatUsageCell(usage.images ?? 0);
       break;
     case 'characters':
-      cells.characters = humanizeNumber(usage.characters ?? 0);
+      cells.characters = formatUsageCell(usage.characters ?? 0);
       break;
     case 'seconds':
-      cells.seconds = humanizeNumber(usage.seconds ?? 0);
+      cells.seconds = formatUsageCell(usage.seconds ?? 0);
       break;
+    case 'voices':
+      cells.voices = formatUsageCell(usage.voices ?? 0);
+      break;
+    default: {
+      const dynamicUsage = usage as Record<string, number | undefined>;
+      cells[billingUnit] = formatUsageCell(dynamicUsage[billingUnit] ?? 0);
+      break;
+    }
   }
 
-  cells.cost = row.cost != null ? `$${row.cost.toFixed(2)}` : '—';
+  cells.cost = row.cost != null ? `${CUR}${formatAmount(row.cost)}` : '—';
   return cells;
+}
+
+// Render a usage cell: empty periods (value === 0) show "—" instead of "0" so
+// the table visually distinguishes zero-usage rows from rows that actually
+// consumed a small amount. Applies uniformly to every billing unit
+// (tokens / images / characters / seconds / voice / dynamic). Text and table
+// (Ink) modes only — JSON output is unaffected.
+function formatUsageCell(value: number): string {
+  return value > 0 ? humanizeNumber(value) : '—';
 }
 
 function isRowCurrent(period: string, granularity: 'day' | 'month' | 'quarter'): boolean {

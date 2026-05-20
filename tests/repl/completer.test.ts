@@ -8,6 +8,7 @@ import {
   unknownCommandMsg,
 } from '../../src/repl/completer.js';
 
+// eslint-disable-next-line no-control-regex
 const stripAnsi = (s: string) => s.replace(/\u001b\[[0-9;]*m/g, '');
 
 describe('fuzzyFilter', () => {

@@ -6,6 +6,7 @@ import {
   mapFqInstanceToQuota,
 } from '../../src/api/model-mapper.js';
 import type { ApiModelItem, ApiModelGroup, FqInstanceItem } from '../../src/types/api-models.js';
+import type { LLMPricing } from '../../src/types/model.js';
 
 // ──────────────────────────────────────────────────────────────────────
 // Test fixtures: minimal-but-realistic ApiModelItem builders.
@@ -182,7 +183,7 @@ describe('mapApiModelToModel pricing summary', () => {
     });
   });
 
-  it('LLM all-zero tier → billing_type "free"', () => {
+  it('LLM all-zero tier → billing_type "unknown"', () => {
     const item = makeApiItem({
       Prices: [
         { Type: 'input_token', Price: '0', PriceUnit: 'USD/1M tokens', PriceName: 'Input' },
@@ -190,8 +191,8 @@ describe('mapApiModelToModel pricing summary', () => {
       ],
     });
     const m = mapApiModelToModel(item, false);
-    // mapPrices flips all-zero into a single 'Free (Early Access)' tier
-    expect(m.pricing!.summary?.billing_type).toBe('free');
+    // all-zero prices now yield empty tiers and billing_type 'no_pricing'
+    expect(m.pricing!.summary?.billing_type).toBe('no_pricing');
   });
 
   it('image pricing → billing_type "image", cheapest_output from per_image', () => {
@@ -304,10 +305,10 @@ describe('mapApiModelToModel pricing summary', () => {
     });
   });
 
-  it('No pricing data → empty tiers + billing_type "unknown"', () => {
+  it('No pricing data → empty tiers + billing_type "no_pricing"', () => {
     const m = mapApiModelToModel(makeApiItem({ Prices: undefined }), false);
     expect(m.pricing).toMatchObject({ tiers: [] });
-    expect(m.pricing!.summary).toMatchObject({ billing_type: 'unknown' });
+    expect(m.pricing!.summary).toMatchObject({ billing_type: 'no_pricing' });
   });
 
   it('Multimodal LLM (text + vision input) → multiple input-modality tiers', () => {
@@ -506,6 +507,29 @@ describe('mapFqInstanceToQuota', () => {
     expect(q.used_pct).toBe(0);
   });
 
+  it('computes used_pct with floor truncation (no rounding up)', () => {
+    // 995/1000 = 99.5% → floor(99.5 * 100)/100 would be wrong; it's floor((995/1000)*10000)/100
+    // (1000-5)/1000 * 10000 = 9950 → floor(9950)/100 = 99.50
+    const q = mapFqInstanceToQuota(
+      makeFq({
+        InitCapacity: { BaseValue: 1000, ShowUnit: 'Tokens', ShowValue: '1K' },
+        CurrCapacity: { BaseValue: 5, ShowUnit: 'Tokens', ShowValue: '5' },
+      }),
+    );
+    expect(q.used_pct).toBe(99.5);
+  });
+
+  it('computes used_pct for tiny usage (preserves 2dp precision)', () => {
+    // (4 / 1_000_000) * 10000 = 0.04 → floor(0.04) = 0 → 0/100 = 0
+    const q = mapFqInstanceToQuota(
+      makeFq({
+        InitCapacity: { BaseValue: 1_000_000, ShowUnit: 'Tokens', ShowValue: '1M' },
+        CurrCapacity: { BaseValue: 999_996, ShowUnit: 'Tokens', ShowValue: '999996' },
+      }),
+    );
+    expect(q.used_pct).toBe(0);
+  });
+
   it('normalizes ShowUnit "Images" / "Pieces" → "images"', () => {
     expect(
       mapFqInstanceToQuota(
@@ -584,5 +608,59 @@ describe('mapFqInstanceToQuota', () => {
   it('preserves status field (expire / exhaust)', () => {
     expect(mapFqInstanceToQuota(makeFq({ Status: 'expire' })).status).toBe('expire');
     expect(mapFqInstanceToQuota(makeFq({ Status: 'exhaust' })).status).toBe('exhaust');
+  });
+});
+
+// ── Discount handling ──────────────────────────────────────────────────────
+
+describe('Discount handling', () => {
+  it('applies Discount multiplier to video pricing', () => {
+    const item = makeApiItem({
+      Prices: [
+        { Type: 'video_ratio_720p', Price: '0.14', PriceUnit: 'USD/second', PriceName: '720p', Discount: '0.8' },
+        { Type: 'video_ratio_1080p', Price: '0.24', PriceUnit: 'USD/second', PriceName: '1080p', Discount: '0.8' },
+      ],
+    });
+    const m = mapApiModelToModel(item, false);
+    expect(m.pricing).toMatchObject({
+      per_second: expect.arrayContaining([
+        expect.objectContaining({ resolution: '720p', price: 0.112 }),
+        expect.objectContaining({ resolution: '1080p', price: 0.192 }),
+      ]),
+    });
+  });
+
+  it('applies Discount multiplier to LLM token pricing', () => {
+    const item = makeApiItem({
+      Prices: [
+        { Type: 'input_token', Price: '2.00', PriceUnit: 'USD/1M tokens', PriceName: 'Input', Discount: '0.5' },
+        { Type: 'output_token', Price: '6.00', PriceUnit: 'USD/1M tokens', PriceName: 'Output', Discount: '0.5' },
+      ],
+    });
+    const m = mapApiModelToModel(item, false);
+    expect((m.pricing as LLMPricing).tiers![0]).toMatchObject({ input: 1.0, output: 3.0 });
+  });
+
+  it('ignores invalid Discount values', () => {
+    const item = makeApiItem({
+      Prices: [
+        { Type: 'input_token', Price: '2.00', PriceUnit: 'USD/1M tokens', PriceName: 'Input', Discount: '1.5' },
+        { Type: 'output_token', Price: '6.00', PriceUnit: 'USD/1M tokens', PriceName: 'Output', Discount: '0' },
+      ],
+    });
+    const m = mapApiModelToModel(item, false);
+    // Invalid discounts (>1 or <=0) should be ignored, base price used
+    expect((m.pricing as LLMPricing).tiers![0]).toMatchObject({ input: 2.0, output: 6.0 });
+  });
+
+  it('handles missing Discount field gracefully', () => {
+    const item = makeApiItem({
+      Prices: [
+        { Type: 'input_token', Price: '2.00', PriceUnit: 'USD/1M tokens', PriceName: 'Input' },
+        { Type: 'output_token', Price: '6.00', PriceUnit: 'USD/1M tokens', PriceName: 'Output' },
+      ],
+    });
+    const m = mapApiModelToModel(item, false);
+    expect((m.pricing as LLMPricing).tiers![0]).toMatchObject({ input: 2.0, output: 6.0 });
   });
 });

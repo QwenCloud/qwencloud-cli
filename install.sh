@@ -5,7 +5,7 @@
 #   sh install.sh --version v1.2.0
 #
 # Arguments:
-#   --version, -v      - version to install (e.g. v1.0.0, default: v1.0.1)
+#   --version, -v      - version to install (e.g. v1.0.0, default: v1.0.2)
 #   --help, -h         - show help message
 #
 # Behavior:
@@ -17,7 +17,7 @@ set -e
 
 # ─── Default Version ────────────────────────────────────────────────────────
 # Update this value when releasing a new version.
-VERSION="v1.0.1"
+VERSION="v1.0.2"
 
 # ─── Brand Colors ────────────────────────────────────────────────────────────
 # Generate real ESC character for POSIX sh compatibility

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { runCommand } from '../../helpers/run-command.js';
 import { makeMockApiClient } from '../../helpers/api-client.js';
 import type { ApiClient } from '../../../src/api/client.js';
@@ -62,11 +62,12 @@ describe('usage payg command (one-shot)', () => {
           period: { from: '2026-04-01', to: '2026-04-20' },
           free_tier: [],
           coding_plan: { subscribed: false },
+          token_plan: { subscribed: false },
           pay_as_you_go: {
             models: [
               {
                 model_id: 'qwen3-max',
-                usage: { requests: 100, tokens_in: 50_000, tokens_out: 10_000 },
+                usage: { tokens: 60_000 },
                 cost: 0.42,
                 currency: 'USD',
               },
@@ -108,17 +109,18 @@ describe('usage payg command (one-shot)', () => {
           period: { from: '2026-04-01', to: '2026-04-20' },
           free_tier: [],
           coding_plan: { subscribed: false },
+          token_plan: { subscribed: false },
           pay_as_you_go: {
             models: [
               {
                 model_id: 'qwen3-max',
-                usage: { tokens_in: 50_000, tokens_out: 10_000 },
+                usage: { tokens: 60_000 },
                 cost: 0.42,
                 currency: 'USD',
               },
               {
                 model_id: 'qwen3-mini',
-                usage: { tokens_in: 1_000, tokens_out: 200 },
+                usage: { tokens: 1_200 },
                 cost: 0.01,
                 currency: 'USD',
               },
@@ -161,16 +163,20 @@ describe('usage payg command (one-shot)', () => {
   // renderPaygInteractive in payg.tsx (rows → columns / footer / subtitle
   // construction) gets executed.
   describe('Ink rendering (table mode)', () => {
+    const originalIsTTY = process.stdout.isTTY;
+    beforeEach(() => { Object.defineProperty(process.stdout, 'isTTY', { value: true, writable: true, configurable: true }); });
+    afterEach(() => { Object.defineProperty(process.stdout, 'isTTY', { value: originalIsTTY, writable: true, configurable: true }); });
     it('invokes renderInteractive with InteractiveTable for non-empty payg', async () => {
       holder.client = makeMockApiClient({
         getUsageSummary: async () => ({
           period: { from: '2026-04-01', to: '2026-04-20' },
           free_tier: [],
           coding_plan: { subscribed: false },
+          token_plan: { subscribed: false },
           pay_as_you_go: {
             models: [
-              { model_id: 'qwen3-max', usage: { tokens_in: 50_000, tokens_out: 10_000 }, cost: 0.42, currency: 'USD' },
-              { model_id: 'qwen3-mini', usage: { tokens_in: 1_000, tokens_out: 200 }, cost: 0.01, currency: 'USD' },
+              { model_id: 'qwen3-max', usage: { tokens: 60_000 }, cost: 0.42, currency: 'USD' },
+              { model_id: 'qwen3-mini', usage: { tokens: 1_200 }, cost: 0.01, currency: 'USD' },
             ],
             total: { cost: 0.43, currency: 'USD' },
           },
@@ -185,7 +191,7 @@ describe('usage payg command (one-shot)', () => {
       expect(el.props.totalItems).toBe(2);
       expect(el.props.perPage).toBe(15);
       expect(Array.isArray(el.props.columns)).toBe(true);
-      expect(el.props.columns).toHaveLength(4);
+      expect(el.props.columns).toHaveLength(3);
       // footer with bold Total
       expect(el.props.footer).toBeTruthy();
       expect(el.props.footer.modelId).toContain('Total');
@@ -197,6 +203,7 @@ describe('usage payg command (one-shot)', () => {
           period: { from: '2026-04-01', to: '2026-04-20' },
           free_tier: [],
           coding_plan: { subscribed: false },
+          token_plan: { subscribed: false },
           pay_as_you_go: { models: [], total: { cost: 0, currency: 'USD' } },
         }),
       });
@@ -213,9 +220,10 @@ describe('usage payg command (one-shot)', () => {
           period: { from: '2026-04-01', to: '2026-04-20' },
           free_tier: [],
           coding_plan: { subscribed: false },
+          token_plan: { subscribed: false },
           pay_as_you_go: {
             models: [
-              { model_id: 'm1', usage: { tokens_in: 10, tokens_out: 5 }, cost: 0.001, currency: 'USD' },
+              { model_id: 'm1', usage: { tokens: 15 }, cost: 0.001, currency: 'USD' },
             ],
             total: { cost: 0.001, currency: 'USD' },
           },

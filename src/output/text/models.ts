@@ -69,28 +69,42 @@ export function renderTextModelDetail(vm: ModelDetailViewModel): void {
     if (vm.builtInTools.length > 0) {
       lines.push('');
       lines.push('  Built-in Tools');
-      const toolRows = vm.builtInTools.map((t) => [t.name, t.price, `(${t.api})`]);
-      lines.push(
-        '  ' +
-          formatTextTable(['', '', ''], toolRows, 0)
-            .replace(/^ {2}/gm, '')
-            .split('\n')
-            .map((l, i) => {
-              const tool = vm.builtInTools[i];
-              if (!tool) return l;
-              return `  ${tool.name.padEnd(20)}${tool.price.padStart(12)}  (${tool.api})`;
-            })
-            .join('\n'),
-      );
+      for (const tool of vm.builtInTools) {
+        lines.push(`    ${tool.name.padEnd(20)}${tool.price.padStart(12)}  (${tool.api})`);
+      }
     }
   } else if (vm.pricingType === 'video') {
-    const toolRows = vm.pricingLines.map((l) => [l.cells.resolution, l.cells.price]);
-    lines.push('  ' + formatTextTable(['Resolution', 'Price'], toolRows, 0).replace(/^ {2}/gm, ''));
+    if (vm.pricingLines.length === 0) {
+      lines.push('  \u2014');
+    } else if (vm.pricingLines[0].cells.resolution != null) {
+      const toolRows = vm.pricingLines.map((l) => [l.cells.resolution, l.cells.price]);
+      lines.push(
+        '  ' + formatTextTable(['Resolution', 'Price'], toolRows, 0).replace(/^ {2}/gm, ''),
+      );
+    } else {
+      // Fallback: pricing structure doesn't match video format (e.g. free-only model mapped to tiers)
+      const firstLine = vm.pricingLines[0];
+      lines.push(`  ${firstLine.cells.label ?? '\u2014'}`);
+    }
+  } else if (vm.pricingType === 'itemized') {
+    // Itemized pricing table (generic fallback)
+    if (vm.pricingLines.length === 0) {
+      lines.push('  \u2014');
+    } else {
+      const toolRows = vm.pricingLines.map((l) => [l.cells.label, l.cells.price]);
+      lines.push('  ' + formatTextTable(['Item', 'Price'], toolRows, 0).replace(/^ {2}/gm, ''));
+    }
   } else {
     // Single-line pricing (image, tts, asr, embedding)
     const firstLine = vm.pricingLines[0];
     if (firstLine) {
-      lines.push(`  ${firstLine.cells.label || firstLine.cells.price}`);
+      const label = firstLine.cells.label ?? '';
+      const price = firstLine.cells.price ?? '';
+      if (label && price) {
+        lines.push(`  ${label}  ${price}`);
+      } else {
+        lines.push(`  ${label || price || '\u2014'}`);
+      }
     }
   }
   lines.push('');
@@ -113,7 +127,7 @@ export function renderTextModelDetail(vm: ModelDetailViewModel): void {
   if (vm.freeTier) {
     lines.push('  ── Free Tier ──');
     if (vm.freeTier.mode === 'only') {
-      lines.push('  Free (Early Access) — no paid option');
+      lines.push('  FreeTier Only');
     } else if (vm.freeTier.remaining !== undefined && vm.freeTier.remainingPct !== undefined) {
       lines.push(
         `  ${vm.freeTier.total ?? '—'}  ·  ${vm.freeTier.remaining} remaining (${vm.freeTier.remainingPct}%)`,

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, existsSync, writeFileSync } from 'fs';
+import { mkdtempSync, rmSync, existsSync, writeFileSync, readFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import type { Credentials } from '../../src/types/auth.js';
@@ -53,7 +53,7 @@ vi.mock('../../src/auth/crypto-store.js', () => ({
   readEncryptedCredentials: (path: string) => {
     if (!existsSync(path)) return null;
     try {
-      const parsed = JSON.parse(require('fs').readFileSync(path, 'utf-8'));
+      const parsed = JSON.parse(readFileSync(path, 'utf-8'));
       if (!parsed[ENC_MARKER]) return null;
       return parsed.payload;
     } catch {
@@ -249,7 +249,7 @@ describe('writeCredentials', () => {
 
     writeCredentials(creds);
     expect(existsSync(credPath)).toBe(true);
-    const onDisk = JSON.parse(require('fs').readFileSync(credPath, 'utf-8'));
+    const onDisk = JSON.parse(readFileSync(credPath, 'utf-8'));
     expect(onDisk[ENC_MARKER]).toBe(true);
     expect(onDisk.payload.access_token).toBe(creds.access_token);
   });
@@ -260,7 +260,7 @@ describe('writeCredentials', () => {
 
     writeCredentials(creds);
     expect(existsSync(credPath)).toBe(true);
-    const onDisk = JSON.parse(require('fs').readFileSync(credPath, 'utf-8'));
+    const onDisk = JSON.parse(readFileSync(credPath, 'utf-8'));
     expect(onDisk.access_token).toBe(creds.access_token);
     expect(onDisk[ENC_MARKER]).toBeUndefined();
   });
@@ -271,7 +271,7 @@ describe('writeCredentials', () => {
 
     writeCredentials(creds);
     expect(existsSync(credPath)).toBe(true);
-    const onDisk = JSON.parse(require('fs').readFileSync(credPath, 'utf-8'));
+    const onDisk = JSON.parse(readFileSync(credPath, 'utf-8'));
     expect(onDisk[ENC_MARKER]).toBe(true);
   });
 });

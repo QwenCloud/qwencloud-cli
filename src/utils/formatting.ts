@@ -19,6 +19,7 @@ const UNIT_SHORT: Record<string, string> = {
   images: 'img',
   characters: 'char',
   seconds: 'sec',
+  voices: 'voice',
   // fallback for raw ShowUnit lowercase values that slip through SHOW_UNIT_MAP
   token: 'tok',
   image: 'img',

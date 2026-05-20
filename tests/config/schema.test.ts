@@ -18,7 +18,7 @@ describe('VALID_KEYS', () => {
   });
 
   it('has correct length', () => {
-    expect(VALID_KEYS).toHaveLength(3);
+    expect(VALID_KEYS).toHaveLength(5);
   });
 });
 
@@ -116,6 +116,19 @@ describe('validateConfigValue', () => {
       // At runtime, valid keys with invalid values return error messages
       const result = validateConfigValue('output.format', 'invalid');
       expect(result).toContain('Invalid value');
+    });
+  });
+
+  describe('pricing.precision', () => {
+    it('accepts valid values', () => {
+      expect(validateConfigValue('pricing.precision', 'full')).toBeNull();
+      expect(validateConfigValue('pricing.precision', 'fixed')).toBeNull();
+    });
+
+    it('rejects invalid values', () => {
+      expect(validateConfigValue('pricing.precision', 'half')).toContain('Invalid value');
+      expect(validateConfigValue('pricing.precision', '')).toContain('Invalid value');
+      expect(validateConfigValue('pricing.precision', '2')).toContain('Invalid value');
     });
   });
 });

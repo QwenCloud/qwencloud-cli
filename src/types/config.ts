@@ -2,6 +2,8 @@ export interface ConfigSchema {
   'output.format': 'auto' | 'table' | 'json' | 'text';
   'api.endpoint': string;
   'auth.endpoint': string; // Auth API base URL
+  'cache.ttl': string; // File-cache TTL in milliseconds; '0' disables
+  'pricing.precision': 'full' | 'fixed'; // Hidden; controls price display decimal handling
 }
 
 export type ConfigKey = keyof ConfigSchema;

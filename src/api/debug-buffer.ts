@@ -10,6 +10,8 @@
  * keep the env-var gate for troubleshooting.
  */
 
+import { getErrorVerbosity } from '../utils/verbosity.js';
+
 // Injected by tsup at build time via `define` (see tsup.config.ts).
 // Falls back to 'development' when running under ts-node/vitest where the
 // define replacement has not been applied — this preserves test behavior.
@@ -82,12 +84,17 @@ function extractApiAction(body: string | null): string | null {
   }
 }
 
+/** Diagnostic severity level */
+export type DiagnosticLevel = 'debug' | 'warn';
+
 /** Buffered diagnostic messages (the unconditional [FreeTier]/[CodingPlan]/[PAYG] logs) */
 export interface DiagnosticMessage {
-  /** Category tag: FreeTier, CodingPlan, PAYG */
+  /** Category tag: FreeTier, CodingPlan, PAYG, PriceMapping */
   category: string;
   /** The message text */
   message: string;
+  /** Severity level */
+  level: DiagnosticLevel;
   /** Timestamp */
   timestamp: number;
 }
@@ -183,16 +190,30 @@ export function endRequest(
 }
 
 /**
- * Buffer a diagnostic message (replaces unconditional console.error calls).
- * When DEBUG_HTTP is enabled, the message is buffered and printed in the report.
- * When not enabled, the message is printed immediately via console.error (preserving original behavior).
+ * Buffer or emit a diagnostic message.
+ *
+ * Levels:
+ *  - 'debug': internal diagnostics (heuristic results, matching details).
+ *    Only shown in verbose mode; suppressed in graceful/suppress.
+ *  - 'warn': degraded functionality (API failures that result in incomplete data).
+ *    Shown in verbose mode (full detail) and graceful mode (user-friendly hint);
+ *    suppressed only in suppress mode.
+ *
+ * When DEBUG_HTTP is enabled, all messages are buffered for the debug report.
  */
-export function addDiagnostic(category: string, message: string): void {
+export function addDiagnostic(
+  category: string,
+  message: string,
+  level: DiagnosticLevel = 'debug',
+): void {
   if (buffer.enabled) {
-    buffer.diagnostics.push({ category, message, timestamp: Date.now() });
-  } else {
+    buffer.diagnostics.push({ category, message, level, timestamp: Date.now() });
+  } else if (getErrorVerbosity() === 'verbose') {
     console.error(`[${category}] ${message}`);
+  } else if (getErrorVerbosity() === 'graceful' && level === 'warn') {
+    console.error(`Warning: ${category} data may be incomplete.`);
   }
+  // graceful+debug and suppress: silently discard
 }
 
 /** Format and print the complete debug report to stderr. */

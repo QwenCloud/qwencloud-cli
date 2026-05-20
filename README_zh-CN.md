@@ -1,12 +1,12 @@
 # QwenCloud CLI
 
 <p>
-  <img src="./assets/QwenCloudLogo.svg" alt="QwenCloud" width="220" />
+  <img src="./assets/QwenCloudLogo.png" alt="QwenCloud" width="220" />
 </p>
 
 > [QwenCloud](https://www.qwencloud.com/) 官方命令行工具。用于在终端或 AI Agent 运行环境中发现模型、查询用量、管理认证并诊断本地配置。
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Version](https://img.shields.io/badge/version-1.0.2-blue)
 ![Node](https://img.shields.io/badge/node-%3E%3D18-green)
 ![License](https://img.shields.io/badge/license-Apache--2.0-green)
 

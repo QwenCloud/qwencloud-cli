@@ -9,6 +9,7 @@ export interface ApiPriceItem {
   PriceUnit: string; // e.g. "Per 1M tokens"
   Price: string; // Note: string type, e.g. "0.07"
   PriceName: string; // e.g. "Input: Text"
+  Discount?: string; // Discount multiplier (e.g. "0.8" = 20% off, pay 80%)
 }
 
 // QPM rate-limit info
@@ -210,6 +211,34 @@ export interface FqInstanceResponse {
   RequestId: string;
   CurrentPage: number;
   Data: FqInstanceItem[];
+}
+
+// ============================================================
+// DescribeFrInstances API types (Token Plan subscription query)
+// ============================================================
+
+export interface FrInstanceItem {
+  InstanceId: string;
+  CommodityCode: string;
+  CommodityName?: string;
+  TemplateName?: string;
+  Status: { Code: string; Name?: string } | string;
+  StatusCode?: string;
+  StatusName?: string;
+  InitCapacityBaseValue: string;
+  CurrCapacityBaseValue: string;
+  periodCapacityBaseValue?: string;
+  CapacityTypeCode?: string;
+  EndTime?: number;
+  EnableRenew?: boolean;
+}
+
+export interface FrInstanceResponse {
+  TotalCount?: number;
+  PageSize?: number;
+  RequestId?: string;
+  CurrentPage?: number;
+  Data: FrInstanceItem[];
 }
 
 // ============================================================

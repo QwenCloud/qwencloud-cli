@@ -1,5 +1,3 @@
-import type { UsageSummaryResponse, UsageBreakdownResponse } from '../../../src/types/usage.js';
-
 // Mock summary data - the 3-section view from PRD §7.2.2
 export const mockUsageSummary = {
   period: { from: '2026-04-01', to: '2026-04-07' },
@@ -23,12 +21,12 @@ export const mockUsageSummary = {
   },
   pay_as_you_go: {
     models: [
-      { model_id: 'qwen3.6-plus', requests: 240, usage: { tokens_in: 480000, tokens_out: 120000 }, cost: 0.38, currency: 'USD' },
-      { model_id: 'qwen-plus', requests: 920, usage: { tokens_in: 460000, tokens_out: 115000 }, cost: 0.13, currency: 'USD' },
-      { model_id: 'wan2.6-t2i', requests: 12, usage: { images: 45 }, cost: 1.35, currency: 'USD' },
-      { model_id: 'cosyvoice-v3-plus', requests: 80, usage: { characters: 7200 }, cost: 0.21, currency: 'USD' },
+      { model_id: 'qwen3.6-plus', usage: { tokens: 600000 }, cost: 0.38, currency: 'USD' },
+      { model_id: 'qwen-plus', usage: { tokens: 575000 }, cost: 0.13, currency: 'USD' },
+      { model_id: 'wan2.6-t2i', usage: { images: 45 }, cost: 1.35, currency: 'USD' },
+      { model_id: 'cosyvoice-v3-plus', usage: { characters: 7200 }, cost: 0.21, currency: 'USD' },
     ],
-    total: { requests: 1252, cost: 2.07, currency: 'USD' },
+    total: { cost: 2.07, currency: 'USD' },
   },
 };
 
