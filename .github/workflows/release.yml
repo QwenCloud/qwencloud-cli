@@ -9,6 +9,14 @@ on:
 permissions:
   contents: write
 
+env:
+  # push tags: always use github.ref_name (e.g. vX.Y.Z)
+  # workflow_dispatch: prefer vars.RELEASE_TAG; fall back to v0.0.0-dev when unset/empty
+  RELEASE_TAG: >-
+    ${{ github.event_name == 'workflow_dispatch'
+        && (vars.RELEASE_TAG || 'v0.0.0-dev')
+        || github.ref_name }}
+
 jobs:
   # ── Job 1: Lint & Test ─────────────────────────────────────────────────────
   check:
@@ -74,6 +82,11 @@ jobs:
         run: |
           mkdir -p dist/release
 
+          # Read version from package.json and prepare build-time defines
+          VERSION=$(node -p "require('./package.json').version")
+          BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          echo "Injecting version: $VERSION, build time: $BUILD_TIME"
+
           targets=(
             "bun-linux-x64"
             "bun-linux-arm64"
@@ -96,7 +109,10 @@ jobs:
             fi
 
             echo "::group::Building $target -> $binname"
-            bun build bin/qwencloud.ts --compile --target="$target" --outfile "$dir/$binname"
+            bun build bin/qwencloud.ts --compile --target="$target" --outfile "$dir/$binname" \
+              --define '__VERSION__="'"${VERSION}"'"' \
+              --define '__BUILD_TIME__="'"${BUILD_TIME}"'"' \
+              --define '__NODE_ENV__="production"'
             echo "::endgroup::"
           done
 
@@ -117,7 +133,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: release-${{ github.ref_name }}
+          name: release-${{ env.RELEASE_TAG }}
           path: |
             dist/release/*.zip
             dist/release/checksums.txt
@@ -135,7 +151,7 @@ jobs:
       - name: Extract release notes from CHANGELOG
         id: notes
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${RELEASE_TAG#v}"
           echo "Extracting notes for version: $VERSION"
 
           # If CHANGELOG contains a template section, strip it first
@@ -149,7 +165,7 @@ jobs:
           NOTES=$(echo "$CONTENT" | sed -n "/^## \[${VERSION}\]/,/^## \[/p" | sed '1d;$d')
 
           if [ -z "$NOTES" ]; then
-            NOTES="Release ${GITHUB_REF_NAME}"
+            NOTES="Release ${RELEASE_TAG}"
             echo "::warning::No CHANGELOG entry found for version $VERSION, using fallback."
           fi
 
@@ -160,14 +176,14 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          name: release-${{ github.ref_name }}
+          name: release-${{ env.RELEASE_TAG }}
           path: dist/release
 
       - name: Create Draft Release
         uses: softprops/action-gh-release@v2
         with:
           draft: true
-          name: ${{ github.ref_name }}
+          name: ${{ env.RELEASE_TAG }}
           body_path: release-notes.md
           files: |
             dist/release/*.zip
