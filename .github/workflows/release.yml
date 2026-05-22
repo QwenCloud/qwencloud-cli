@@ -74,6 +74,11 @@ jobs:
         run: |
           mkdir -p dist/release
 
+          # Read version from package.json and prepare build-time defines
+          VERSION=$(node -p "require('./package.json').version")
+          BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          echo "Injecting version: $VERSION, build time: $BUILD_TIME"
+
           targets=(
             "bun-linux-x64"
             "bun-linux-arm64"
@@ -96,7 +101,10 @@ jobs:
             fi
 
             echo "::group::Building $target -> $binname"
-            bun build bin/qwencloud.ts --compile --target="$target" --outfile "$dir/$binname"
+            bun build bin/qwencloud.ts --compile --target="$target" --outfile "$dir/$binname" \
+              --define '__VERSION__="'"${VERSION}"'"' \
+              --define '__BUILD_TIME__="'"${BUILD_TIME}"'"' \
+              --define '__NODE_ENV__="production"'
             echo "::endgroup::"
           done
 
