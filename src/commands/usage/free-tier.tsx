@@ -1,14 +1,16 @@
 import React from 'react';
 import type { Command } from 'commander';
-import { createClient } from '../../api/client.js';
-import type { UsageSummaryOptions } from '../../api/client.js';
+import type { ClientFactory, UsageSummaryOptions } from '../../api/client.js';
 import type { ResolvedFormat } from '../../types/config.js';
 import { resolveFormatFromCommand, outputJSON } from '../../output/format.js';
 import { resolveDateRange } from '../../utils/date.js';
 import { handleError } from '../../utils/errors.js';
 import { getEffectiveConfig } from '../../config/manager.js';
 import { ensureAuthenticated } from '../../auth/credentials.js';
-import { buildUsageSummaryViewModel, type FreeTierRowViewModel } from '../../view-models/usage.js';
+import {
+  buildUsageSummaryViewModel,
+  type FreeTierRowViewModel,
+} from '../../view-models/usage/index.js';
 import { InteractiveTable } from '../../ui/InteractiveTable.js';
 import { renderInteractive } from '../../ui/render.js';
 import { withSpinner } from '../../ui/spinner.js';
@@ -17,7 +19,10 @@ import { buildProgressBar, theme } from '../../ui/theme.js';
 /**
  * Register the `usage free-tier` action.
  */
-export function usageFreeTierAction(cmd: Command): (...args: any[]) => void | Promise<void> {
+export function usageFreeTierAction(
+  cmd: Command,
+  getClient: ClientFactory,
+): (...args: any[]) => void | Promise<void> {
   return async function (this: Command, options: Record<string, string>) {
     const config = getEffectiveConfig();
     const format: ResolvedFormat = resolveFormatFromCommand(this ?? cmd, config);
@@ -31,7 +36,7 @@ export function usageFreeTierAction(cmd: Command): (...args: any[]) => void | Pr
         period: options.period,
       });
 
-      const client = await createClient();
+      const client = await getClient();
       const summaryOpts: UsageSummaryOptions = {
         from: dateRange.from,
         to: dateRange.to,
@@ -49,14 +54,14 @@ export function usageFreeTierAction(cmd: Command): (...args: any[]) => void | Pr
 
       const vm = buildUsageSummaryViewModel(data);
 
-      if (!vm.freeTier || vm.freeTier.rows.length === 0) {
+      if (!vm.freeTier || vm.freeTier.items.length === 0) {
         console.log('No free tier models found.');
         return;
       }
 
       // text mode: just print all rows
       if (format === 'text') {
-        for (const row of vm.freeTier.rows) {
+        for (const row of vm.freeTier.items) {
           if (row.isFreeOnly) {
             console.log(`${row.modelId}  Enable to unlock free-tier`);
           } else {
@@ -70,10 +75,10 @@ export function usageFreeTierAction(cmd: Command): (...args: any[]) => void | Pr
 
       // Table (TTY) — interactive paginated view
       if (process.stdout.isTTY) {
-        await renderFreeTierInteractive(vm.freeTier.rows, vm.freeTier.totalCount);
+        await renderFreeTierInteractive(vm.freeTier.items, vm.freeTier.totalCount);
       } else {
         // Non-TTY fallback: use text rendering path
-        for (const row of vm.freeTier.rows) {
+        for (const row of vm.freeTier.items) {
           if (row.isFreeOnly) {
             console.log(`${row.modelId}  Enable to unlock free-tier`);
           } else {

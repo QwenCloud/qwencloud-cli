@@ -2,10 +2,12 @@ import { Command } from 'commander';
 import { modelsListAction } from './list.js';
 import { modelsInfoAction } from './info.js';
 import { modelsSearchAction } from './search.js';
+import { resolveModelId } from './shared.js';
 import { resolveFormatFromCommand } from '../../output/format.js';
 import { getEffectiveConfig } from '../../config/manager.js';
+import type { ClientFactory } from '../../api/client.js';
 
-export function registerModelsCommands(program: Command): void {
+export function registerModelsCommands(program: Command, getClient: ClientFactory): void {
   const models = program.command('models').description('Browse and search available models');
 
   models
@@ -20,25 +22,24 @@ export function registerModelsCommands(program: Command): void {
     .option('--verbose', 'Include features, context, rate_limits, description (JSON only)')
     .action(async function (this: Command, opts) {
       opts.format = opts.format ?? resolveFormatFromCommand(this, getEffectiveConfig());
-      await modelsListAction(opts);
+      await modelsListAction(opts, getClient);
     });
 
   models
     .command('info')
     .description('Show full details for a model')
     .argument('[id]', 'Model ID (or use --model)')
-    .option('--model <id>', 'Model ID')
+    .option('--model [id]', 'Model ID')
     .option('--format <fmt>', 'Output format: table, json, text (default: auto)')
     .action(async function (this: Command, id: string | undefined, opts) {
       opts.format = opts.format ?? resolveFormatFromCommand(this, getEffectiveConfig());
-      // Support both positional arg and --model flag; flag takes precedence
-      const modelId = opts.model || id;
+      const modelId = resolveModelId(opts.model, id);
       if (!modelId) {
         this.error(
           'error: model ID is required. Provide it as a positional argument or use --model <id>',
         );
       }
-      await modelsInfoAction(modelId, opts);
+      await modelsInfoAction(modelId, opts, getClient);
     });
 
   models
@@ -51,7 +52,7 @@ export function registerModelsCommands(program: Command): void {
     .option('--all', 'Return all matches in one response (JSON only, no pagination)')
     .action(async function (this: Command, query: string, opts) {
       opts.format = opts.format ?? resolveFormatFromCommand(this, getEffectiveConfig());
-      await modelsSearchAction(query, opts);
+      await modelsSearchAction(query, opts, getClient);
     });
 
   models.action(() => {

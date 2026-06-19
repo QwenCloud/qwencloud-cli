@@ -32,6 +32,7 @@ export const site = {
   localConfigFile: '.qwencloud.json',
   apiEndpoint: 'https://cli.qwencloud.com',
   authEndpoint: 'https://t.qwencloud.com',
+  docsBaseUrl: 'https://docs.qwencloud.com',
   websiteUrl: 'www.qwencloud.com',
   userAgentPrefix: 'qwencloud-cli',
   replPrompt: 'qwencloud ▸ ',

@@ -4,7 +4,7 @@
  * Receives ViewModel as input.
  */
 
-import type { DoctorViewModel } from '../../view-models/doctor.js';
+import type { DoctorViewModel } from '../../view-models/doctor/index.js';
 
 const statusSymbol: Record<string, string> = {
   pass: '✓',

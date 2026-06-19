@@ -1,8 +1,7 @@
 import React from 'react';
 import type { Command } from 'commander';
 import { Box, Text } from 'ink';
-import { createClient } from '../../api/client.js';
-import type { UsageSummaryOptions } from '../../api/client.js';
+import type { ClientFactory, UsageSummaryOptions } from '../../api/client.js';
 import type { ResolvedFormat } from '../../types/config.js';
 import { resolveFormatFromCommand, outputJSON } from '../../output/format.js';
 import { renderTextUsageSummary } from '../../output/text/usage.js';
@@ -14,8 +13,8 @@ import {
   buildUsageSummaryViewModel,
   type UsageSummaryViewModel,
   type FreeTierRowViewModel,
-} from '../../view-models/usage.js';
-import { Section, Table, theme, progressColor } from '../../ui/index.js';
+} from '../../view-models/usage/index.js';
+import { Section, Table, theme } from '../../ui/index.js';
 import { buildProgressBar } from '../../ui/theme.js';
 import { withSpinner } from '../../ui/spinner.js';
 import { renderWithInk } from '../../ui/render.js';
@@ -24,7 +23,10 @@ import { formatCmd } from '../../utils/runtime-mode.js';
 /**
  * Register the `usage summary` action.
  */
-export function usageSummaryAction(cmd: Command): (...args: any[]) => void | Promise<void> {
+export function usageSummaryAction(
+  cmd: Command,
+  getClient: ClientFactory,
+): (...args: any[]) => void | Promise<void> {
   return async function (this: Command, options: Record<string, string>) {
     const config = getEffectiveConfig();
     const format: ResolvedFormat = resolveFormatFromCommand(this ?? cmd, config);
@@ -38,7 +40,7 @@ export function usageSummaryAction(cmd: Command): (...args: any[]) => void | Pro
         period: options.period,
       });
 
-      const client = await createClient();
+      const client = await getClient();
       const summaryOpts: UsageSummaryOptions = {
         from: dateRange.from,
         to: dateRange.to,
@@ -116,7 +118,7 @@ function FreeTierSection({ data }: { data: NonNullable<UsageSummaryViewModel['fr
     { key: 'bar', header: 'Quota Left' },
   ];
 
-  const visibleRows = data.rows.slice(0, FREE_TIER_PREVIEW_LIMIT);
+  const visibleRows = data.items.slice(0, FREE_TIER_PREVIEW_LIMIT);
   const hiddenCount = data.totalCount - visibleRows.length;
   const tableData = visibleRows.map((row) => buildFreeTierRowData(row));
 
@@ -234,7 +236,7 @@ function PayAsYouGoSection({ data }: { data: NonNullable<UsageSummaryViewModel['
     { key: 'cost', header: 'Cost' },
   ];
 
-  const visibleRows = data.rows.slice(0, PAYG_PREVIEW_LIMIT).map((row) => ({ ...row }));
+  const visibleRows = data.items.slice(0, PAYG_PREVIEW_LIMIT).map((row) => ({ ...row }));
   const hiddenCount = data.totalCount - visibleRows.length;
 
   const footer =
@@ -257,22 +259,4 @@ function PayAsYouGoSection({ data }: { data: NonNullable<UsageSummaryViewModel['
       <Table columns={columns} data={visibleRows} footer={tableFooter} paddingLeft={0} />
     </Section>
   );
-}
-
-// ── Progress Bar Text Helper (for Table cell rendering) ───────────────
-
-function _renderProgressBarText(
-  percentage: number,
-  mode: 'remaining' | 'used',
-  width: number = 20,
-  label?: string,
-): string {
-  const clamped = Math.max(0, Math.min(100, percentage));
-  const colorFn = progressColor(clamped, mode);
-  const filledCount = Math.round((clamped / 100) * width);
-  const emptyCount = width - filledCount;
-  const filledPart = theme.bar.filled.repeat(filledCount);
-  const emptyPart = theme.bar.empty.repeat(emptyCount);
-  const bar = colorFn(`${filledPart}${emptyPart}`);
-  return label ? `${bar}  ${label}` : bar;
 }

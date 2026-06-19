@@ -10,8 +10,54 @@
  */
 import type { ApiClient } from '../../src/api/client.js';
 import type { Model } from '../../src/types/model.js';
+import type { WorkspaceService } from '../../src/services/workspace-service.js';
+import type { BillingService } from '../../src/services/billing-service.js';
+import type { SubscriptionService } from '../../src/services/subscription-service.js';
+import type { SubscriptionTokenPlanService } from '../../src/services/subscription-tokenplan-service.js';
+import type { DocsService, DocsSearchOptions } from '../../src/services/docs-service.js';
+import type { DocContentResult } from '../../src/types/docs.js';
 
 export function makeMockApiClient(overrides: Partial<ApiClient> = {}): ApiClient {
+  const emptyWorkspaces = { items: [], total: 0, limit: 0 };
+  const emptyWorkspaceLimit = { current: 0, max: 0 };
+  const workspaceServiceStub = {
+    list: async () => emptyWorkspaces,
+    limit: async () => emptyWorkspaceLimit,
+  } as unknown as WorkspaceService;
+  const billingServiceStub = {} as unknown as BillingService;
+  const subscriptionServiceStub = {} as unknown as SubscriptionService;
+  const subscriptionTokenPlanServiceStub = {} as unknown as SubscriptionTokenPlanService;
+  const docsServiceStub = {} as unknown as DocsService;
+
+  const emptyUsageLimit = {
+    threshold: '0',
+    receivers: [] as string[],
+    notify: false,
+    currency: 'USD',
+  };
+  const emptyConsumeBreakdown = { rows: [], truncated: 0, currency: 'USD' };
+  const emptySettleBillSummary = {
+    cycles: [],
+    total: {
+      pretaxAmount: '0',
+      paymentAmount: '0',
+      cashAmount: '0',
+      voucherAmount: '0',
+      couponAmount: '0',
+      promotionAmount: '0',
+    },
+    currency: 'USD',
+  };
+  const emptySubscriptionStatus = { sections: [], diagnostics: [] };
+  const emptySubscriptionOrders = {
+    items: [],
+    totalCount: 0,
+    page: 1,
+    pageSize: 10,
+    diagnostics: [],
+    currency: 'USD',
+  };
+
   const defaults: ApiClient = {
     listModels: async () => ({ models: [], total: 0 }),
     getModel: async (id: string) => {
@@ -35,14 +81,54 @@ export function makeMockApiClient(overrides: Partial<ApiClient> = {}): ApiClient
       rows: [],
       total: { cost: 0, currency: 'USD' },
     }),
+    getUsageLogs: async (opts) => ({
+      totalCount: 0,
+      page: opts.page ?? 1,
+      pageSize: opts.pageSize ?? 20,
+      period: { from: opts.from ?? '', to: opts.to ?? '' },
+      items: [],
+    }),
+
+    searchDocs: async (opts) => ({
+      totalCount: 0,
+      page: opts.page ?? 1,
+      pageSize: opts.limit ?? 20,
+      items: [],
+      rawItems: [],
+    }),
+
+    fetchDocContent: async (url: string): Promise<DocContentResult> => ({
+      url,
+      resolvedMarkdownUrl: url.endsWith('.md') ? url : url + '.md',
+      content: null,
+      error: 'Not mocked',
+      anchor: null,
+    }),
+
+    loadDocsIndex: async () => [],
+    resolveDocPath: () => ({ type: 'notfound' as const, suggestions: [] }),
 
     getAuthStatus: async () => ({ authenticated: true, server_verified: true }),
-    deviceFlowInit: async () => ({
-      token: 't', verification_url: '', expires_in: 600, interval: 5,
+    loginInit: async () => ({
+      token: 't', verification_url: '', expires_in: 600, interval: 5, auth_mode: 'pkce',
     }),
-    deviceFlowPoll: async () => ({ status: 'authorization_pending' }),
-    setPkceVerifier: () => { /* no-op for tests */ },
+    loginPoll: async () => ({ status: 'authorization_pending' }),
     revokeSession: async () => true,
+
+    workspaceService: workspaceServiceStub,
+    billingService: billingServiceStub,
+    subscriptionService: subscriptionServiceStub,
+    subscriptionTokenPlanService: subscriptionTokenPlanServiceStub,
+    docsService: docsServiceStub,
+
+    listWorkspaces: async () => emptyWorkspaces,
+    getWorkspaceLimit: async () => emptyWorkspaceLimit,
+
+    getUsageLimit: async () => emptyUsageLimit as never,
+    getConsumeBreakdown: async () => emptyConsumeBreakdown as never,
+    getSettleBillSummary: async () => emptySettleBillSummary as never,
+    getSubscriptionStatus: async () => emptySubscriptionStatus as never,
+    listSubscriptionOrders: async () => emptySubscriptionOrders as never,
 
     ping: async () => ({ latency: 1, reachable: true, hostname: 'test' }),
     checkVersion: async () => ({ current: '1.0.0', latest: '1.0.0', update_available: false }),

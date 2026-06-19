@@ -25,3 +25,8 @@ export type { ModelsTableInkProps, ModelsListUiData, ModelRowUiData } from './Mo
 
 export { ModelInfoInk, renderModelInfoInk } from './ModelInfo.js';
 export type { ModelInfoInkProps } from './ModelInfo.js';
+
+export { InteractiveDocsSearch } from './InteractiveDocsSearch.js';
+export type { InteractiveDocsSearchProps } from './InteractiveDocsSearch.js';
+export { DocsViewer } from './DocsViewer.js';
+export type { DocsViewerProps } from './DocsViewer.js';

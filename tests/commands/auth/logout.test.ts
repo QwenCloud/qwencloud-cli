@@ -18,6 +18,8 @@ vi.mock('../../../src/auth/credentials.js', () => ({
 
 const { registerLogoutCommand } = await import('../../../src/commands/auth/logout.js');
 
+const getClient = async () => holder.client as any;
+
 beforeEach(() => {
   holder.client = makeMockApiClient();
   credResolveStub.mockReset();
@@ -30,7 +32,7 @@ describe('auth logout command', () => {
     const r = await runCommand(
       (program) => {
         const auth = program.command('auth');
-        registerLogoutCommand(auth);
+        registerLogoutCommand(auth, getClient);
       },
       ['auth', 'logout', '--format', 'json'],
     );
@@ -46,7 +48,7 @@ describe('auth logout command', () => {
     const r = await runCommand(
       (program) => {
         const auth = program.command('auth');
-        registerLogoutCommand(auth);
+        registerLogoutCommand(auth, getClient);
       },
       ['auth', 'logout', '--format', 'text'],
     );
@@ -66,7 +68,7 @@ describe('auth logout command', () => {
     const r = await runCommand(
       (program) => {
         const auth = program.command('auth');
-        registerLogoutCommand(auth);
+        registerLogoutCommand(auth, getClient);
       },
       ['auth', 'logout', '--format', 'json'],
     );
@@ -93,7 +95,7 @@ describe('auth logout command', () => {
     const r = await runCommand(
       (program) => {
         const auth = program.command('auth');
-        registerLogoutCommand(auth);
+        registerLogoutCommand(auth, getClient);
       },
       ['auth', 'logout', '--format', 'json'],
     );

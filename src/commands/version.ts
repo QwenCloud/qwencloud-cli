@@ -1,6 +1,6 @@
 import type { Command } from 'commander';
 import { VERSION } from '../index.js';
-import { createClient } from '../api/client.js';
+import type { ClientFactory } from '../api/client.js';
 import { getConfigValue } from '../config/manager.js';
 import { resolveFormat, outputJSON } from '../output/format.js';
 import { theme } from '../ui/theme.js';
@@ -9,7 +9,7 @@ import { networkError, handleError } from '../utils/errors.js';
 import { formatCmd } from '../utils/runtime-mode.js';
 import { detectChannel, getUpgradeHint } from '../upgrade/check.js';
 
-export function registerVersionCommand(program: Command): void {
+export function registerVersionCommand(program: Command, getClient: ClientFactory): void {
   program
     .command('version')
     .description('Show CLI version')
@@ -21,7 +21,7 @@ export function registerVersionCommand(program: Command): void {
       );
 
       if (opts.check) {
-        await versionCheck(format);
+        await versionCheck(format, getClient);
       } else {
         if (format === 'json') {
           outputJSON({ version: VERSION });
@@ -32,7 +32,7 @@ export function registerVersionCommand(program: Command): void {
     });
 }
 
-export function registerUpdateCommand(program: Command): void {
+export function registerUpdateCommand(program: Command, getClient: ClientFactory): void {
   program
     .command('update')
     .description('Update CLI to the latest version')
@@ -43,7 +43,7 @@ export function registerUpdateCommand(program: Command): void {
       );
 
       try {
-        const client = await createClient();
+        const client = await getClient();
         const info = await client.checkVersion();
 
         if (!info.update_available) {
@@ -89,9 +89,9 @@ export function registerUpdateCommand(program: Command): void {
     });
 }
 
-async function versionCheck(format: ResolvedFormat): Promise<void> {
+async function versionCheck(format: ResolvedFormat, getClient: ClientFactory): Promise<void> {
   try {
-    const client = await createClient();
+    const client = await getClient();
     const info = await client.checkVersion();
 
     if (format === 'json') {

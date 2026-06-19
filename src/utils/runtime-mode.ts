@@ -18,20 +18,12 @@ export function isReplMode(): boolean {
   return _isRepl;
 }
 
-/**
- * Return the appropriate login command hint for the current runtime mode.
- * - REPL:     `"login"`
- * - One-shot: `"qwencloud login"`
- */
+/** Return the login command hint appropriate for the current runtime mode. */
 export function loginCommand(): string {
   return _isRepl ? 'login' : 'qwencloud login';
 }
 
-/**
- * Format a CLI command for display in user-facing messages.
- * - REPL:     returns `cmd` as-is (e.g. `"auth logout"`)
- * - One-shot: returns with prefix (e.g. `"qwencloud auth logout"`)
- */
+/** Format a CLI command for display, adding the binary prefix in one-shot mode. */
 export function formatCmd(cmd: string): string {
   return _isRepl ? cmd : `qwencloud ${cmd}`;
 }

@@ -4,7 +4,12 @@
  * Receives ViewModel as input.
  */
 
-import type { UsageSummaryViewModel, UsageBreakdownViewModel } from '../../view-models/usage.js';
+import type {
+  UsageSummaryViewModel,
+  UsageBreakdownViewModel,
+  UsageLogsViewModel,
+  PayAsYouGoRowViewModel,
+} from '../../view-models/usage/index.js';
 import { formatTextTable } from '../text.js';
 
 // ── Usage Summary Text Renderer ──────────────────────────────────────
@@ -76,7 +81,7 @@ function formatSectionLine(title: string, subtitle?: string): string {
 
 function renderFreeTierTable(section: NonNullable<UsageSummaryViewModel['freeTier']>): string {
   const headers = ['Model', 'Remaining', 'Total', 'Quota Left'];
-  const rows = section.rows.map((row) => {
+  const rows = section.items.map((row) => {
     if (row.isFreeOnly) {
       return [row.modelId, '—', '—', 'Free (Early Access)'];
     }
@@ -101,7 +106,7 @@ function renderCodingPlanTable(section: NonNullable<UsageSummaryViewModel['codin
 
 function renderPayAsYouGoTable(section: NonNullable<UsageSummaryViewModel['payAsYouGo']>): string {
   const headers = ['Model', 'Usage', 'Cost'];
-  const rows = section.rows.map((row) => [row.modelId, row.usage, row.cost]);
+  const rows = section.items.map((row) => [row.modelId, row.usage, row.cost]);
 
   // Add total row
   rows.push(['Total', '—', section.total.cost]);
@@ -139,15 +144,11 @@ export function renderTextUsageBreakdown(vm: UsageBreakdownViewModel): void {
   // Build table
   const currentLabel = '← current';
   const headers = vm.columns.map((c) => c.header);
-  const rows = vm.rows.map((row) => {
+  const rows = vm.items.map((row) => {
     const cells = [row.period];
     for (const col of vm.columns) {
       if (col.key !== 'period') {
-        let val = row.cells[col.key] ?? '';
-        if (row.isCurrent && col.key === 'period') {
-          val = `${val}  ${currentLabel}`;
-        }
-        cells.push(val);
+        cells.push(row.cells[col.key] ?? '');
       }
     }
     // Add current marker
@@ -172,5 +173,52 @@ export function renderTextUsageBreakdown(vm: UsageBreakdownViewModel): void {
   lines.push('  ' + formatTextTable(headers, rows, 0).replace(/^ {2}/gm, ''));
   lines.push('');
 
+  console.log(lines.join('\n'));
+}
+
+// ── Usage PAYG Text Renderer ─────────────────────────────────────────
+
+/**
+ * Render the standalone `usage payg` text output. Mirrors the table-mode
+ * column layout (Model / Usage / Cost) so users see the same headers
+ * regardless of whether they opted into `--format text`.
+ */
+export function renderTextUsagePayg(
+  items: ReadonlyArray<PayAsYouGoRowViewModel>,
+  total: { cost: string },
+): void {
+  const headers = ['Model', 'Usage', 'Cost'];
+  const rows = items.map((row) => [row.modelId, row.usage, row.cost]);
+  rows.push(['Total', '\u2014', total.cost]);
+  console.log(formatTextTable(headers, rows, 0));
+}
+
+// ── Usage Logs Text Renderer ─────────────────────────────────────────
+
+export function renderTextUsageLogs(vm: UsageLogsViewModel): void {
+  const lines: string[] = [];
+  const header = vm.periodLabel ? `  Usage Logs  \u00b7  ${vm.periodLabel}` : '  Usage Logs';
+  lines.push(header);
+  lines.push('');
+
+  if (vm.isEmpty) {
+    lines.push('  No call logs in this period.');
+    console.log(lines.join('\n'));
+    return;
+  }
+
+  const headers = ['Time', 'Request ID', 'Status', 'Model', 'Latency', 'Usage', 'Error'];
+  const rows = vm.items.map((row) => [
+    row.time,
+    row.requestId,
+    String(row.statusCode),
+    row.model,
+    row.latencyDisplay,
+    row.usage,
+    row.errorCode ?? '\u2014',
+  ]);
+  lines.push('  ' + formatTextTable(headers, rows, 0).replace(/^ {2}/gm, ''));
+  lines.push('');
+  lines.push(`  ${vm.totalCount} entries  \u00b7  Page ${vm.page} of ${vm.pageCount}`);
   console.log(lines.join('\n'));
 }

@@ -1,5 +1,6 @@
 import type { Command } from 'commander';
 import type { OutputFormat, ResolvedFormat, ConfigSchema } from '../types/config.js';
+import { visibleWidth, padEndVisible } from '../ui/textWrap.js';
 
 const VALID_FORMATS = ['auto', 'table', 'json', 'text'] as const;
 
@@ -14,7 +15,22 @@ const VALID_FORMATS = ['auto', 'table', 'json', 'text'] as const;
  * that pass an unsupported format like `yaml`.
  */
 export function resolveFormat(flagFormat?: string, configFormat?: OutputFormat): ResolvedFormat {
-  // 1. Explicit flag
+  const resolved = resolveFormatRaw(flagFormat, configFormat);
+  // Ink-rendered tables wrap unpredictably when stdout is piped to less /
+  // a file. Downgrade to plain text so columns survive the redirect; emit
+  // a one-shot note on stderr so users understand the fallback.
+  //
+  // Skip the downgrade under Vitest: the test runner's stubbed stdout reports
+  // isTTY=false, but tests intentionally exercise the explicit `--format table`
+  // rendering path (Ink). Production never sets `VITEST`.
+  if (resolved === 'table' && !process.stdout.isTTY && !process.env.VITEST) {
+    process.stderr.write('Note: table format requires a TTY; falling back to text.\n');
+    return 'text';
+  }
+  return resolved;
+}
+
+function resolveFormatRaw(flagFormat?: string, configFormat?: OutputFormat): ResolvedFormat {
   if (flagFormat) {
     if (!isValidFormat(flagFormat)) {
       rejectInvalidFormat(flagFormat);
@@ -25,12 +41,10 @@ export function resolveFormat(flagFormat?: string, configFormat?: OutputFormat):
     return flagFormat as ResolvedFormat;
   }
 
-  // 2. Config setting
   if (configFormat && configFormat !== 'auto') {
     return configFormat as ResolvedFormat;
   }
 
-  // 3. Auto-detect
   return detectTTYFormat();
 }
 
@@ -41,7 +55,7 @@ function rejectInvalidFormat(value: string): never {
     error: {
       code: 'INVALID_FORMAT',
       message: `Invalid format '${value}'. Supported: ${VALID_FORMATS.join(', ')}`,
-      exit_code: 1,
+      exitCode: 1,
     },
   };
   process.stderr.write(JSON.stringify(payload, null, 2) + '\n');
@@ -109,21 +123,22 @@ export function outputErrorJSON(data: unknown): void {
 export function formatTextTable(headers: string[], rows: string[][], padding: number = 2): string {
   const pad = ' '.repeat(padding);
 
-  // Calculate column widths (header or max data cell per column)
+  // Calculate column widths using visible terminal width (CJK = 2 cols)
+  // so cells containing fullwidth characters or emoji align correctly.
   const colWidths = headers.map((h, i) => {
     const maxDataLen = rows.reduce((max, row) => {
-      const cellLen = (row[i] ?? '').length;
+      const cellLen = visibleWidth(row[i] ?? '');
       return Math.max(max, cellLen);
     }, 0);
-    return Math.max(h.length, maxDataLen);
+    return Math.max(visibleWidth(h), maxDataLen);
   });
 
   // Build header line
-  const headerLine = pad + headers.map((h, i) => h.padEnd(colWidths[i])).join('  ');
+  const headerLine = pad + headers.map((h, i) => padEndVisible(h, colWidths[i])).join('  ');
 
   // Build data lines
   const dataLines = rows.map(
-    (row) => pad + row.map((cell, i) => (cell ?? '\u2014').padEnd(colWidths[i])).join('  '),
+    (row) => pad + row.map((cell, i) => padEndVisible(cell ?? '\u2014', colWidths[i])).join('  '),
   );
 
   return [headerLine, ...dataLines].join('\n');

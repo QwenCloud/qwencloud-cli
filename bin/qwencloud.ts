@@ -93,7 +93,7 @@ if (args.length === 0) {
           process.stderr.write(
             JSON.stringify(
               {
-                error: { code, message, exit_code: exitCode },
+                error: { code, message, exitCode },
               },
               null,
               2,
@@ -124,7 +124,7 @@ if (args.length === 0) {
         process.stderr.write(
           JSON.stringify(
             {
-              error: { code: 'UNKNOWN_ERROR', message, exit_code: 1 },
+              error: { code: 'UNKNOWN_ERROR', message, exitCode: 1 },
             },
             null,
             2,

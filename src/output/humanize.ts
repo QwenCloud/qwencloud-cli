@@ -7,7 +7,6 @@ const CUR = site.features.currency === 'USD' ? '$' : ' ';
 
 /**
  * Humanize a number for TTY display.
- * Rules from PRD §9.4:
  * - >= 1,000,000 → X.XM (1 decimal, drop .0)
  * - >= 1,000 → X.XK (1 decimal, drop .0)
  * - < 1,000 → raw number
@@ -84,8 +83,8 @@ export function formatAmount(amount: number): string {
     return amount.toFixed(2);
   }
   // 'full' mode: show as-is but clean any residual FP artifacts
-  // Use toPrecision(10) to clean, then parseFloat to strip trailing zeros
-  const cleaned = parseFloat(amount.toPrecision(10));
+  // Use toPrecision(15) to preserve all meaningful digits while removing FP noise
+  const cleaned = parseFloat(amount.toPrecision(15));
   return String(cleaned);
 }
 

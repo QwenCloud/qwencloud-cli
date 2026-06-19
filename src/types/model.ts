@@ -18,18 +18,10 @@ export interface FreeTierQuota {
   unit: string; // 'tokens' | 'images' | 'seconds' | 'characters'
   used_pct: number;
   status?: 'valid' | 'exhaust' | 'expire'; // quota status: valid/exhaust/expire
-  // ISO 8601 UTC timestamp ("2026-06-17T00:00:00.000Z"). Always present in JSON
-  // output — `null` when the model has no reset date — so Agents don't need to
-  // distinguish "field missing" from "no reset" (report 6.4).
+  // ISO 8601 UTC timestamp. Present as `null` when the model has no reset date.
   resetDate?: string | null;
 }
 
-// Pricing - multiple variants based on model type
-// LLM tiered pricing.
-//
-// `cache_creation` / `cache_read` are always present (null when the model has
-// no cache pricing) so Agents comparing tiers across model versions don't have
-// to branch on field existence — see report 6.6.
 export interface PricingTier {
   label: string;
   input: number;
@@ -46,18 +38,6 @@ export interface BuiltInTool {
   api: string;
 }
 
-/**
- * Normalized pricing summary present on every Pricing variant. Lets Agents
- * sort/compare candidates without branching on the underlying pricing shape
- * (text tiers vs per_image vs per_second vs per_token, etc.). See report 6.3.
- *
- * - `cheapest_input` / `cheapest_output`: minimum positive price across the
- *   variant; for non-token variants only `cheapest_output` is meaningful and
- *   `cheapest_input` is 0.
- * - `unit`: human label of the original variant's unit (e.g. `USD/1M tokens`,
- *   `USD/image`).
- * - `billing_type`: the dimension being billed; lets Agents group candidates.
- */
 export interface PricingSummary {
   cheapest_input: number;
   cheapest_output: number;

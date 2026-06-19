@@ -1,20 +1,10 @@
 /**
- * HTTP debug buffer — collects all HTTP debug info during execution,
- * then flushes a structured report to stderr after functional output completes.
- *
- * Enabled via DEBUG_HTTP=1 environment variable.
- *
- * NOTE: production builds permanently disable this report (see `enabled` below).
- * The report contains request/response bodies that are not fully redacted, so
- * shipping it to end users would leak business data. Local development builds
- * keep the env-var gate for troubleshooting.
+ * HTTP debug buffer — collects HTTP debug info during execution and flushes
+ * a structured report to stderr. Enabled via DEBUG_HTTP=1 (dev builds only).
  */
 
 import { getErrorVerbosity } from '../utils/verbosity.js';
 
-// Injected by tsup at build time via `define` (see tsup.config.ts).
-// Falls back to 'development' when running under ts-node/vitest where the
-// define replacement has not been applied — this preserves test behavior.
 declare const __NODE_ENV__: 'production' | 'development';
 
 /** One entry per HTTP request/response pair */
@@ -29,7 +19,7 @@ export interface HttpDebugEntry {
   requestHeaders: Record<string, unknown>;
   /** Request body (truncated to 2000 chars) */
   requestBody: string | null;
-  /** API identity: product+action extracted from request body (e.g. "AliyunDeliveryService/ListModelSeries") */
+  /** API identity: product+action extracted from request body */
   apiAction: string | null;
   /** Response HTTP status code (e.g. 200) — null if network-level failure */
   responseStatus: number | null;
@@ -52,7 +42,7 @@ export interface HttpDebugEntry {
 /**
  * Extract product+action from a request body string.
  * Handles both JSON (`{"product":"X","action":"Y",...}`) and form-urlencoded (`product=X&action=Y`) formats.
- * Returns a string like "AliyunDeliveryService/ListModelSeries", or null if neither field is found.
+ * Returns a product/action identity string, or null if neither field is found.
  */
 function extractApiAction(body: string | null): string | null {
   if (!body) return null;
@@ -107,17 +97,6 @@ interface HttpDebugBuffer {
   nextId: number;
 }
 
-// Module-level singleton
-//
-// `enabled` resolves to `false` in production builds regardless of the
-// DEBUG_HTTP env var, because the report includes request/response bodies
-// that are not fully redacted (only the Authorization header and the auth
-// endpoint response body are masked today). Letting end users toggle this
-// in shipped artifacts would risk leaking business data via stderr.
-//
-// `__NODE_ENV__` is replaced at build time by tsup `define`, so esbuild and
-// Terser can fold the left-hand operand to a constant and tree-shake the
-// flush report code path out of the production bundle.
 const buffer: HttpDebugBuffer = {
   entries: [],
   diagnostics: [],
@@ -126,6 +105,25 @@ const buffer: HttpDebugBuffer = {
     !!process.env.DEBUG_HTTP,
   nextId: 1,
 };
+
+/** Resolve the body truncation limit from the DEBUG_HTTP env var value. */
+export function getDebugBodyLimit(): number {
+  const raw = process.env.DEBUG_HTTP;
+  if (!raw) return 2000;
+  if (raw === 'full') return Infinity;
+  const n = Number(raw);
+  if (Number.isInteger(n) && n > 1) return n;
+  return 2000;
+}
+
+// Resolve once at module init — env var changes after startup are not honored.
+const debugBodyLimit = getDebugBodyLimit();
+
+function truncateBody(body: string | null): string | null {
+  if (body === null) return null;
+  if (body.length <= debugBodyLimit) return body;
+  return body.slice(0, debugBodyLimit) + `... [truncated, total: ${body.length} chars]`;
+}
 
 let flushed = false;
 
@@ -150,7 +148,7 @@ export function startRequest(
   context: string = 'api',
 ): number {
   const id = buffer.nextId++;
-  const rawBody = body ? body.slice(0, 2000) : null;
+  const rawBody = truncateBody(body);
   buffer.entries.push({
     id,
     method,
@@ -185,22 +183,11 @@ export function endRequest(
   entry.durationMs = entry.endTime - entry.startTime;
   entry.responseStatus = status;
   entry.responseStatusText = statusText;
-  entry.responseBody = responseBody ? responseBody.slice(0, 2000) : null;
+  entry.responseBody = truncateBody(responseBody);
   entry.isError = isError;
 }
 
-/**
- * Buffer or emit a diagnostic message.
- *
- * Levels:
- *  - 'debug': internal diagnostics (heuristic results, matching details).
- *    Only shown in verbose mode; suppressed in graceful/suppress.
- *  - 'warn': degraded functionality (API failures that result in incomplete data).
- *    Shown in verbose mode (full detail) and graceful mode (user-friendly hint);
- *    suppressed only in suppress mode.
- *
- * When DEBUG_HTTP is enabled, all messages are buffered for the debug report.
- */
+/** Buffer or emit a diagnostic message at the given severity level. */
 export function addDiagnostic(
   category: string,
   message: string,

@@ -1,5 +1,5 @@
 import React from 'react';
-import { createClient } from '../../api/client.js';
+import type { ClientFactory, CliFacade } from '../../api/client.js';
 import type { ListModelsOptions } from '../../api/client.js';
 import { resolveFormat } from '../../output/format.js';
 import { printJSON } from '../../output/json.js';
@@ -29,16 +29,26 @@ export interface ModelsListOptions {
   verbose?: boolean;
 }
 
-export async function modelsListAction(options: ModelsListOptions): Promise<void> {
+export async function modelsListAction(
+  options: ModelsListOptions,
+  getClient: ClientFactory,
+): Promise<void> {
   const config = getEffectiveConfig();
-  const format = resolveFormat(options.format, config['output.format']);
+  let format = resolveFormat(options.format, config['output.format']);
+
+  // --all and --verbose are JSON-only flags; in any non-JSON format they would
+  // be silently dropped. Promote to JSON and tell the user on stderr.
+  if ((options.all || options.verbose) && format !== 'json') {
+    format = 'json';
+    process.stderr.write('Note: --all/--verbose forces JSON output (these flags are JSON-only).\n');
+  }
 
   try {
     if (options.input) validateModalityFlag('--input', options.input);
     if (options.output) validateModalityFlag('--output', options.output);
 
     await ensureAuthenticated();
-    const client = await createClient();
+    const client = await getClient();
     const listOpts: ListModelsOptions = {
       input: options.input,
       output: options.output,
@@ -226,10 +236,7 @@ export async function modelsListAction(options: ModelsListOptions): Promise<void
  * rate_limits, description, tags, metadata). Used for `--verbose` JSON mode.
  * `getModels` reads from the cached raw API data, so this is cheap.
  */
-async function enrichWithDetails(
-  client: Awaited<ReturnType<typeof createClient>>,
-  models: any[],
-): Promise<any[]> {
+async function enrichWithDetails(client: CliFacade, models: any[]): Promise<any[]> {
   const details = await client.getModels(models.map((m) => m.id));
   return models.map((m, i) => details[i] ?? m);
 }

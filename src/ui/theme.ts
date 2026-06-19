@@ -1,4 +1,11 @@
-import chalk from 'chalk';
+import chalk, { Chalk } from 'chalk';
+
+// Forced-color chalk instance: always emits ANSI escape codes regardless of
+// stdout TTY detection. Required for output that may be intercepted by an
+// upstream writer (e.g., Commander's configureOutput.writeOut) before
+// reaching the terminal — the default chalk instance would silently strip
+// styles in that path.
+const forcedChalk = new Chalk({ level: 3 });
 
 /** Raw color hex values for Ink <Text color={}> props */
 export const colors = {
@@ -7,6 +14,17 @@ export const colors = {
   muted: '#6B7280',
   headerBg: '#6D28D9',
   headerFg: '#FFFFFF',
+  success: '#22C55E',
+  error: '#EF4444',
+  warning: '#F59E0B',
+  accent: '#F59E0B',
+  codeBg: 'gray',
+  codeFg: 'white',
+  // Logo art gradient endpoints (deep violet → periwinkle)
+  logoGradientFrom: '#8340FF',
+  logoGradientTo: '#6073FF',
+  // Inline suggestion / ghost text in REPL prompt
+  ghost: '#888888',
 } as const;
 
 export const theme = {
@@ -54,6 +72,17 @@ export const theme = {
   bar: {
     filled: '█',
     empty: '░',
+  },
+
+  // Inline ghost suggestion shown after the REPL cursor (italic dim gray)
+  ghost: chalk.italic.hex('#888888'),
+
+  // Help text styling — applied where output may be captured by Commander
+  // before reaching the TTY, so a forced-color chalk instance is used.
+  help: {
+    sectionTitle: forcedChalk.hex('#987BFE').bold,
+    groupTitle: forcedChalk.hex('#A78BFA').bold,
+    commandName: forcedChalk.hex('#C4B5FD').bold,
   },
 
   // Modality type colors — one fixed color per type, high-saturation, non-overlapping

@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { resolveCredentials, deleteCredentials } from '../../auth/credentials.js';
-import { createClient } from '../../api/client.js';
+import type { ClientFactory } from '../../api/client.js';
 import { resolveFormatFromCommand } from '../../output/format.js';
 import { printJSON } from '../../output/json.js';
 import { getEffectiveConfig } from '../../config/manager.js';
@@ -8,7 +8,7 @@ import { handleError } from '../../utils/errors.js';
 import { theme } from '../../ui/theme.js';
 import type { ResolvedFormat } from '../../types/config.js';
 
-export function registerLogoutCommand(parent: Command): void {
+export function registerLogoutCommand(parent: Command, getClient: ClientFactory): void {
   parent
     .command('logout')
     .description('Log out and remove stored credentials')
@@ -17,14 +17,14 @@ export function registerLogoutCommand(parent: Command): void {
       const config = getEffectiveConfig();
       const format = resolveFormatFromCommand(this, config);
       try {
-        await runLogout(format);
+        await runLogout(format, getClient);
       } catch (error) {
         handleError(error, format);
       }
     });
 }
 
-async function runLogout(format: ResolvedFormat): Promise<void> {
+async function runLogout(format: ResolvedFormat, getClient: ClientFactory): Promise<void> {
   // Check if user is authenticated before attempting logout
   const resolved = resolveCredentials();
 
@@ -37,15 +37,13 @@ async function runLogout(format: ResolvedFormat): Promise<void> {
     return;
   }
 
-  // Step 1: Server-side token revocation (best-effort)
   try {
-    const client = await createClient();
+    const client = await getClient();
     await client.revokeSession();
   } catch {
     // Best-effort: network failure is acceptable, local cleanup proceeds
   }
 
-  // Step 2: Local credential cleanup (always proceeds — clears both keychain and file)
   deleteCredentials();
 
   if (format === 'json') {

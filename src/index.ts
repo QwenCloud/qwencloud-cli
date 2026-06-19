@@ -52,12 +52,15 @@ export type {
 // API
 export type {
   ApiClient,
+  CliFacade,
   ListModelsOptions,
   UsageSummaryOptions,
   UsageBreakdownOptions,
 } from './api/client.js';
 export { createClient } from './api/client.js';
-export { HttpApiClient } from './api/http-client.js';
+
+// Service composition root
+export { createServices, type ServiceContainer } from './services/index.js';
 
 // Cache utilities
 export {

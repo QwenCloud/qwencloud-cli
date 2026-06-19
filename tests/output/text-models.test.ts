@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { buildModelDetailViewModel } from '../../src/view-models/models.js';
+import { buildModelDetailViewModel } from '../../src/view-models/models/index.js';
 import { renderTextModelDetail } from '../../src/output/text/models.js';
 import type { ModelDetail } from '../../src/types/model.js';
 

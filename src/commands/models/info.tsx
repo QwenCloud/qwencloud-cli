@@ -1,4 +1,4 @@
-import { createClient } from '../../api/client.js';
+import type { ClientFactory } from '../../api/client.js';
 import type { ModelDetail } from '../../types/model.js';
 import { resolveFormat } from '../../output/format.js';
 import { printJSON } from '../../output/json.js';
@@ -7,7 +7,7 @@ import { getEffectiveConfig } from '../../config/manager.js';
 import { handleError, modelNotFoundError } from '../../utils/errors.js';
 import { modelNotFoundWithSuggestion } from '../../utils/validate-model.js';
 import { ensureAuthenticated } from '../../auth/credentials.js';
-import { buildModelDetailViewModel } from '../../view-models/models.js';
+import { buildModelDetailViewModel } from '../../view-models/models/index.js';
 import { renderModelInfoInk } from '../../ui/ModelInfo.js';
 import { withSpinner } from '../../ui/spinner.js';
 
@@ -15,13 +15,17 @@ export interface ModelsInfoOptions {
   format?: string;
 }
 
-export async function modelsInfoAction(id: string, options: ModelsInfoOptions): Promise<void> {
+export async function modelsInfoAction(
+  id: string,
+  options: ModelsInfoOptions,
+  getClient: ClientFactory,
+): Promise<void> {
   const config = getEffectiveConfig();
   const format = resolveFormat(options.format, config['output.format']);
 
   try {
     await ensureAuthenticated();
-    const client = await createClient();
+    const client = await getClient();
     const model: ModelDetail = await withSpinner(
       `Fetching ${id}`,
       () => client.getModel(id),
@@ -52,7 +56,7 @@ export async function modelsInfoAction(id: string, options: ModelsInfoOptions): 
       // process.exit and the catch would swallow it).
       let enriched = modelNotFoundError(id);
       try {
-        const client = await createClient();
+        const client = await getClient();
         const { models } = await client.listModels();
         enriched = modelNotFoundWithSuggestion(
           id,

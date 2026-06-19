@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import chalk from 'chalk';
 import { theme } from './theme.js';
+import { padEndVisible } from './textWrap.js';
 
 export interface CardProps {
   title: string;
@@ -15,7 +16,7 @@ export function Card({ title, children, width = 80 }: CardProps) {
 
   const h = theme.border('─'.repeat(innerWidth));
   const topBorder = theme.border('┌') + h + theme.border('┐');
-  const titleContent = (' ' + title).padEnd(innerWidth);
+  const titleContent = padEndVisible(' ' + title, innerWidth);
   const titleLine =
     theme.border('│') +
     chalk.bgHex(theme.tableHeader.bg).hex(theme.tableHeader.fg).bold(titleContent) +
@@ -49,22 +50,24 @@ export function CardLine({ children, lines, boldLine, width = 80 }: CardLineProp
   const innerWidth = Math.max(0, width - 6);
   const borderChar = theme.border('│');
 
-  // If lines are provided, render each with borders
+  // Lines mode: each line rendered as a SINGLE <Text> string containing both
+  // border characters and padded content. This bypasses Ink's Yoga layout
+  // engine entirely — Yoga mismeasures CJK/emoji/ambiguous-width characters,
+  // causing border misalignment. By concatenating into one string we let the
+  // terminal itself handle character rendering at exact column positions.
   if (lines && lines.length > 0) {
     return (
       <Box flexDirection="column">
-        {lines.map((line, i) => (
-          <Box key={i}>
-            <Text>{`${borderChar}  `}</Text>
-            <Text bold={boldLine}>{line.padEnd(innerWidth)}</Text>
-            <Text>{`  ${borderChar}`}</Text>
-          </Box>
-        ))}
+        {lines.map((line, i) => {
+          const padded = padEndVisible(line, innerWidth);
+          const inner = boldLine ? chalk.bold(padded) : padded;
+          return <Text key={i}>{`${borderChar}  ${inner}  ${borderChar}`}</Text>;
+        })}
       </Box>
     );
   }
 
-  // Otherwise render children as single line
+  // Children mode: single line with borders
   return (
     <Box>
       <Text>{`${borderChar}  `}</Text>
@@ -97,7 +100,7 @@ export function buildSectionTitleParts(
   const innerWidth = Math.max(0, safeWidth - 6); // 3 chars each side (│ + 2 spaces)
   return {
     left: theme.border('│') + '  ',
-    middle: title.padEnd(innerWidth),
+    middle: padEndVisible(title, innerWidth),
     right: '  ' + theme.border('│'),
   };
 }
@@ -108,17 +111,15 @@ export function Section({ title, children, width = 80 }: SectionProps) {
     theme.border('├') + theme.border('─'.repeat(safeWidth - 2)) + theme.border('┤');
   const { left, middle, right } = buildSectionTitleParts(title, safeWidth);
 
+  // Render title as single <Text> to bypass Yoga flexbox measurement which
+  // diverges from terminal column width for CJK/emoji content.
+  const titleLine = left + theme.brand.bold(middle) + right;
+
   return (
     <Box flexDirection="column">
       {/* Section divider ├──┤ */}
       <Text>{dividerLine}</Text>
-      <Box>
-        <Text>{left}</Text>
-        <Text bold color="#987BFE">
-          {middle}
-        </Text>
-        <Text>{right}</Text>
-      </Box>
+      <Text>{titleLine}</Text>
       {children}
     </Box>
   );

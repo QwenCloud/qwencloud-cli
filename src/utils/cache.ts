@@ -17,14 +17,7 @@ export interface CacheOptions {
   ttl: number; // Cache time-to-live (milliseconds)
 }
 
-/**
- * In-memory cache implementation.
- *
- * Features:
- * - Supports a custom TTL (Time To Live)
- * - Automatically cleans up expired entries
- * - Thread-safe (single-threaded Node.js environment)
- */
+/** In-memory cache with configurable TTL and automatic expiration cleanup. */
 export class MemoryCache {
   private store: Map<string, CacheEntry<unknown>> = new Map();
   private cleanupInterval: NodeJS.Timeout | null = null;
@@ -256,10 +249,7 @@ export type FileCacheContextResolver = () => FileCacheContext;
 
 let contextResolver: FileCacheContextResolver | null = null;
 
-/**
- * Wire the file cache to a context resolver. Called once during process
- * startup (or in tests). When unset, the file cache behaves as disabled.
- */
+/** Register the file cache context resolver; when unset, file cache is disabled. */
 export function setFileCacheContextResolver(resolver: FileCacheContextResolver | null): void {
   contextResolver = resolver;
 }

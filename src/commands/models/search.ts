@@ -1,5 +1,5 @@
 import React from 'react';
-import { createClient } from '../../api/client.js';
+import type { ClientFactory } from '../../api/client.js';
 import { resolveFormat } from '../../output/format.js';
 import { printJSON } from '../../output/json.js';
 import { getEffectiveConfig } from '../../config/manager.js';
@@ -27,13 +27,21 @@ export interface ModelsSearchOptions {
 export async function modelsSearchAction(
   query: string,
   options: ModelsSearchOptions,
+  getClient: ClientFactory,
 ): Promise<void> {
   const config = getEffectiveConfig();
-  const format = resolveFormat(options.format, config['output.format']);
+  let format = resolveFormat(options.format, config['output.format']);
+
+  // --all is a JSON-only flag; in any non-JSON format it would be silently
+  // dropped. Promote to JSON and tell the user on stderr.
+  if (options.all && format !== 'json') {
+    format = 'json';
+    process.stderr.write('Note: --all forces JSON output (--all is JSON-only).\n');
+  }
 
   try {
     await ensureAuthenticated();
-    const client = await createClient();
+    const client = await getClient();
 
     // Parse pagination params
     const { page, perPage } = parsePaginationOptions(options.page, options.perPage);

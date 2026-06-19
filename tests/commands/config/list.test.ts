@@ -4,7 +4,7 @@ import { runCommand } from '../../helpers/run-command.js';
 vi.mock('../../../src/config/manager.js', () => ({
   getConfigEntries: () => [
     { key: 'output.format', value: 'auto', source: 'default' },
-    { key: 'api.endpoint', value: 'https://example.com', source: 'global', sourcePath: '~/.qwencloud/config.json' },
+    { key: 'api.endpoint', value: 'https://mock-api.test.qwencloud.com', source: 'global', sourcePath: '~/.qwencloud/config.json' },
   ],
   getConfigValue: () => 'auto',
 }));

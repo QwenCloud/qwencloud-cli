@@ -58,7 +58,7 @@ export default tseslint.config(
       'src/ui/render.tsx', // Ink + Node stream listener
       'src/api/http-client.ts', // upstream API dynamic fields
       'src/commands/**/*.{ts,tsx}', // commander action signatures
-      'src/view-models/usage.ts', // API response extended fields
+      'src/view-models/usage/**/*.ts', // API response extended fields
     ],
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',

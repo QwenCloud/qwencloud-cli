@@ -4,7 +4,7 @@
  * Receives ViewModel as input.
  */
 
-import type { ModelsListViewModel, ModelDetailViewModel } from '../../view-models/models.js';
+import type { ModelsListViewModel, ModelDetailViewModel } from '../../view-models/models/index.js';
 import { formatTextTable } from '../text.js';
 import { MODEL_LIST_COLUMNS } from '../../commands/models/shared.js';
 

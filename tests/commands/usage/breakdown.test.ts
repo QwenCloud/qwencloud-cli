@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { runCommand } from '../../helpers/run-command.js';
 import { makeMockApiClient, makeModel } from '../../helpers/api-client.js';
 import type { ApiClient } from '../../../src/api/client.js';
-import { renderInkForTest, clearRenderedFrames } from '../../helpers/ink-render-mock.js';
+import { renderInkForTest, clearRenderedFrames, lastRenderedFrame } from '../../helpers/ink-render-mock.js';
 
 // ── Module mocks (hoisted) ───────────────────────────────────────────
 // vi.mock is hoisted to the top of the file. Use a holder pattern so each test
@@ -34,6 +34,8 @@ vi.mock('../../../src/ui/render.js', () => ({
 // order obvious to a reader).
 const { usageBreakdownAction } = await import('../../../src/commands/usage/breakdown.js');
 
+const getClient = async () => holder.client as any;
+
 beforeEach(() => {
   holder.client = makeMockApiClient();
   renderWithInkSpy.mockReset();
@@ -52,7 +54,7 @@ function buildBreakdown(program: import('commander').Command) {
     .option('--days <n>')
     .option('--period <preset>')
     .option('--format <fmt>');
-  breakdown.action(usageBreakdownAction(breakdown));
+  breakdown.action(usageBreakdownAction(breakdown, getClient));
 }
 
 describe('usage breakdown command (one-shot)', () => {
@@ -75,7 +77,7 @@ describe('usage breakdown command (one-shot)', () => {
       const payload = JSON.parse(r.stderr);
       expect(payload.error.code).toBe('MODEL_NOT_FOUND');
       expect(payload.error.message).toContain("Did you mean 'qwen3-max'");
-      expect(payload.error.exit_code).toBe(1);
+      expect(payload.error.exitCode).toBe(1);
     });
 
     it('valid model → breakdown payload on stdout, exit 0', async () => {
@@ -175,21 +177,21 @@ describe('usage breakdown command (one-shot)', () => {
   });
 
   describe('argument validation', () => {
-    it('missing --model → error to stderr (JSON format), exit 1', async () => {
+    it('missing --model → error to stderr (JSON format), exit 4', async () => {
       const r = await runCommand(buildBreakdown,
         ['usage', 'breakdown', '--format', 'json']);
-      expect(r.exitCode).toBe(1);
+      expect(r.exitCode).toBe(4);
       expect(r.stdout).toBe('');
       expect(r.stderr).toContain('Missing required option: --model');
     });
 
-    it('invalid --granularity → error to stderr (JSON format), exit 1', async () => {
+    it('invalid --granularity → error to stderr (JSON format), exit 4', async () => {
       holder.client = makeMockApiClient({
         listModels: async () => ({ models: [makeModel({ id: 'qwen3.6-plus' })], total: 1 }),
       });
       const r = await runCommand(buildBreakdown,
         ['usage', 'breakdown', '--model', 'qwen3.6-plus', '--granularity', 'bogus', '--format', 'json']);
-      expect(r.exitCode).toBe(1);
+      expect(r.exitCode).toBe(4);
       expect(r.stdout).toBe('');
       expect(r.stderr).toMatch(/Invalid granularity 'bogus'/);
     });
@@ -306,7 +308,7 @@ describe('usage breakdown command (one-shot)', () => {
       const el = renderWithInkSpy.mock.calls[0][0];
       // The element has props.vm with rows and total
       expect(el.props.vm.modelId).toBe('qwen3.6-plus');
-      expect(el.props.vm.rows).toHaveLength(2);
+      expect(el.props.vm.items).toHaveLength(2);
       expect(el.props.vm.total).toBeTruthy();
     });
 
@@ -322,6 +324,10 @@ describe('usage breakdown command (one-shot)', () => {
       const el = renderWithInkSpy.mock.calls[0][0];
       // emptyHint should be present when there are no rows
       expect(el.props.vm.emptyHint).toBeTruthy();
+      // Verify rendered output shows empty-state hint text
+      const frame = lastRenderedFrame();
+      expect(frame).toBeDefined();
+      expect(frame).toMatch(/No usage|no usage/i);
     });
 
     it('renders BreakdownInk with month granularity (no isCurrent markings for non-current months)', async () => {
@@ -344,7 +350,7 @@ describe('usage breakdown command (one-shot)', () => {
       expect(r.exitCode).toBeUndefined();
       expect(renderWithInkSpy).toHaveBeenCalledTimes(1);
       const el = renderWithInkSpy.mock.calls[0][0];
-      expect(el.props.vm.rows.length).toBe(3);
+      expect(el.props.vm.items.length).toBe(3);
     });
 
     it('renders BreakdownInk that includes current day row (period column gets "← current")', async () => {
@@ -369,7 +375,7 @@ describe('usage breakdown command (one-shot)', () => {
       expect(renderWithInkSpy).toHaveBeenCalledTimes(1);
       // Don't strictly assert isCurrent flag (depends on TZ); just ensure no crash
       const el = renderWithInkSpy.mock.calls[0][0];
-      expect(el.props.vm.rows[0].period).toBe(todayIso);
+      expect(el.props.vm.items[0].period).toBe(todayIso);
     });
   });
 });

@@ -4,9 +4,32 @@ import { Command } from 'commander';
 
 describe('resolveFormat', () => {
   it('uses explicit flag when provided', () => {
+    vi.stubGlobal('process', { ...process, stdout: { isTTY: true } });
     expect(resolveFormat('json', 'auto')).toBe('json');
     expect(resolveFormat('table', 'auto')).toBe('table');
     expect(resolveFormat('text', 'auto')).toBe('text');
+    vi.unstubAllGlobals();
+  });
+
+  it('downgrades table to text in non-TTY (avoids Ink line-wrap chaos when piped)', () => {
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    // The downgrade is gated on `!process.env.VITEST` so that automated
+    // tests asserting on Ink-rendered tables keep working. Mask the env var
+    // here to verify the production behavior.
+    vi.stubGlobal('process', {
+      ...process,
+      stdout: { isTTY: false },
+      env: { ...process.env, VITEST: undefined },
+    });
+
+    expect(resolveFormat('table', 'auto')).toBe('text');
+    expect(resolveFormat(undefined, 'table')).toBe('text');
+
+    const notes = stderrSpy.mock.calls.map((c) => String(c[0]));
+    expect(notes.some((m) => /falling back to text/i.test(m))).toBe(true);
+
+    vi.unstubAllGlobals();
+    stderrSpy.mockRestore();
   });
 
   it('treats "auto" flag as TTY detection', () => {
@@ -22,8 +45,10 @@ describe('resolveFormat', () => {
   });
 
   it('uses config when flag is not provided', () => {
+    vi.stubGlobal('process', { ...process, stdout: { isTTY: true } });
     expect(resolveFormat(undefined, 'json')).toBe('json');
     expect(resolveFormat(undefined, 'table')).toBe('table');
+    vi.unstubAllGlobals();
   });
 
   it('auto-detects when neither flag nor config is set', () => {

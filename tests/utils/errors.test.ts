@@ -38,7 +38,7 @@ describe('CliError', () => {
       error: {
         code: 'AUTH_REQUIRED',
         message: 'Not authenticated',
-        exit_code: 2,
+        exitCode: 2,
       },
     });
   });
@@ -84,14 +84,14 @@ describe('Error factory functions', () => {
     const err = configError('Invalid config file format');
     expect(err.code).toBe('CONFIG_ERROR');
     expect(err.message).toBe('Invalid config file format');
-    expect(err.exitCode).toBe(EXIT_CODES.CONFIG_ERROR);
+    expect(err.exitCode).toBe(EXIT_CODES.INVALID_ARGUMENT);
   });
 
   it('invalidArgError creates correct error', () => {
     const err = invalidArgError('Unknown option: --foo');
     expect(err.code).toBe('INVALID_ARGUMENT');
     expect(err.message).toBe('Unknown option: --foo');
-    expect(err.exitCode).toBe(EXIT_CODES.GENERAL_ERROR);
+    expect(err.exitCode).toBe(EXIT_CODES.INVALID_ARGUMENT);
   });
 });
 
@@ -142,7 +142,7 @@ describe('handleError', () => {
     // them mixed into the data stream.
     expect(stderrSpy).toHaveBeenCalledWith(
       JSON.stringify({
-        error: { code: 'AUTH_REQUIRED', message: 'Not authenticated', exit_code: 2 },
+        error: { code: 'AUTH_REQUIRED', message: 'Not authenticated', exitCode: 2 },
       }, null, 2) + '\n'
     );
     expect(thrown.exitCode).toBe(2);
@@ -183,7 +183,7 @@ describe('handleError', () => {
 
     expect(stderrSpy).toHaveBeenCalledWith(
       JSON.stringify({
-        error: { code: 'UNKNOWN_ERROR', message: 'Something went wrong', exit_code: 1 },
+        error: { code: 'UNKNOWN_ERROR', message: 'Something went wrong', exitCode: 1 },
       }, null, 2) + '\n'
     );
     expect(thrown.exitCode).toBe(1);
@@ -241,5 +241,107 @@ describe('handleError', () => {
     const causeLines = output.split('\n  Caused by: ').length - 1;
     expect(causeLines).toBeLessThanOrEqual(5);
     expect(thrown.exitCode).toBe(1);
+  });
+});
+
+describe('handleError — interactive-exit sentinel guard', () => {
+  const SENTINEL_CODE = 'repl.exit.intercepted';
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('re-throws the original sentinel error verbatim (does not convert to HandledError)', () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+    // The interactive shell raises this sentinel when it intercepts a
+    // process.exit call. handleError must let it bubble untouched so the
+    // shell's top-level catch can swallow it.
+    const sentinel = Object.assign(new Error('process.exit intercepted'), {
+      code: SENTINEL_CODE,
+    });
+
+    let caught: unknown;
+    try {
+      handleError(sentinel, 'text');
+    } catch (e) {
+      caught = e;
+    }
+
+    // The thrown value MUST be the exact original object (identity), not a
+    // wrapped/converted error.
+    expect(caught).toBe(sentinel);
+    expect(caught).not.toBeInstanceOf(HandledError);
+    expect((caught as { code?: string }).code).toBe(SENTINEL_CODE);
+
+    // The sentinel must never reach any user-visible output channel.
+    const consoleArgs = consoleErrorSpy.mock.calls.map((c) => String(c[0]));
+    const stderrArgs = stderrSpy.mock.calls.map((c) => String(c[0]));
+    expect(consoleArgs.some((s) => s.includes('intercepted'))).toBe(false);
+    expect(stderrArgs.some((s) => s.includes('intercepted'))).toBe(false);
+  });
+
+  it('re-throws the sentinel regardless of output format (json)', () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+    const sentinel = Object.assign(new Error('process.exit intercepted'), {
+      code: SENTINEL_CODE,
+    });
+
+    let caught: unknown;
+    try {
+      handleError(sentinel, 'json');
+    } catch (e) {
+      caught = e;
+    }
+
+    expect(caught).toBe(sentinel);
+    expect(caught).not.toBeInstanceOf(HandledError);
+
+    const consoleArgs = consoleErrorSpy.mock.calls.map((c) => String(c[0]));
+    const stderrArgs = stderrSpy.mock.calls.map((c) => String(c[0]));
+    expect(consoleArgs.some((s) => s.includes('intercepted'))).toBe(false);
+    expect(stderrArgs.some((s) => s.includes('intercepted'))).toBe(false);
+  });
+
+  it('does not affect ordinary auth errors (regression guard)', () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const err = authRequiredError();
+
+    let caught: unknown;
+    try {
+      handleError(err, 'text');
+    } catch (e) {
+      caught = e;
+    }
+
+    // Ordinary errors still follow the existing path: printed + HandledError.
+    expect(caught).toBeInstanceOf(HandledError);
+    expect((caught as HandledError).exitCode).toBe(EXIT_CODES.AUTH_FAILURE);
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Error: Not authenticated. Run: qwencloud login');
+  });
+
+  it('does not affect ordinary business errors (regression guard)', () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const err = new CliError({
+      code: 'MODEL_NOT_FOUND',
+      message: "Model 'qwen3.6-plus' not found.",
+      exitCode: EXIT_CODES.GENERAL_ERROR,
+    });
+
+    let caught: unknown;
+    try {
+      handleError(err, 'table');
+    } catch (e) {
+      caught = e;
+    }
+
+    expect(caught).toBeInstanceOf(HandledError);
+    expect((caught as HandledError).exitCode).toBe(EXIT_CODES.GENERAL_ERROR);
+    expect(consoleErrorSpy).toHaveBeenCalledWith("Error: Model 'qwen3.6-plus' not found.");
   });
 });

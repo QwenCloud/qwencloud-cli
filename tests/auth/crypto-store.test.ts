@@ -9,8 +9,6 @@ const FAKE_FINGERPRINT = crypto.createHash('sha256').update('test-fingerprint').
 const fingerprintMock = vi.fn(() => FAKE_FINGERPRINT);
 
 vi.mock('child_process', () => ({
-  // crypto-store uses execSync only inside fingerprint helpers; since we override
-  // getFingerprintOrFallback below, this stub just keeps imports happy.
   execSync: vi.fn(() => ''),
 }));
 
@@ -217,3 +215,4 @@ describe('writePlaintextCredentials', () => {
     expect(existsSync(filePath + '.tmp')).toBe(false);
   });
 });
+

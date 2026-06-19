@@ -4,11 +4,12 @@ import { Card, CardLine, Section as CardSection } from './Card.js';
 import { theme, colors, buildProgressBar } from './theme.js';
 import { wrapTextWithIndent, visibleWidth } from './textWrap.js';
 import { renderWithInk } from './render.js';
+import { useTerminalSize } from './useTerminalSize.js';
 import type {
   ModelDetailViewModel,
   PricingLineViewModel,
   BuiltInToolViewModel,
-} from '../view-models/models.js';
+} from '../view-models/models/index.js';
 
 export interface ModelInfoInkProps {
   vm: ModelDetailViewModel;
@@ -50,7 +51,8 @@ function kv(label: string, value: string, labelWidth: number): string {
  */
 export function ModelInfoInk({ vm }: ModelInfoInkProps) {
   const paddingLeft = 2;
-  const terminalWidth = Math.max(20, process.stdout.columns ?? 80);
+  const { columns } = useTerminalSize();
+  const terminalWidth = Math.max(20, columns);
   const w = Math.max(20, Math.min(terminalWidth - paddingLeft, 80));
   const innerWidth = Math.max(0, w - 6);
 

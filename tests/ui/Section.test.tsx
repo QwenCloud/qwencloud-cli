@@ -6,8 +6,10 @@ import stripAnsi from 'strip-ansi';
 import { Section } from '../../src/ui/Section.js';
 
 function frame(el: React.ReactElement): string {
-  const { lastFrame } = render(el);
-  return stripAnsi(lastFrame() ?? '');
+  const inst = render(el);
+  const f = stripAnsi(inst.lastFrame() ?? '');
+  inst.unmount();
+  return f;
 }
 
 // Section reads process.stdout.columns to compute its width. Lock it to a

@@ -5,7 +5,10 @@ export {
   // Usage
   renderTextUsageSummary,
   renderTextUsageBreakdown,
+  renderTextUsageLogs,
 } from './usage.js';
+
+export { renderTextDocsSearch } from './docs.js';
 
 export {
   // Models
@@ -17,3 +20,12 @@ export {
   // Doctor
   renderTextDoctor,
 } from './doctor.js';
+
+export { renderTextWorkspaceList, renderTextWorkspaceLimit } from './workspace.js';
+export {
+  renderTextBillingLimit,
+  renderTextBillingBreakdown,
+  renderTextBillingSummary,
+} from './billing.js';
+
+export { renderTextSubscriptionStatus, renderTextSubscriptionOrders } from './subscription.js';

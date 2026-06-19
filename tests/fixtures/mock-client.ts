@@ -3,8 +3,6 @@ import type { ModelsListResponse, ModelDetail, Model } from '../../src/types/mod
 import type { UsageSummaryResponse, UsageBreakdownResponse } from '../../src/types/usage.js';
 import type {
   AuthStatus,
-  DeviceFlowInitResponse,
-  DeviceFlowPollResponse,
 } from '../../src/types/auth.js';
 import { mockModels as mockModelsRaw } from './mock-data/models.js';
 import {
@@ -20,12 +18,9 @@ const mockBreakdownDaily = mockBreakdownDailyRaw as any;
 const mockBreakdownMonthly = mockBreakdownMonthlyRaw as any;
 const mockBreakdownQuarterly = mockBreakdownQuarterlyRaw as any;
 const mockBreakdownCodingPlan = mockBreakdownCodingPlanRaw as any;
-import { mockAuthStatus, mockCredentials, mockDeviceFlowInit } from './mock-data/auth.js';
+import { mockAuthStatus } from './mock-data/auth.js';
 
-/**
- * Mock API client for development and testing.
- * Returns rich mock datasets based on PRD examples.
- */
+/** Mock API client for development and testing. */
 export class MockApiClient implements ApiClient {
   async listModels(options?: ListModelsOptions): Promise<ModelsListResponse> {
     let models = mockModels.map(toListModel);
@@ -116,20 +111,6 @@ export class MockApiClient implements ApiClient {
 
   async getAuthStatus(): Promise<AuthStatus> {
     return { ...mockAuthStatus, server_verified: true };
-  }
-
-  async deviceFlowInit(): Promise<DeviceFlowInitResponse> {
-    return mockDeviceFlowInit;
-  }
-
-  setPkceVerifier(_verifier: string): void { /* no-op for mock client */ }
-
-  async deviceFlowPoll(_token: string): Promise<DeviceFlowPollResponse> {
-    // Simulate success after a short delay
-    return {
-      status: 'complete',
-      credentials: mockCredentials,
-    };
   }
 
   async revokeSession(): Promise<boolean> {

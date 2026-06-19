@@ -3,10 +3,10 @@ import { theme, buildProgressBar } from '../../ui/theme.js';
 import { abbreviateModality } from '../../utils/modality.js';
 import type { Model, ModelDetail } from '../../types/model.js';
 import { splitPrice } from '../../utils/formatting.js';
-import { formatFreeTierSplit, formatPriceFromPricing } from '../../view-models/models.js';
+import { formatFreeTierSplit, formatPriceFromPricing } from '../../view-models/models/index.js';
 
 // Re-export formatting utilities for backward compatibility
-export { formatFreeTier, formatPriceFromPricing } from '../../view-models/models.js';
+export { formatFreeTier, formatPriceFromPricing } from '../../view-models/models/index.js';
 
 /**
  * Column definitions for model list/search tables.
@@ -27,6 +27,19 @@ function colorizePrice(price: string): string {
   if (price.toLowerCase().includes('free')) return theme.success(price);
   if (price.includes('$')) return theme.accent(price);
   return price;
+}
+
+/**
+ * Resolve the effective model ID from the optional flag value and positional argument.
+ * The flag may be `true` when `--model` is passed without a value; in that case it is ignored.
+ * Returns `null` when no usable ID is present (caller should report it as required).
+ */
+export function resolveModelId(
+  flag: string | boolean | undefined,
+  positional: string | undefined,
+): string | null {
+  const id = (typeof flag === 'string' ? flag : undefined) || positional;
+  return id && id.trim().length > 0 ? id : null;
 }
 
 /**

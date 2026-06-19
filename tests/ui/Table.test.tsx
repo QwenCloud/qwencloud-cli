@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { render } from 'ink-testing-library';
 import stripAnsi from 'strip-ansi';
 import { Table } from '../../src/ui/Table.js';
+import { visibleWidth } from '../../src/ui/textWrap.js';
 
 // ── Black-box tests for column-width logic ──────────────────────────
 //
@@ -121,5 +122,51 @@ describe('Table column width logic (verified via real render)', () => {
       data: [{ x: 'much-longer-data' }],
     });
     expect(row).toContain('much-longer-data');
+  });
+
+  it('aligns column dividers across header / separator / data rows when content contains CJK', () => {
+    // Regression: rows with fullwidth (CJK) content used to misalign because
+    // each cell was rendered as a separate <Text> inside a flex <Box>, and
+    // Yoga's per-cell width measurement diverged from the terminal's actual
+    // CJK column width — shifting `│` divider positions row by row.
+    const out = stripAnsi(
+      render(
+        <Table
+          columns={[
+            { key: 'id', header: 'ID' },
+            { key: 'title', header: 'Title' },
+            { key: 'status', header: 'Status' },
+          ]}
+          data={[
+            { id: '001', title: 'English title', status: 'open' },
+            { id: '002', title: '中文标题测试', status: 'closed' },
+            { id: '003', title: 'Mixed 中文 and English', status: 'open' },
+          ]}
+        />,
+      ).lastFrame() ?? '',
+    );
+
+    // Compute visible-column positions of each `│` on a given line. CJK chars
+    // occupy 2 terminal columns but only 1 string char, so we must accumulate
+    // visibleWidth of the prefix rather than using the raw string index.
+    const dividerVisibleColumns = (line: string): number[] => {
+      const positions: number[] = [];
+      let col = 0;
+      for (const ch of line) {
+        if (ch === '│') positions.push(col);
+        col += visibleWidth(ch);
+      }
+      return positions;
+    };
+
+    const lines = out.split('\n');
+    const headerCols = dividerVisibleColumns(lines[0] ?? '');
+    expect(headerCols.length).toBe(2);
+
+    // Data rows live at indices 2, 3, 4 (after header + separator).
+    for (const idx of [2, 3, 4]) {
+      const dataCols = dividerVisibleColumns(lines[idx] ?? '');
+      expect(dataCols).toEqual(headerCols);
+    }
   });
 });

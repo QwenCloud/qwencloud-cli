@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { renderTextDoctor } from '../../../src/output/text/doctor.js';
-import { buildDoctorViewModel } from '../../../src/view-models/doctor.js';
+import { buildDoctorViewModel } from '../../../src/view-models/doctor/index.js';
 
 function captureStdout(fn: () => void): string {
   const lines: string[] = [];
