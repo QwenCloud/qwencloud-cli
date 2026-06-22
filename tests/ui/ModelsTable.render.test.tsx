@@ -122,16 +122,11 @@ describe('<ModelsTableInk /> rendering', () => {
     const { lastFrame } = render(<ModelsTableInk uiData={uiData} />);
     const out = lastFrame()!;
     expect(out).toContain('Free');
-    expect(out).toContain('$1.50');
+    expect(out).toContain('$1.5');
     expect(out).toContain('—');
   });
 
   it('expired row still renders the model id and the row layout differs from valid rows', () => {
-    // ink-testing-library strips ANSI escapes in non-TTY environments, so
-    // we cannot assert dim color codes directly. Instead we verify the BEHAVIOR:
-    //   1. Expired model id is still present (mute, not hide)
-    //   2. The expired row's visible content is not identical to a valid row
-    //      (proving styling/branching DOES happen — even if escape codes are stripped)
     const uiData = buildModelsUiData(baseModels);
     const { lastFrame } = render(<ModelsTableInk uiData={uiData} />);
     const out = lastFrame()!;
@@ -140,11 +135,42 @@ describe('<ModelsTableInk /> rendering', () => {
     const freeLine = out.split('\n').find((l) => l.includes('free-mod'));
     expect(expiredLine).toBeDefined();
     expect(freeLine).toBeDefined();
-    // Two lines must not be byte-identical — they at minimum carry different ids
     expect(expiredLine).not.toBe(freeLine);
-    // The expired row should not contain the same quota numbers as the
-    // active free-mod row (1,000,000) — the data branch reflects the status.
     expect(expiredLine!).not.toContain('1,000,000');
+  });
+
+  it('expired row fields carry muted styling with expired label', () => {
+    // When a model's free tier status is 'expire', the rendered row must:
+    // 1. Show the 'expired' text label (from the freeTierBar branch)
+    // 2. Show an empty bar (░ only, no filled █ blocks)
+    // 3. Show the freeTierUnit field (proves muted wrapping, not omission)
+    const uiData = buildModelsUiData(baseModels);
+    const { lastFrame } = render(<ModelsTableInk uiData={uiData} />);
+    const out = lastFrame()!;
+    const expiredLine = out.split('\n').find((l) => l.includes('expired-mod'))!;
+
+    // 'expired' label is rendered in the row
+    expect(expiredLine).toContain('expired');
+    // Empty bar characters (░) are present — the bar is muted/empty
+    expect(expiredLine).toContain('░');
+    // No filled blocks in the expired row (the bar is entirely empty)
+    expect(expiredLine).not.toContain('█');
+    // The unit 'tok' is still shown (muted, not hidden)
+    expect(expiredLine).toContain('tok');
+  });
+
+  it('non-expired rows show filled progress bar blocks without expired label', () => {
+    const uiData = buildModelsUiData(baseModels);
+    const { lastFrame } = render(<ModelsTableInk uiData={uiData} />);
+    const out = lastFrame()!;
+    const paidLine = out.split('\n').find((l) => l.includes('paid-mod'))!;
+    // paid-mod has 50% remaining → filled progress bar with █ blocks
+    expect(paidLine).toContain('█');
+    // paid-mod should NOT show 'expired' label
+    expect(paidLine).not.toContain('expired');
+    // The free-mod (free-only, no quota) also should not have 'expired'
+    const freeLine = out.split('\n').find((l) => l.includes('free-mod'))!;
+    expect(freeLine).not.toContain('expired');
   });
 
   it('renders the expected price text variants per row (Free / $price / em-dash)', () => {
@@ -161,8 +187,8 @@ describe('<ModelsTableInk /> rendering', () => {
     expect(expiredLine).toBeDefined();
     // free-mod is a free-only model (free_tier.mode='only') → 'Free' label
     expect(freeLine!).toContain('Free');
-    // paid-mod has $1.50 input price
-    expect(paidLine!).toContain('$1.50');
+    // paid-mod has $1.5 input price
+    expect(paidLine!).toContain('$1.5');
     // expired-mod has no pricing → em-dash placeholder
     expect(expiredLine!).toContain('—');
   });

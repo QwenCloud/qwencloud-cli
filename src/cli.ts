@@ -5,193 +5,21 @@ import { registerConfigCommands } from './commands/config/index.js';
 import { registerDoctorCommand } from './commands/doctor.js';
 import { registerCompletionCommand } from './commands/completion.js';
 import { registerVersionCommand, registerUpdateCommand } from './commands/version.js';
-import { isReplMode, formatCmd } from './utils/runtime-mode.js';
-import {
-  usageSummaryAction,
-  usageBreakdownAction,
-  registerUsageActions,
-} from './commands/usage/index.js';
+import { formatCmd } from './utils/runtime-mode.js';
+import { registerUsageCommands } from './commands/usage/index.js';
 import { registerAuthCommands } from './commands/auth/index.js';
-
-// ---------------------------------------------------------------------------
-// Custom help formatter to match PRD §7.0 format
-// ---------------------------------------------------------------------------
-
-function padCmd(name: string, width: number): string {
-  return name.padEnd(width);
-}
-
-/**
- * Build a fully custom help string for a Command.
- * Returns the PRD-style help text (L0 / L1 / L2).
- */
-function formatHelp(cmd: Command): string {
-  const lines: string[] = [];
-  const indent = '  ';
-
-  // --- Usage line ---
-  // In REPL mode, strip the root program name ('qwencloud') so help reads
-  // "Usage: models …" instead of "Usage: qwencloud models …".
-  const isRoot = !cmd.parent;
-  const fullName = isReplMode() && isRoot ? '' : cmd.name();
-  const ancestors: string[] = [];
-  let p = cmd.parent;
-  while (p) {
-    // Skip the root program name in REPL mode
-    if (!(isReplMode() && !p.parent)) {
-      ancestors.unshift(p.name());
-    }
-    p = p.parent;
-  }
-  const prefix = ancestors.length ? ancestors.join(' ') + ' ' : '';
-  const subs = cmd.commands.filter((c) => !isHiddenCommand(c));
-  const hasSubcommands = subs.length > 0;
-  // A command is "root" when it has no parent (the actual program root).
-  // In REPL mode ancestors may be empty even for L1 commands (models, auth …)
-  // because the root name is stripped, so use `isRoot` for level detection.
-
-  // Determine usage suffix
-  let usageSuffix: string;
-  if (isRoot && hasSubcommands) {
-    // L0: qwencloud <command> [flags]
-    usageSuffix = '<command> [flags]';
-  } else if (hasSubcommands) {
-    usageSuffix = '<subcommand> [flags]';
-  } else {
-    // Collect arguments
-    const args = getCommandArgs(cmd);
-    const argParts: string[] = [];
-    if (args) {
-      for (const a of args) {
-        argParts.push(a.required ? `<${a.name()}>` : `[${a.name()}]`);
-      }
-    }
-    usageSuffix = [...argParts, '[flags]'].join(' ');
-  }
-
-  const namePart = [prefix, fullName].filter(Boolean).join('');
-  lines.push(`${indent}Usage: ${namePart ? namePart + ' ' : ''}${usageSuffix}`);
-  lines.push('');
-
-  // --- Description ---
-  const desc = getLongDescription(cmd);
-  if (desc) {
-    lines.push(`${indent}${desc}`);
-    lines.push('');
-  }
-
-  // --- Subcommands / Commands ---
-  if (hasSubcommands) {
-    const label = isRoot ? 'Commands' : 'Subcommands';
-    lines.push(`${indent}${label}:`);
-
-    // Calculate max name length for padding
-    const maxLen = Math.max(
-      ...subs.map((s) => {
-        const sArgs = getCommandArgs(s);
-        const argStr = sArgs.length
-          ? sArgs.map((a) => (a.required ? `<${a.name()}>` : `[${a.name()}]`)).join(' ')
-          : '';
-        return (s.name() + (argStr ? ' ' + argStr : '')).length;
-      }),
-    );
-
-    for (const sub of subs) {
-      const subArgs = getCommandArgs(sub);
-      const argStr = subArgs.length
-        ? subArgs.map((a) => (a.required ? `<${a.name()}>` : `[${a.name()}]`)).join(' ')
-        : '';
-      const nameWithArgs = sub.name() + (argStr ? ' ' + argStr : '');
-      lines.push(`${indent}  ${padCmd(nameWithArgs, maxLen + 4)}${sub.description()}`);
-    }
-    lines.push('');
-  }
-
-  // --- Flags ---
-  lines.push(`${indent}Flags:`);
-  // Collect visible options + always include -h, --help
-  const opts = cmd.options.filter((o) => !o.hidden);
-  // Build flag entries in PRD order: regular opts, -h/--help, then -v/--version at end
-  type FlagEntry = { flags: string; desc: string };
-  const flagEntries: FlagEntry[] = [];
-  // Regular options (non-version, non-help)
-  for (const o of opts) {
-    if (o.long === '--version') continue; // will be appended at end
-    flagEntries.push({ flags: o.flags, desc: o.description });
-  }
-  flagEntries.push({ flags: '-h, --help', desc: 'Show this help' });
-  // Version flag last (only on top-level)
-  const versionOpt = opts.find((o) => o.long === '--version');
-  if (versionOpt) {
-    flagEntries.push({ flags: versionOpt.flags, desc: versionOpt.description });
-  }
-  const maxOptLen = Math.max(...flagEntries.map((f) => f.flags.length));
-  for (const f of flagEntries) {
-    lines.push(`${indent}  ${padCmd(f.flags, maxOptLen + 4)}${f.desc}`);
-  }
-  lines.push('');
-
-  // --- Examples (stored via .summary()) ---
-  const examples = getCommandExamples(cmd);
-  if (examples.length > 0) {
-    lines.push(`${indent}Examples:`);
-    for (const ex of examples) {
-      lines.push(`${indent}  ${ex}`);
-    }
-    lines.push('');
-  }
-
-  // --- Footer ---
-  if (hasSubcommands) {
-    if (isRoot) {
-      lines.push(
-        `${indent}Run ${fullName ? fullName + ' ' : ''}<command> --help for command-specific help.`,
-      );
-    } else {
-      const cmdPath = [prefix, fullName].filter(Boolean).join('');
-      lines.push(
-        `${indent}Run ${cmdPath ? cmdPath + ' ' : ''}<subcommand> --help for subcommand-specific help.`,
-      );
-    }
-  }
-
-  return lines.join('\n');
-}
-
-// ── Commander internal property helpers — centralized for upgrade safety ──────
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Commander internal access
-type AnyCommand = any;
-
-function isHiddenCommand(cmd: Command): boolean {
-  return (cmd as AnyCommand)._hidden === true;
-}
-
-function getCommandArgs(cmd: Command): Array<{ name: () => string; required: boolean }> {
-  return ((cmd as AnyCommand)._args as Array<{ name: () => string; required: boolean }>) ?? [];
-}
-
-function getCommandExamples(cmd: Command): string[] {
-  return ((cmd as AnyCommand)._examples as string[]) ?? [];
-}
-
-function setCommandHidden(cmd: Command, hidden: boolean): void {
-  (cmd as AnyCommand)._hidden = hidden;
-}
-
-// Helper: set a long description for L1/L2 help (distinct from the short one shown in parent listing)
-function setLongDescription(cmd: Command, desc: string): void {
-  (cmd as AnyCommand)._longDescription = desc;
-}
-
-function getLongDescription(cmd: Command): string {
-  return ((cmd as AnyCommand)._longDescription as string) || cmd.description();
-}
-
-// Helper: add examples metadata to a command
-function addExamples(cmd: Command, examples: string[]): void {
-  (cmd as AnyCommand)._examples = examples;
-}
+import { registerDocsCommands } from './commands/docs/index.js';
+import { registerWorkspaceCommands } from './commands/workspace/index.js';
+import { registerBillingCommands } from './commands/billing/index.js';
+import { registerSubscriptionCommands } from './commands/subscription/index.js';
+import {
+  setCommandHelpMetadata,
+  setCommandHidden,
+  setLongDescription,
+  addExamples,
+} from './utils/commander-helpers.js';
+import { formatHelp } from './output/help-formatter.js';
+import { createClient, type ClientFactory } from './api/client.js';
 
 // ---------------------------------------------------------------------------
 // Apply custom help to every command recursively
@@ -219,15 +47,44 @@ function applyExitOverride(cmd: Command): void {
   }
 }
 
+function setTopLevelHelpMetadata(
+  program: Command,
+  commandName: string,
+  group: string,
+  order: number,
+): void {
+  const command = program.commands.find((c) => c.name() === commandName);
+  if (command) setCommandHelpMetadata(command, group, order);
+}
+
+function applyTopLevelHelpMetadata(program: Command): void {
+  setTopLevelHelpMetadata(program, 'models', 'Core', 110);
+  setTopLevelHelpMetadata(program, 'docs', 'Core', 120);
+
+  setTopLevelHelpMetadata(program, 'auth', 'Account & access', 200);
+  setTopLevelHelpMetadata(program, 'workspace', 'Account & access', 220);
+
+  setTopLevelHelpMetadata(program, 'usage', 'Usage & billing', 300);
+  setTopLevelHelpMetadata(program, 'billing', 'Usage & billing', 310);
+  setTopLevelHelpMetadata(program, 'subscription', 'Usage & billing', 320);
+
+  setTopLevelHelpMetadata(program, 'doctor', 'Operations', 400);
+  setTopLevelHelpMetadata(program, 'config', 'Operations', 410);
+  setTopLevelHelpMetadata(program, 'completion', 'Operations', 420);
+  setTopLevelHelpMetadata(program, 'version', 'Operations', 430);
+
+  setTopLevelHelpMetadata(program, 'update', 'Operations', 440);
+}
+
 // ---------------------------------------------------------------------------
 // Command registration
 // ---------------------------------------------------------------------------
 
 // Auth commands are now imported from src/commands/auth/index.ts
 
-function registerModelsCommands(program: Command): void {
+function registerModelsCommands(program: Command, getClient: ClientFactory): void {
   // Delegate to real implementation
-  registerModelsCommandsImpl(program);
+  registerModelsCommandsImpl(program, getClient);
 
   // Apply descriptions and examples to the registered commands
   const models = program.commands.find((c) => c.name() === 'models')!;
@@ -254,100 +111,6 @@ function registerModelsCommands(program: Command): void {
   ]);
 }
 
-function registerUsageCommandsWithMeta(program: Command): void {
-  const usage = program.command('usage').description('View usage and billing');
-
-  const summaryCmd = usage
-    .command('summary')
-    .description('Show usage summary across all models')
-    .option('--from <date>', 'Start date (YYYY-MM-DD)')
-    .option('--to <date>', 'End date (YYYY-MM-DD)')
-    .option(
-      '--period <preset>',
-      'Period preset: today, yesterday, week, month, last-month, quarter, year, YYYY-MM',
-    )
-    .option('--format <fmt>', 'Output format: table, json, text (default: auto)');
-
-  // Wire up the real summary action
-  summaryCmd.action(usageSummaryAction(summaryCmd));
-
-  addExamples(summaryCmd, [
-    formatCmd('usage summary'),
-    formatCmd('usage summary --period last-month --format json'),
-  ]);
-
-  const breakdownCmd = usage
-    .command('breakdown')
-    .description('Show per-day/month/quarter usage for a model (PAYG only)')
-    // Use .option (not .requiredOption) so the missing --model case is handled
-    // by the action's structured invalidArgError, giving Agents a parseable
-    // {"error":...} JSON instead of Commander's bare `error: required option ...`.
-    .option('--model <id>', 'Model ID (required)')
-    .option('--granularity <g>', 'Time granularity: day, month, quarter (default: day)')
-    .option('--from <date>', 'Start date (YYYY-MM-DD)')
-    .option('--to <date>', 'End date (YYYY-MM-DD)')
-    .option(
-      '--period <preset>',
-      'Period preset: today, yesterday, week, month, last-month, quarter, year, YYYY-MM',
-    )
-    .option('--days <n>', 'Number of days to look back')
-    .option('--format <fmt>', 'Output format: table, json, text (default: auto)');
-
-  breakdownCmd.action(usageBreakdownAction(breakdownCmd));
-
-  setLongDescription(
-    breakdownCmd,
-    `Show usage breakdown for a specific model (time-series).\n\n  Note: PAYG only — free tier consumption is not available as a historical\n  series. Use \`${formatCmd('usage free-tier')}\` for current quota state.`,
-  );
-
-  addExamples(breakdownCmd, [
-    formatCmd('usage breakdown --model qwen-plus --period last-month --granularity month'),
-    formatCmd('usage breakdown --model qwen-plus --days 7 --format json'),
-  ]);
-
-  const freeTierCmd = usage
-    .command('free-tier')
-    .description('Browse all free tier models with quota status')
-    .option('--from <date>', 'Start date (YYYY-MM-DD)')
-    .option('--to <date>', 'End date (YYYY-MM-DD)')
-    .option(
-      '--period <preset>',
-      'Period preset: today, yesterday, week, month, last-month, quarter, year, YYYY-MM',
-    )
-    .option('--format <fmt>', 'Output format: table, json, text (default: auto)');
-
-  addExamples(freeTierCmd, [
-    formatCmd('usage free-tier'),
-    formatCmd('usage free-tier --format json'),
-  ]);
-
-  const paygCmd = usage
-    .command('payg')
-    .description('Browse pay-as-you-go usage across all models')
-    .option('--from <date>', 'Start date (YYYY-MM-DD)')
-    .option('--to <date>', 'End date (YYYY-MM-DD)')
-    .option(
-      '--period <preset>',
-      'Period preset: today, yesterday, week, month, last-month, quarter, year, YYYY-MM',
-    )
-    .option('--days <n>', 'Number of days to look back')
-    .option('--format <fmt>', 'Output format: table, json, text (default: auto)');
-
-  addExamples(paygCmd, [
-    formatCmd('usage payg'),
-    formatCmd('usage payg --period last-month'),
-    formatCmd('usage payg --from 2026-01-01 --to 2026-03-31'),
-  ]);
-
-  // Register remaining usage actions
-  registerUsageActions(summaryCmd, breakdownCmd, freeTierCmd, paygCmd);
-
-  usage.action(() => {
-    usage.outputHelp();
-    process.stdout.write('\n');
-  });
-}
-
 // Config commands are now in src/commands/config/index.ts
 
 // Doctor command is now in src/commands/doctor.ts
@@ -365,6 +128,13 @@ function registerUsageCommandsWithMeta(program: Command): void {
 export function createProgram(): Command {
   const program = new Command();
 
+  // Lazy singleton client factory — shared across all commands in this process
+  let clientPromise: Promise<import('./api/client.js').CliFacade> | null = null;
+  const getClient: ClientFactory = () => {
+    if (!clientPromise) clientPromise = createClient();
+    return clientPromise;
+  };
+
   program
     .name('qwencloud')
     .description('Manage QwenCloud models, usage, and configuration from your terminal.')
@@ -373,29 +143,32 @@ export function createProgram(): Command {
     .option('-q, --quiet', 'Suppress all output; rely on exit code only');
 
   // Register all command groups
-  registerAuthCommands(program);
-  registerModelsCommands(program);
-  registerUsageCommandsWithMeta(program);
+  registerAuthCommands(program, getClient);
+  registerModelsCommands(program, getClient);
+  registerUsageCommands(program, getClient);
   registerConfigCommands(program);
-  registerDoctorCommand(program);
+  registerDoctorCommand(program, getClient);
   registerCompletionCommand(program);
-  registerVersionCommand(program);
-  registerUpdateCommand(program);
+  registerVersionCommand(program, getClient);
+  registerUpdateCommand(program, getClient);
+  registerDocsCommands(program, getClient);
+  registerWorkspaceCommands(program, getClient);
+  registerBillingCommands(program, getClient);
+  registerSubscriptionCommands(program, getClient);
+
+  applyTopLevelHelpMetadata(program);
 
   // Hide the top-level login/logout aliases from L0 help
   const loginAlias = program.commands.find((c) => c.name() === 'login');
   if (loginAlias) setCommandHidden(loginAlias, true);
   const logoutAlias = program.commands.find((c) => c.name() === 'logout');
   if (logoutAlias) setCommandHidden(logoutAlias, true);
-  // Hide update from L0 help (not in PRD L0 example)
-  const updateAlias = program.commands.find((c) => c.name() === 'update');
-  if (updateAlias) setCommandHidden(updateAlias, true);
 
   // Apply custom help formatting to all commands
   applyCustomHelp(program);
   applyExitOverride(program);
 
-  // Override the top-level help to match PRD L0 exactly
+  // Override the top-level help
   program.configureHelp({
     formatHelp: () => formatHelp(program),
   });

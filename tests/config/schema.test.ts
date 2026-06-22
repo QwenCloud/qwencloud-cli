@@ -86,7 +86,7 @@ describe('validateConfigValue', () => {
 
   describe('api.endpoint', () => {
     it('accepts valid URLs', () => {
-      expect(validateConfigValue('api.endpoint', 'https://api.example.com')).toBeNull();
+      expect(validateConfigValue('api.endpoint', 'https://mock-api.test.qwencloud.com')).toBeNull();
       expect(validateConfigValue('api.endpoint', 'http://localhost:3000')).toBeNull();
       expect(validateConfigValue('api.endpoint', 'https://cli.qwencloud.com/api/v1')).toBeNull();
     });
@@ -100,7 +100,7 @@ describe('validateConfigValue', () => {
 
   describe('auth.endpoint', () => {
     it('accepts valid URLs', () => {
-      expect(validateConfigValue('auth.endpoint', 'https://auth.example.com')).toBeNull();
+      expect(validateConfigValue('auth.endpoint', 'https://mock-auth.test.qwencloud.com')).toBeNull();
       expect(validateConfigValue('auth.endpoint', 'http://localhost:8080')).toBeNull();
     });
 

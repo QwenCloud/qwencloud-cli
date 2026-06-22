@@ -27,6 +27,8 @@ vi.mock('../../../src/ui/render.js', () => ({
 
 const { usagePaygAction } = await import('../../../src/commands/usage/payg.js');
 
+const getClient = async () => holder.client as any;
+
 beforeEach(() => {
   holder.client = makeMockApiClient();
   renderInteractiveSpy.mockReset();
@@ -42,7 +44,7 @@ function buildPayg(program: import('commander').Command) {
     .option('--to <date>')
     .option('--days <n>')
     .option('--period <p>');
-  payg.action(usagePaygAction(payg));
+  payg.action(usagePaygAction(payg, getClient));
 }
 
 describe('usage payg command (one-shot)', () => {

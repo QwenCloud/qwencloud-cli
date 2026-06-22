@@ -4,7 +4,7 @@ import {
   formatFreeTier,
   formatPriceFromPricing,
 } from '../../src/utils/formatting.js';
-import { formatFreeTierSplit } from '../../src/view-models/models.js';
+import { formatFreeTierSplit } from '../../src/view-models/models/index.js';
 import type { Model, Pricing } from '../../src/types/model.js';
 
 describe('splitPrice', () => {

@@ -12,12 +12,47 @@ vi.mock('../../../src/auth/credentials.js', () => ({
   ensureAuthenticated: () => ({ access_token: 't', expires_at: '2099-01-01T00:00:00Z' }),
 }));
 
+// Spy on the interactive (TUI) renderer so we can assert it is NOT entered when
+// a JSON-only flag forces the format up to JSON. The named variable lets each
+// test reset and assert call counts precisely.
+const mockRenderInteractive = vi.fn();
+vi.mock('../../../src/ui/render.js', () => ({
+  renderInteractive: mockRenderInteractive,
+  renderWithInk: vi.fn(),
+  renderWithInkSync: vi.fn(),
+}));
+
+// Spy on the JSON sink. The passthrough implementation preserves the existing
+// stdout-parsing tests (they JSON.parse(r.stdout)) while also recording calls
+// so the promotion tests can assert the JSON path was taken.
+const mockPrintJSON = vi.fn((data: unknown) => {
+  // eslint-disable-next-line no-console
+  console.log(JSON.stringify(data, null, 2));
+});
+vi.mock('../../../src/output/json.js', () => ({
+  printJSON: (data: unknown) => mockPrintJSON(data),
+}));
+
+// Keep the spinner inert: under a TTY it would start an animation interval that
+// never resolves in-process. Running the work directly keeps tests deterministic.
+vi.mock('../../../src/ui/spinner.js', () => ({
+  withSpinner: async (_label: string, fn: () => Promise<unknown>) => fn(),
+}));
+
 const { modelsListAction } = await import('../../../src/commands/models/list.js');
+
+const getClient = async () => holder.client as any;
 
 const originalIsTTY = process.stdout.isTTY;
 
 beforeEach(() => {
   holder.client = makeMockApiClient();
+  mockRenderInteractive.mockReset();
+  mockPrintJSON.mockReset();
+  mockPrintJSON.mockImplementation((data: unknown) => {
+    // eslint-disable-next-line no-console
+    console.log(JSON.stringify(data, null, 2));
+  });
   // Force non-TTY so InteractiveTable path is skipped
   Object.defineProperty(process.stdout, 'isTTY', { value: false, writable: true });
 });
@@ -25,6 +60,11 @@ beforeEach(() => {
 afterEach(() => {
   Object.defineProperty(process.stdout, 'isTTY', { value: originalIsTTY, writable: true });
 });
+
+/** Force the interactive (TTY) path so the auto-detected format is `table`. */
+function forceTTY() {
+  Object.defineProperty(process.stdout, 'isTTY', { value: true, writable: true });
+}
 
 function setupCmd(program: any) {
   const cmd = program
@@ -37,7 +77,7 @@ function setupCmd(program: any) {
     .option('--per-page <n>')
     .option('--all')
     .option('--verbose')
-    .action(modelsListAction);
+    .action((opts: any) => modelsListAction(opts, getClient));
   return cmd;
 }
 
@@ -93,14 +133,7 @@ describe('models list command', () => {
       fetchQuotasForModels: async (ms) => ms,
     });
 
-    const r = await runCommand(setupCmd, [
-      'models',
-      'list',
-      '--format',
-      'json',
-      '--page',
-      '5',
-    ]);
+    const r = await runCommand(setupCmd, ['models', 'list', '--format', 'json', '--page', '5']);
     expect(r.exitCode).toBeUndefined();
     const payload = JSON.parse(r.stdout);
     expect(payload.models).toEqual([]);
@@ -145,9 +178,7 @@ describe('models list command', () => {
   });
 
   it('text mode: renders text table when models present', async () => {
-    const models = [
-      makeModel({ id: 'qwen3-plus', pricing: { tiers: [] } }),
-    ];
+    const models = [makeModel({ id: 'qwen3-plus', pricing: { tiers: [] } })];
     holder.client = makeMockApiClient({
       listModels: async () => ({ models, total: 1 }),
       fetchQuotasForModels: async (ms) => ms,
@@ -182,7 +213,14 @@ describe('models list command', () => {
       },
     });
     const r = await runCommand(setupCmd, [
-      'models', 'list', '--format', 'json', '--input', 'text', '--output', 'image',
+      'models',
+      'list',
+      '--format',
+      'json',
+      '--input',
+      'text',
+      '--output',
+      'image',
     ]);
     expect(r.exitCode).toBeUndefined();
     expect(captured.input).toBe('text');
@@ -197,14 +235,17 @@ describe('models list command', () => {
       fetchQuotasForModels: async (ms) => ms,
       getModels: async (ids) => {
         getModelsCalled = true;
-        return ids.map((id) => ({
-          ...makeModel({ id, pricing: { tiers: [] } as any }),
-          description: 'verbose-desc',
-          tags: ['t1'],
-          features: ['f1'],
-          rate_limits: { rpm: 100 },
-          metadata: { version_tag: 'v1', open_source: false, updated: '2026-01-01' },
-        }) as any);
+        return ids.map(
+          (id) =>
+            ({
+              ...makeModel({ id, pricing: { tiers: [] } as any }),
+              description: 'verbose-desc',
+              tags: ['t1'],
+              features: ['f1'],
+              rate_limits: { rpm: 100 },
+              metadata: { version_tag: 'v1', open_source: false, updated: '2026-01-01' },
+            }) as any,
+        );
       },
     });
     const r = await runCommand(setupCmd, ['models', 'list', '--format', 'json', '--verbose']);
@@ -223,16 +264,26 @@ describe('models list command', () => {
       listModels: async () => ({ models, total: 3 }),
       fetchQuotasForModels: async (ms) => ms,
       getModels: async (ids) =>
-        ids.map((id) => ({
-          ...makeModel({ id, pricing: { tiers: [] } as any }),
-          description: `desc-${id}`,
-          tags: [],
-          features: [],
-          rate_limits: { rpm: 100 },
-          metadata: { version_tag: 'v', open_source: false, updated: '2026-01-01' },
-        }) as any),
+        ids.map(
+          (id) =>
+            ({
+              ...makeModel({ id, pricing: { tiers: [] } as any }),
+              description: `desc-${id}`,
+              tags: [],
+              features: [],
+              rate_limits: { rpm: 100 },
+              metadata: { version_tag: 'v', open_source: false, updated: '2026-01-01' },
+            }) as any,
+        ),
     });
-    const r = await runCommand(setupCmd, ['models', 'list', '--format', 'json', '--all', '--verbose']);
+    const r = await runCommand(setupCmd, [
+      'models',
+      'list',
+      '--format',
+      'json',
+      '--all',
+      '--verbose',
+    ]);
     expect(r.exitCode).toBeUndefined();
     const payload = JSON.parse(r.stdout);
     expect(payload.all).toBe(true);
@@ -263,9 +314,7 @@ describe('models list command', () => {
       fetchQuotasForModels: async (ms) => ms,
       getModels: async () => models as any,
     });
-    const r = await runCommand(setupCmd, [
-      'models', 'list', '--format=text', '--page', '99',
-    ]);
+    const r = await runCommand(setupCmd, ['models', 'list', '--format=text', '--page', '99']);
     expect(r.exitCode).toBeUndefined();
     expect(r.stderr).toMatch(/exceeds total pages/i);
   });
@@ -279,5 +328,277 @@ describe('models list command', () => {
     const r = await runCommand(setupCmd, ['models', 'list', '--format', 'json']);
     expect(r.exitCode).toBe(1);
     expect(r.stderr).toContain('list-fail');
+  });
+
+  it('rejects invalid --output modality flag', async () => {
+    const r = await runCommand(setupCmd, [
+      'models',
+      'list',
+      '--format',
+      'json',
+      '--output',
+      'bad-modality',
+    ]);
+    expect(r.exitCode).toBeGreaterThanOrEqual(1);
+  });
+
+  it('JSON: page exactly at totalPages returns valid last page', async () => {
+    const models = Array.from({ length: 3 }, (_, i) =>
+      makeModel({ id: `m-${i}`, pricing: { tiers: [] } }),
+    );
+    holder.client = makeMockApiClient({
+      listModels: async () => ({ models, total: 3 }),
+      fetchQuotasForModels: async (ms) => ms,
+    });
+
+    const r = await runCommand(setupCmd, [
+      'models',
+      'list',
+      '--format',
+      'json',
+      '--page',
+      '3',
+      '--per-page',
+      '1',
+    ]);
+    expect(r.exitCode).toBeUndefined();
+    const payload = JSON.parse(r.stdout);
+    expect(payload.models).toHaveLength(1);
+    expect(payload.models[0].id).toBe('m-2');
+    expect(payload.page).toBe(3);
+    expect(payload.total_pages).toBe(3);
+  });
+
+  it('JSON: --page 1 is default when not specified', async () => {
+    const models = [makeModel({ id: 'default-page', pricing: { tiers: [] } })];
+    holder.client = makeMockApiClient({
+      listModels: async () => ({ models, total: 1 }),
+      fetchQuotasForModels: async (ms) => ms,
+    });
+
+    const r = await runCommand(setupCmd, ['models', 'list', '--format', 'json']);
+    expect(r.exitCode).toBeUndefined();
+    const payload = JSON.parse(r.stdout);
+    expect(payload.page).toBe(1);
+  });
+
+  it('non-JSON empty result outputs friendly message or JSON fallback', async () => {
+    holder.client = makeMockApiClient({
+      listModels: async () => ({ models: [], total: 0 }),
+      fetchQuotasForModels: async (ms) => ms,
+    });
+
+    const r = await runCommand(setupCmd, ['models', 'list', '--format', 'text']);
+    expect(r.exitCode).toBeUndefined();
+    // Accept either text fallback message or empty JSON payload (when TTY detection overrides)
+    expect(r.stdout + r.stderr).toMatch(/(No models found|"total":\s*0)/i);
+  });
+
+  it('text mode with pagination shows correct slice of models', async () => {
+    const models = Array.from({ length: 5 }, (_, i) =>
+      makeModel({ id: `txt-m-${i}`, pricing: { tiers: [] } }),
+    );
+    holder.client = makeMockApiClient({
+      listModels: async () => ({ models, total: 5 }),
+      fetchQuotasForModels: async (ms) => ms,
+      getModels: async (ids) => ids.map((id) => makeModel({ id, pricing: { tiers: [] } })) as never,
+    });
+
+    const r = await runCommand(setupCmd, [
+      'models',
+      'list',
+      '--format',
+      'text',
+      '--page',
+      '2',
+      '--per-page',
+      '2',
+    ]);
+    expect(r.exitCode).toBeUndefined();
+    expect(r.stdout).toContain('txt-m-2');
+    expect(r.stdout).toContain('txt-m-3');
+    expect(r.stdout).not.toContain('txt-m-0');
+  });
+
+  it('fetchQuotasForModels failure routes through handleError', async () => {
+    const models = [makeModel({ id: 'quota-fail' })];
+    holder.client = makeMockApiClient({
+      listModels: async () => ({ models, total: 1 }),
+      fetchQuotasForModels: async () => {
+        throw new Error('quota-service-down');
+      },
+    });
+
+    const r = await runCommand(setupCmd, ['models', 'list', '--format', 'json']);
+    expect(r.exitCode).toBe(1);
+    expect(r.stderr).toContain('quota-service-down');
+  });
+
+  it('--all without --verbose returns all models without detail enrichment', async () => {
+    let getModelsCalled = false;
+    const models = Array.from({ length: 4 }, (_, i) =>
+      makeModel({ id: `bulk-${i}`, pricing: { tiers: [] } }),
+    );
+    holder.client = makeMockApiClient({
+      listModels: async () => ({ models, total: 4 }),
+      fetchQuotasForModels: async (ms) => ms,
+      getModels: async (ids) => {
+        getModelsCalled = true;
+        return ids.map((id) => makeModel({ id })) as never;
+      },
+    });
+
+    const r = await runCommand(setupCmd, ['models', 'list', '--format', 'json', '--all']);
+    expect(r.exitCode).toBeUndefined();
+    expect(getModelsCalled).toBe(false);
+    const payload = JSON.parse(r.stdout);
+    expect(payload.all).toBe(true);
+    expect(payload.models).toHaveLength(4);
+  });
+});
+
+// ── JSON-only flag auto-promotion under TTY ───────────────────────────────
+//
+// `--all` / `--verbose` are JSON-only flags. In a TTY the default format is
+// `table`, which historically routed to the interactive renderer and SILENTLY
+// dropped these flags. The contract: when such a flag is present and the
+// resolved format is not `json`, the command must promote to JSON, emit a
+// stderr advisory containing "JSON", and take the JSON path (printJSON) WITHOUT
+// entering the TUI (renderInteractive).
+//
+// The decisive signal is `renderInteractive` NOT being called: an implementation
+// that ignores the flag and keeps rendering the table would call it → red. A
+// terminal-content assertion alone cannot distinguish "promoted" from "rendered
+// table that happens to contain the same ids", so the call-vs-not-call pair on
+// the two renderers is the regression guard.
+describe('models list — JSON-only flag auto-promotion (TTY)', () => {
+  it('TTY + --all (no --format) promotes to JSON: printJSON called, renderInteractive NOT called', async () => {
+    forceTTY();
+    const models = Array.from({ length: 12 }, (_, i) =>
+      makeModel({ id: `auto-${i}`, pricing: { tiers: [] } as any }),
+    );
+    holder.client = makeMockApiClient({
+      listModels: async () => ({ models, total: 12 }),
+      fetchQuotasForModels: async (ms) => ms,
+    });
+
+    const r = await runCommand(setupCmd, ['models', 'list', '--all']);
+
+    expect(r.exitCode).toBeUndefined();
+    expect(mockRenderInteractive).not.toHaveBeenCalled();
+    expect(mockPrintJSON).toHaveBeenCalledTimes(1);
+    const payload = mockPrintJSON.mock.calls[0][0] as { all: boolean; models: unknown[] };
+    expect(payload.all).toBe(true);
+    expect(payload.models).toHaveLength(12);
+  });
+
+  it('TTY + --all writes a stderr advisory containing "JSON"', async () => {
+    forceTTY();
+    const models = [makeModel({ id: 'adv', pricing: { tiers: [] } as any })];
+    holder.client = makeMockApiClient({
+      listModels: async () => ({ models, total: 1 }),
+      fetchQuotasForModels: async (ms) => ms,
+    });
+
+    const r = await runCommand(setupCmd, ['models', 'list', '--all']);
+
+    expect(r.exitCode).toBeUndefined();
+    expect(r.stderr).toContain('JSON');
+  });
+
+  it('TTY + --verbose (no --format) promotes to JSON and enriches via getModels', async () => {
+    forceTTY();
+    let getModelsCalled = false;
+    const models = [makeModel({ id: 'verbose-auto', pricing: { tiers: [] } as any })];
+    holder.client = makeMockApiClient({
+      listModels: async () => ({ models, total: 1 }),
+      fetchQuotasForModels: async (ms) => ms,
+      getModels: async (ids) => {
+        getModelsCalled = true;
+        return ids.map((id) => ({
+          ...makeModel({ id, pricing: { tiers: [] } as any }),
+          description: 'verbose-auto-desc',
+          tags: [],
+          features: [],
+          rate_limits: { rpm: 100 },
+          metadata: { version_tag: 'v', open_source: false, updated: '2026-01-01' },
+        })) as any;
+      },
+    });
+
+    const r = await runCommand(setupCmd, ['models', 'list', '--verbose']);
+
+    expect(r.exitCode).toBeUndefined();
+    expect(mockRenderInteractive).not.toHaveBeenCalled();
+    expect(mockPrintJSON).toHaveBeenCalledTimes(1);
+    expect(getModelsCalled).toBe(true);
+    const payload = mockPrintJSON.mock.calls[0][0] as {
+      models: Array<{ description?: string; rate_limits?: { rpm: number } }>;
+    };
+    expect(payload.models).toHaveLength(1);
+    expect(payload.models[0].description).toBe('verbose-auto-desc');
+    expect(payload.models[0].rate_limits?.rpm).toBe(100);
+  });
+
+  it('TTY + --verbose writes a stderr advisory containing "JSON"', async () => {
+    forceTTY();
+    const models = [makeModel({ id: 'vadv', pricing: { tiers: [] } as any })];
+    holder.client = makeMockApiClient({
+      listModels: async () => ({ models, total: 1 }),
+      fetchQuotasForModels: async (ms) => ms,
+      getModels: async (ids) =>
+        ids.map((id) => ({
+          ...makeModel({ id, pricing: { tiers: [] } as any }),
+          description: 'd',
+          tags: [],
+          features: [],
+          rate_limits: { rpm: 1 },
+          metadata: { version_tag: 'v', open_source: false, updated: '2026-01-01' },
+        })) as any,
+    });
+
+    const r = await runCommand(setupCmd, ['models', 'list', '--verbose']);
+
+    expect(r.exitCode).toBeUndefined();
+    expect(r.stderr).toContain('JSON');
+  });
+
+  it('explicit --format table + --all still promotes to JSON (printJSON, no TUI) + advisory', async () => {
+    forceTTY();
+    const models = Array.from({ length: 5 }, (_, i) =>
+      makeModel({ id: `tbl-all-${i}`, pricing: { tiers: [] } as any }),
+    );
+    holder.client = makeMockApiClient({
+      listModels: async () => ({ models, total: 5 }),
+      fetchQuotasForModels: async (ms) => ms,
+    });
+
+    const r = await runCommand(setupCmd, ['models', 'list', '--format', 'table', '--all']);
+
+    expect(r.exitCode).toBeUndefined();
+    expect(mockRenderInteractive).not.toHaveBeenCalled();
+    expect(mockPrintJSON).toHaveBeenCalledTimes(1);
+    const payload = mockPrintJSON.mock.calls[0][0] as { all: boolean; models: unknown[] };
+    expect(payload.all).toBe(true);
+    expect(payload.models).toHaveLength(5);
+    expect(r.stderr).toContain('JSON');
+  });
+
+  it('regression guard: TTY without --all/--verbose enters the TUI (renderInteractive called, no JSON promotion)', async () => {
+    forceTTY();
+    const models = [
+      makeModel({ id: 'tui-a', pricing: { tiers: [] } as any }),
+      makeModel({ id: 'tui-b', pricing: { tiers: [] } as any }),
+    ];
+    holder.client = makeMockApiClient({
+      listModels: async () => ({ models, total: 2 }),
+      fetchQuotasForModels: async (ms) => ms,
+    });
+
+    const r = await runCommand(setupCmd, ['models', 'list']);
+
+    expect(r.exitCode).toBeUndefined();
+    expect(mockRenderInteractive).toHaveBeenCalledTimes(1);
+    expect(mockPrintJSON).not.toHaveBeenCalled();
   });
 });

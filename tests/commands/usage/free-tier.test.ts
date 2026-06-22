@@ -27,6 +27,8 @@ vi.mock('../../../src/ui/render.js', () => ({
 
 const { usageFreeTierAction } = await import('../../../src/commands/usage/free-tier.js');
 
+const getClient = async () => holder.client as any;
+
 beforeEach(() => {
   holder.client = makeMockApiClient();
   renderInteractiveSpy.mockReset();
@@ -41,7 +43,7 @@ function buildFreeTier(program: import('commander').Command) {
     .option('--from <date>')
     .option('--to <date>')
     .option('--period <p>');
-  ft.action(usageFreeTierAction(ft));
+  ft.action(usageFreeTierAction(ft, getClient));
 }
 
 describe('usage free-tier command (one-shot)', () => {

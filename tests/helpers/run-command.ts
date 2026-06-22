@@ -85,6 +85,16 @@ export async function runCommand(
     if (e instanceof HandledError) {
       // handleError() already printed the formatted message; capture the exit code.
       exitCode = e.exitCode;
+    } else if (
+      e &&
+      typeof e === 'object' &&
+      'exitCode' in e &&
+      typeof (e as Record<string, unknown>).exitCode === 'number' &&
+      (e as unknown as Error).constructor?.name === 'HandledError'
+    ) {
+      // Duck-type detection: after vi.resetModules() the HandledError class
+      // instance comes from a different module evaluation, breaking instanceof.
+      exitCode = (e as { exitCode: number }).exitCode;
     } else if (e instanceof ProcessExitSentinel) {
       // expected — fallback for code that still calls process.exit()
     } else if ((e as { code?: string }).code === 'commander.helpDisplayed') {

@@ -16,6 +16,8 @@ vi.mock('../../../src/auth/credentials.js', () => ({
 
 const { registerStatusCommand } = await import('../../../src/commands/auth/status.js');
 
+const getClient = async () => holder.client as any;
+
 beforeEach(() => {
   holder.client = makeMockApiClient();
   credResolveStub.mockReset();
@@ -27,7 +29,7 @@ describe('auth status command', () => {
     const r = await runCommand(
       (program) => {
         const auth = program.command('auth');
-        registerStatusCommand(auth);
+        registerStatusCommand(auth, getClient);
       },
       ['auth', 'status', '--format', 'json'],
     );
@@ -36,7 +38,7 @@ describe('auth status command', () => {
     // is caught by handleError → exits with GENERAL_ERROR(1). What matters
     // for the user is that the JSON payload reports authenticated:false and
     // the process exits with a non-zero code.
-    expect(r.exitCode).toBeGreaterThanOrEqual(1);
+    expect(r.exitCode).toBe(1);
     const payload = JSON.parse(r.stdout);
     expect(payload.authenticated).toBe(false);
   });
@@ -46,11 +48,11 @@ describe('auth status command', () => {
     const r = await runCommand(
       (program) => {
         const auth = program.command('auth');
-        registerStatusCommand(auth);
+        registerStatusCommand(auth, getClient);
       },
       ['auth', 'status', '--format', 'text'],
     );
-    expect(r.exitCode).toBeGreaterThanOrEqual(1);
+    expect(r.exitCode).toBe(1);
     expect(r.stdout).toContain('Not authenticated');
   });
 
@@ -76,7 +78,7 @@ describe('auth status command', () => {
     const r = await runCommand(
       (program) => {
         const auth = program.command('auth');
-        registerStatusCommand(auth);
+        registerStatusCommand(auth, getClient);
       },
       ['auth', 'status', '--format', 'json'],
     );
@@ -103,11 +105,11 @@ describe('auth status command', () => {
     const r = await runCommand(
       (program) => {
         const auth = program.command('auth');
-        registerStatusCommand(auth);
+        registerStatusCommand(auth, getClient);
       },
       ['auth', 'status', '--format', 'json'],
     );
-    expect(r.exitCode).toBeGreaterThanOrEqual(1);
+    expect(r.exitCode).toBe(1);
     const payload = JSON.parse(r.stdout);
     expect(payload.authenticated).toBe(false);
     expect(payload.reason).toBe('token_expired');

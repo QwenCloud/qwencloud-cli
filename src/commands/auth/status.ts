@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { resolveCredentials } from '../../auth/credentials.js';
-import { createClient } from '../../api/client.js';
+import type { ClientFactory } from '../../api/client.js';
 import { resolveFormatFromCommand } from '../../output/format.js';
 import { printJSON } from '../../output/json.js';
 import { formatKeyValue } from '../../output/text.js';
@@ -12,7 +12,7 @@ import { EXIT_CODES } from '../../utils/exit-codes.js';
 import { resetGlobalCache } from '../../utils/cache.js';
 import type { ResolvedFormat } from '../../types/config.js';
 
-export function registerStatusCommand(parent: Command): void {
+export function registerStatusCommand(parent: Command, getClient: ClientFactory): void {
   parent
     .command('status')
     .description('Show current authentication status')
@@ -21,14 +21,14 @@ export function registerStatusCommand(parent: Command): void {
       const config = getEffectiveConfig();
       const format = resolveFormatFromCommand(this, config);
       try {
-        await runStatus(format);
+        await runStatus(format, getClient);
       } catch (error) {
         handleError(error, format);
       }
     });
 }
 
-async function runStatus(format: ResolvedFormat): Promise<void> {
+async function runStatus(format: ResolvedFormat, getClient: ClientFactory): Promise<void> {
   const resolved = resolveCredentials();
 
   if (!resolved) {
@@ -40,7 +40,7 @@ async function runStatus(format: ResolvedFormat): Promise<void> {
     process.exit(EXIT_CODES.AUTH_FAILURE);
   }
 
-  const client = await createClient();
+  const client = await getClient();
   const status = await client.getAuthStatus();
 
   // Token expired or not authenticated

@@ -3,7 +3,7 @@
  *
  * Strategy:
  * - Mock `createClient` → `MockApiClient` (zero real API calls)
- * - Mock `credentials` → bypass real authentication
+ * - Mock authentication layer.
  * - Mock `config/manager` → avoid reading real config files
  * - Test each command across three dimensions:
  *   1. JSON output: full pipeline verification via JSON.parse
@@ -33,7 +33,7 @@ vi.mock('../../src/auth/credentials.js', async (importOriginal) => {
       credentials: {
         access_token: 'test-token',
         expires_at: new Date(Date.now() + 7_200_000).toISOString(),
-        user: { email: 'test@example.com', aliyunId: 'test_id' },
+        user: { email: 'test@test.qwencloud.com', aliyunId: 'test_id' },
       },
       source: 'mock' as const,
     }),
@@ -41,7 +41,7 @@ vi.mock('../../src/auth/credentials.js', async (importOriginal) => {
     isTokenExpired: () => false,
     getTokenRemainingTime: () => '2h 0m',
     clearCredentialsCache: () => undefined,
-    warnIfTokenExpiringSoon: () => undefined,
+    getTokenExpiryWarning: () => null,
   };
 });
 
@@ -98,14 +98,14 @@ describe('oneshot commands (integration)', () => {
   // ── Doctor ──────────────────────────────────────────────────────────────
 
   describe('doctor', () => {
-    it('--format json: structured diagnostics with exit_code 0', async () => {
+    it('--format json: structured diagnostics with exitCode 0', async () => {
       const { data, exitCode } = await runCommandJSON(['doctor', '--format', 'json']);
       const json = data as any;
 
       expect(exitCode).toBe(0);
       expect(json).toHaveProperty('checks');
       expect(json).toHaveProperty('summary');
-      expect(json).toHaveProperty('exit_code', 0);
+      expect(json).toHaveProperty('exitCode', 0);
 
       expect(Array.isArray(json.checks)).toBe(true);
       expect(json.checks.length).toBeGreaterThan(0);

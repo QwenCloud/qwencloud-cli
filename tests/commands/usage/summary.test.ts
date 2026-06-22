@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { runCommand } from '../../helpers/run-command.js';
 import { makeMockApiClient } from '../../helpers/api-client.js';
 import type { ApiClient } from '../../../src/api/client.js';
-import { renderInkForTest, clearRenderedFrames } from '../../helpers/ink-render-mock.js';
+import { renderInkForTest, clearRenderedFrames, lastRenderedFrame } from '../../helpers/ink-render-mock.js';
 
 const holder: { client: ApiClient } = { client: makeMockApiClient() };
 
@@ -28,6 +28,8 @@ vi.mock('../../../src/ui/render.js', () => ({
 
 const { usageSummaryAction } = await import('../../../src/commands/usage/summary.js');
 
+const getClient = async () => holder.client as any;
+
 beforeEach(() => {
   holder.client = makeMockApiClient();
   renderWithInkSpy.mockReset();
@@ -42,7 +44,7 @@ function buildSummary(program: import('commander').Command) {
     .option('--from <date>')
     .option('--to <date>')
     .option('--period <p>');
-  summary.action(usageSummaryAction(summary));
+  summary.action(usageSummaryAction(summary, getClient));
 }
 
 describe('usage summary command (one-shot)', () => {
@@ -276,6 +278,11 @@ describe('usage summary command (one-shot)', () => {
       expect(el.props.vm.freeTier).toBeTruthy();
       expect(el.props.vm.payAsYouGo).toBeTruthy();
       expect(el.props.vm.codingPlan).toBeTruthy();
+      // Verify rendered output contains key business data
+      const frame = lastRenderedFrame();
+      expect(frame).toBeDefined();
+      expect(frame).toContain('qwen3-max');
+      expect(frame).toContain('qwen3-payg');
     });
 
     it('renders FreeTierSection with isFreeOnly row (mode=only / quota null)', async () => {
@@ -293,6 +300,10 @@ describe('usage summary command (one-shot)', () => {
       const r = await runCommand(buildSummary, ['usage', 'summary', '--format', 'table']);
       expect(r.exitCode).toBeUndefined();
       expect(renderWithInkSpy).toHaveBeenCalledTimes(1);
+      // Verify rendered output includes the free-only model
+      const frame = lastRenderedFrame();
+      expect(frame).toBeDefined();
+      expect(frame).toContain('qwen-free-only');
     });
 
     it('renders FreeTierSection with hidden-count footer when >10 rows', async () => {
@@ -339,6 +350,10 @@ describe('usage summary command (one-shot)', () => {
       const r = await runCommand(buildSummary, ['usage', 'summary', '--format', 'table']);
       expect(r.exitCode).toBeUndefined();
       expect(renderWithInkSpy).toHaveBeenCalledTimes(1);
+      // Verify rendered output includes Coding Plan section data
+      const frame = lastRenderedFrame();
+      expect(frame).toBeDefined();
+      expect(frame).toMatch(/Coding Plan|starter/i);
     });
 
     it('renders PayAsYouGoSection isEmpty branch (subscribed=true gives codingPlan, payg empty)', async () => {
@@ -359,6 +374,10 @@ describe('usage summary command (one-shot)', () => {
       // No sections triggered Ink (vm has no freeTier/payAsYouGo/codingPlan)
       // but renderWithInk is still called with the bare UsageSummaryInk wrapper
       expect(renderWithInkSpy).toHaveBeenCalledTimes(1);
+      // Verify rendered frame exists (empty state renders period header)
+      const frame = lastRenderedFrame();
+      expect(frame).toBeDefined();
+      expect(frame).toContain('2026-04-01');
     });
 
     it('renders PayAsYouGoSection with hidden-count footer when >10 rows', async () => {
@@ -402,6 +421,10 @@ describe('usage summary command (one-shot)', () => {
       const r = await runCommand(buildSummary, ['usage', 'summary', '--format', 'table']);
       expect(r.exitCode).toBeUndefined();
       expect(renderWithInkSpy).toHaveBeenCalledTimes(1);
+      // Verify rendered output includes the free-tier model
+      const frame = lastRenderedFrame();
+      expect(frame).toBeDefined();
+      expect(frame).toContain('qwen-only-ft');
     });
   });
 });

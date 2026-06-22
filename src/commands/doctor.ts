@@ -1,7 +1,7 @@
 import type { Command } from 'commander';
 import { existsSync } from 'fs';
 import { VERSION } from '../index.js';
-import { createClient } from '../api/client.js';
+import type { ClientFactory } from '../api/client.js';
 import {
   resolveCredentials,
   isTokenExpired,
@@ -14,7 +14,11 @@ import { resolveFormat, outputJSON } from '../output/format.js';
 import { theme } from '../ui/theme.js';
 import type { StatusLevel } from '../ui/StatusLine.js';
 import type { OutputFormat } from '../types/config.js';
-import { computeExitCode, formatCheckLabel, type DoctorCheck } from '../view-models/doctor.js';
+import {
+  computeExitCode,
+  formatCheckLabel,
+  type DoctorCheck,
+} from '../view-models/doctor/index.js';
 import { loginCommand, formatCmd } from '../utils/runtime-mode.js';
 import { resetGlobalCache } from '../utils/cache.js';
 
@@ -61,7 +65,8 @@ async function checkAuth(
   }
 
   // Try to get user identity from server API
-  let identity = 'unknown';
+  const IDENTITY_FALLBACK = 'authenticated (identity unavailable)';
+  let identity = IDENTITY_FALLBACK;
   try {
     const authStatus = await client.getAuthStatus();
     const serverAliyunId = authStatus.user?.aliyunId;
@@ -71,13 +76,13 @@ async function checkAuth(
       (serverEmail && serverEmail.trim()) ||
       (resolved.credentials?.user?.aliyunId && resolved.credentials.user.aliyunId.trim()) ||
       (resolved.credentials?.user?.email && resolved.credentials.user.email.trim()) ||
-      'unknown';
+      IDENTITY_FALLBACK;
   } catch {
     // Fallback to local credentials if server is unreachable
     identity =
       (resolved.credentials?.user?.aliyunId && resolved.credentials.user.aliyunId.trim()) ||
       (resolved.credentials?.user?.email && resolved.credentials.user.email.trim()) ||
-      'unknown';
+      IDENTITY_FALLBACK;
   }
 
   return {
@@ -108,7 +113,7 @@ function checkToken(resolved: ResolvedCredential | null): DoctorCheck {
     };
   }
   const remaining = getTokenRemainingTime(resolved.credentials);
-  // PRD §7.4: warn if token expires within 1 hour
+  // Warn if token expires within 1 hour
   if (isTokenExpiringSoon(resolved.credentials, 60)) {
     return {
       name: 'token',
@@ -134,9 +139,8 @@ async function checkNetwork(client: ApiClient): Promise<DoctorCheck> {
     if (result.latency > 2000) {
       return {
         name: 'network',
-        status: 'fail',
-        detail: `High latency (${result.latency}ms)`,
-        action: 'Check your network connection',
+        status: 'warn',
+        detail: `High latency (${result.latency}ms) — API still reachable`,
       };
     }
     if (result.latency > 500) {
@@ -200,8 +204,8 @@ function checkGlobalConfig(): DoctorCheck {
 
 // ── Orchestrator ────────────────────────────────────────────────────
 
-async function runChecks(): Promise<DoctorCheck[]> {
-  const client = await createClient();
+async function runChecks(getClient: ClientFactory): Promise<DoctorCheck[]> {
+  const client = await getClient();
   const resolved = resolveCredentials();
 
   return [
@@ -228,7 +232,7 @@ const STATUS_COLORS: Record<StatusLevel, (s: string) => string> = {
   info: theme.info,
 };
 
-export function registerDoctorCommand(program: Command): void {
+export function registerDoctorCommand(program: Command, getClient: ClientFactory): void {
   program
     .command('doctor')
     .description('Run environment diagnostics')
@@ -239,7 +243,7 @@ export function registerDoctorCommand(program: Command): void {
         getConfigValue('output.format') as OutputFormat,
       );
 
-      const checks = await runChecks();
+      const checks = await runChecks(getClient);
       const exitCode = computeExitCode(checks);
 
       if (format === 'json') {
@@ -261,7 +265,7 @@ export function registerDoctorCommand(program: Command): void {
             return item;
           }),
           summary,
-          exit_code: exitCode,
+          exitCode,
         });
 
         resetGlobalCache();

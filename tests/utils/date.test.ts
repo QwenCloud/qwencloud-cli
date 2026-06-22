@@ -5,6 +5,7 @@ import {
   validateDateRange,
   formatDate,
   formatRelativeTime,
+  normalizeToFullDate,
 } from '../../src/utils/date.js';
 
 // formatDate uses toISOString() which is always UTC.
@@ -185,6 +186,35 @@ describe('formatDate', () => {
 
   it('should pad single-digit month and day', () => {
     expect(formatDate(new Date('2025-01-05T00:00:00Z'))).toBe('2025-01-05');
+  });
+});
+
+describe('normalizeToFullDate', () => {
+  it('returns YYYY-MM-DD inputs unchanged', () => {
+    expect(normalizeToFullDate('2026-05-15', 'start')).toBe('2026-05-15');
+    expect(normalizeToFullDate('2026-05-15', 'end')).toBe('2026-05-15');
+  });
+
+  it('expands YYYY-MM to first of month for start position', () => {
+    expect(normalizeToFullDate('2026-05', 'start')).toBe('2026-05-01');
+  });
+
+  it('expands YYYY-MM to calendar last day for end position', () => {
+    expect(normalizeToFullDate('2026-05', 'end')).toBe('2026-05-31');
+    expect(normalizeToFullDate('2026-04', 'end')).toBe('2026-04-30');
+  });
+
+  it('handles February in a leap year', () => {
+    expect(normalizeToFullDate('2024-02', 'end')).toBe('2024-02-29');
+  });
+
+  it('handles February in a non-leap year', () => {
+    expect(normalizeToFullDate('2025-02', 'end')).toBe('2025-02-28');
+  });
+
+  it('returns unrecognized formats unchanged', () => {
+    expect(normalizeToFullDate('not-a-date', 'start')).toBe('not-a-date');
+    expect(normalizeToFullDate('2026', 'end')).toBe('2026');
   });
 });
 

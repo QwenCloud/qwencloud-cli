@@ -1,8 +1,7 @@
 import React from 'react';
 import type { Command } from 'commander';
 import { Box, Text } from 'ink';
-import { createClient } from '../../api/client.js';
-import type { UsageBreakdownOptions } from '../../api/client.js';
+import type { ClientFactory, UsageBreakdownOptions } from '../../api/client.js';
 import type { ResolvedFormat } from '../../types/config.js';
 import { resolveFormatFromCommand, outputJSON } from '../../output/format.js';
 import { renderTextUsageBreakdown } from '../../output/text/usage.js';
@@ -22,14 +21,17 @@ import { renderWithInk } from '../../ui/render.js';
 import {
   buildUsageBreakdownViewModel,
   type UsageBreakdownViewModel,
-} from '../../view-models/usage.js';
+} from '../../view-models/usage/index.js';
 import { Table } from '../../ui/index.js';
 import { withSpinner } from '../../ui/spinner.js';
 
 /**
  * Register the `usage breakdown` action.
  */
-export function usageBreakdownAction(cmd: Command): (...args: any[]) => void | Promise<void> {
+export function usageBreakdownAction(
+  cmd: Command,
+  getClient: ClientFactory,
+): (...args: any[]) => void | Promise<void> {
   return async function (this: Command, options: Record<string, any>) {
     const config = getEffectiveConfig();
     const format: ResolvedFormat = resolveFormatFromCommand(this ?? cmd, config);
@@ -78,7 +80,7 @@ export function usageBreakdownAction(cmd: Command): (...args: any[]) => void | P
         return;
       }
 
-      const client = await createClient();
+      const client = await getClient();
 
       // Pre-validate model ID against the registry so a typo surfaces a
       // structured MODEL_NOT_FOUND (with did-you-mean) instead of a silently
@@ -166,7 +168,7 @@ function BreakdownTable({ vm }: { vm: UsageBreakdownViewModel }) {
 
   const currentLabel = '← current';
 
-  const tableRows = vm.rows.map((row) => {
+  const tableRows = vm.items.map((row) => {
     const cells: Record<string, string> = {};
     for (const col of vm.columns) {
       if (col.key === 'period') {

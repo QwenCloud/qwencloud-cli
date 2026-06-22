@@ -8,7 +8,7 @@ import {
   buildModelListViewModelFromModels,
   type ModelsListViewModel,
   type ModelRowViewModel,
-} from '../view-models/models.js';
+} from '../view-models/models/index.js';
 
 // ── UI-specific ViewModel extension (adds color metadata) ────────────
 

@@ -3,11 +3,13 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render } from 'ink-testing-library';
 import stripAnsi from 'strip-ansi';
 import { ModelInfoInk } from '../../src/ui/ModelInfo.js';
-import type { ModelDetailViewModel } from '../../src/view-models/models.js';
+import type { ModelDetailViewModel } from '../../src/view-models/models/index.js';
 
 function frame(el: React.ReactElement): string {
-  const { lastFrame } = render(el);
-  return stripAnsi(lastFrame() ?? '');
+  const inst = render(el);
+  const f = stripAnsi(inst.lastFrame() ?? '');
+  inst.unmount();
+  return f;
 }
 
 // ── Test fixtures: minimal ModelDetailViewModel for each pricingType ──
@@ -127,10 +129,11 @@ describe('ModelInfoInk', () => {
       builtInTools: [],
       rateLimits: 'RPM   100',
       metadata: baseMetadata(),
+      freeTier: { mode: 'only' },
     };
     const out = frame(<ModelInfoInk vm={vm} />);
     expect(out).toContain('Free');
-    expect(out).toContain('Early Access');
+    expect(out).toContain('FreeTier Only');
   });
 
   it('renders image model with single price line', () => {
@@ -237,7 +240,7 @@ describe('ModelInfoInk', () => {
       const out = frame(<ModelInfoInk vm={vm} />);
       expect(out).toContain('Free Tier');
       expect(out).toContain('Free');
-      expect(out).toContain('Early Access');
+      expect(out).toContain('FreeTier Only');
     });
 
     it('renders "standard" free tier with quota: total, remaining bar, reset date', () => {
@@ -257,7 +260,7 @@ describe('ModelInfoInk', () => {
       expect(out).toContain('1M tok');
       expect(out).toContain('Remaining');
       expect(out).toContain('850K tok');
-      expect(out).toContain('85.0%');
+      expect(out).toContain('85%');
       expect(out).toContain('Resets');
       expect(out).toContain('2026-05-01');
     });

@@ -1,4 +1,4 @@
-// Mock summary data - the 3-section view from PRD §7.2.2
+// Mock summary data - the 3-section usage view
 export const mockUsageSummary = {
   period: { from: '2026-04-01', to: '2026-04-07' },
   free_tier: [
@@ -30,7 +30,7 @@ export const mockUsageSummary = {
   },
 };
 
-// Mock breakdown data — daily for qwen3.6-plus (PRD §7.2.3 example 1)
+// Mock breakdown data — daily for qwen3.6-plus
 export const mockBreakdownDaily = {
   model_id: 'qwen3.6-plus',
   period: { from: '2026-04-01', to: '2026-04-07' },
@@ -47,7 +47,7 @@ export const mockBreakdownDaily = {
   total: { requests: 1093, tokens_in: 529400, tokens_out: 132100, cost: 1.74, currency: 'USD' },
 };
 
-// Mock breakdown data — monthly (PRD §7.2.3 example 2, Q1 2026)
+// Mock breakdown data — monthly
 export const mockBreakdownMonthly = {
   model_id: 'qwen3.6-plus',
   period: { from: '2026-01-01', to: '2026-03-31' },
@@ -60,7 +60,7 @@ export const mockBreakdownMonthly = {
   total: { requests: 10100, tokens_in: 5100000, tokens_out: 1270000, cost: 8.04, currency: 'USD' },
 };
 
-// Mock breakdown data — quarterly (PRD §7.2.3 example 3, past year)
+// Mock breakdown data — quarterly
 export const mockBreakdownQuarterly = {
   model_id: 'qwen3.6-plus',
   period: { from: '2025-04-01', to: '2026-03-31' },
@@ -74,7 +74,7 @@ export const mockBreakdownQuarterly = {
   total: { requests: 41600, tokens_in: 20900000, tokens_out: 5170000, cost: 33.22, currency: 'USD' },
 };
 
-// Mock breakdown for Coding Plan model (kimi-k2.5) — PRD §7.2.3 Coding Plan example
+// Mock breakdown for Coding Plan model (kimi-k2.5)
 export const mockBreakdownCodingPlan = {
   model_id: 'kimi-k2.5',
   billing: 'coding_plan',

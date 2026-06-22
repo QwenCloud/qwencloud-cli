@@ -6,7 +6,11 @@ export {
   buildModelListViewModel,
   buildModelListViewModelFromModels,
   buildModelDetailViewModel,
-} from './models.js';
+  // Shared format utilities (transit-through for command layer)
+  formatFreeTierSplit,
+  formatFreeTier,
+  formatPriceFromPricing,
+} from './models/index.js';
 export type {
   ModelRowViewModel,
   ModelsListViewModel,
@@ -15,14 +19,16 @@ export type {
   BuiltInToolViewModel,
   ContextViewModel,
   FreeTierSummaryViewModel,
-} from './models.js';
+} from './models/index.js';
 
 export {
   // Usage Summary
   buildUsageSummaryViewModel,
   // Usage Breakdown
   buildUsageBreakdownViewModel,
-} from './usage.js';
+  // Usage Logs
+  buildUsageLogsViewModel,
+} from './usage/index.js';
 export type {
   UsageSummaryViewModel,
   FreeTierSectionViewModel,
@@ -35,10 +41,52 @@ export type {
   BreakdownColumn,
   BreakdownRowViewModel,
   BreakdownTotalViewModel,
-} from './usage.js';
+  UsageLogsViewModel,
+  UsageLogRowViewModel,
+  UsageLogStatusColor,
+} from './usage/index.js';
 
 export {
   // Doctor
   buildDoctorViewModel,
-} from './doctor.js';
-export type { DoctorViewModel, DoctorCheckViewModel, DoctorCheck } from './doctor.js';
+} from './doctor/index.js';
+export type { DoctorViewModel, DoctorCheckViewModel, DoctorCheck } from './doctor/index.js';
+
+export { buildWorkspaceListViewModel, buildWorkspaceLimitViewModel } from './workspace/index.js';
+export type {
+  WorkspaceListViewModel,
+  WorkspaceRowViewModel,
+  WorkspaceLimitViewModel,
+} from './workspace/index.js';
+
+export {
+  buildBillingLimitViewModel,
+  buildBillingBreakdownViewModel,
+  buildBillingSummaryViewModel,
+} from './billing/index.js';
+export type {
+  BillingLimitViewModel,
+  BillingBreakdownViewModel,
+  BillingBreakdownRowViewModel,
+  BillingSummaryViewModel,
+  BillingSummaryFieldViewModel,
+} from './billing/index.js';
+
+export {
+  buildSubscriptionStatusViewModel,
+  buildSubscriptionOrdersViewModel,
+} from './subscription/index.js';
+export type {
+  SubscriptionStatusViewModel,
+  SubscriptionStatusFieldViewModel,
+  SubscriptionQuotaViewModel,
+  SubscriptionOrdersViewModel,
+  SubscriptionOrderRowViewModel,
+} from './subscription/index.js';
+
+export { buildDocsSearchViewModel, stripEmTags } from './docs/index.js';
+export type {
+  DocsSearchViewModel,
+  DocsSearchItemViewModel,
+  BuildDocsSearchOptions,
+} from './docs/index.js';

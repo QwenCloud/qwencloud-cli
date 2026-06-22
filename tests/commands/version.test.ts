@@ -13,6 +13,8 @@ const { registerVersionCommand, registerUpdateCommand } = await import(
   '../../src/commands/version.js'
 );
 
+const getClient = async () => holder.client as any;
+
 beforeEach(() => {
   holder.client = makeMockApiClient();
 });
@@ -20,7 +22,7 @@ beforeEach(() => {
 describe('version command', () => {
   it('plain version → JSON mode prints {version: ...}', async () => {
     const r = await runCommand(
-      (program) => registerVersionCommand(program),
+      (program) => registerVersionCommand(program, getClient),
       ['version', '--format', 'json'],
     );
     expect(r.exitCode).toBeUndefined();
@@ -31,7 +33,7 @@ describe('version command', () => {
 
   it('plain version → text mode prints "qwencloud v..."', async () => {
     const r = await runCommand(
-      (program) => registerVersionCommand(program),
+      (program) => registerVersionCommand(program, getClient),
       ['version', '--format', 'text'],
     );
     expect(r.exitCode).toBeUndefined();
@@ -47,7 +49,7 @@ describe('version command', () => {
       }),
     });
     const r = await runCommand(
-      (program) => registerVersionCommand(program),
+      (program) => registerVersionCommand(program, getClient),
       ['version', '--check', '--format', 'json'],
     );
     expect(r.exitCode).toBeUndefined();
@@ -66,7 +68,7 @@ describe('update command', () => {
       }),
     });
     const r = await runCommand(
-      (program) => registerUpdateCommand(program),
+      (program) => registerUpdateCommand(program, getClient),
       ['update', '--format', 'json'],
     );
     expect(r.exitCode).toBeUndefined();
@@ -84,7 +86,7 @@ describe('update command', () => {
       }),
     });
     const r = await runCommand(
-      (program) => registerUpdateCommand(program),
+      (program) => registerUpdateCommand(program, getClient),
       ['update', '--format', 'text'],
     );
     expect(r.exitCode).toBeUndefined();
@@ -100,7 +102,7 @@ describe('update command', () => {
       }),
     });
     const r = await runCommand(
-      (program) => registerUpdateCommand(program),
+      (program) => registerUpdateCommand(program, getClient),
       ['update', '--format', 'json'],
     );
     expect(r.exitCode).toBeUndefined();

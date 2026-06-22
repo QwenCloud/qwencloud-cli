@@ -13,7 +13,7 @@ export interface UserInfo {
 export interface AuthStatus {
   authenticated: boolean;
   server_verified: boolean; // true = server confirmed token is valid
-  auth_mode?: 'device_flow';
+  auth_mode?: 'device_flow' | 'pkce' | 'device-flow';
   source?: 'keychain' | 'encrypted_file'; // credential source
   warning?: string; // e.g. "Server unreachable, showing local status"
   user?: UserInfo;
@@ -35,3 +35,7 @@ export interface DeviceFlowPollResponse {
   status: 'authorization_pending' | 'slow_down' | 'access_denied' | 'expired_token' | 'complete';
   credentials?: Credentials;
 }
+
+/** Protocol-agnostic aliases for the login orchestration layer */
+export type LoginInitResponse = DeviceFlowInitResponse;
+export type LoginPollResponse = DeviceFlowPollResponse;

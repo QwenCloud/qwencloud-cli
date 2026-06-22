@@ -99,3 +99,28 @@ export interface UsageBreakdownTotal {
   cost?: number;
   currency?: string;
 }
+
+// Usage logs response
+export interface UsageEntry {
+  key: string;
+  value: number;
+}
+
+export interface UsageLogItem {
+  requestId: string;
+  model: string;
+  createdAt: string;
+  statusCode: number;
+  durationMs: number;
+  firstOutputDurationMs: number;
+  errorCode: string | null;
+  usages: UsageEntry[];
+}
+
+export interface UsageLogsResponse {
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  period: { from: string; to: string };
+  items: UsageLogItem[];
+}

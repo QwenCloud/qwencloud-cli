@@ -1,7 +1,6 @@
 import React from 'react';
 import type { Command } from 'commander';
-import { createClient } from '../../api/client.js';
-import type { UsageSummaryOptions } from '../../api/client.js';
+import type { ClientFactory, UsageSummaryOptions } from '../../api/client.js';
 import type { ResolvedFormat } from '../../types/config.js';
 import { resolveFormatFromCommand, outputJSON } from '../../output/format.js';
 import { resolveDateRange, validateDateRange } from '../../utils/date.js';
@@ -11,16 +10,20 @@ import { ensureAuthenticated } from '../../auth/credentials.js';
 import {
   buildUsageSummaryViewModel,
   type PayAsYouGoRowViewModel,
-} from '../../view-models/usage.js';
+} from '../../view-models/usage/index.js';
 import { InteractiveTable } from '../../ui/InteractiveTable.js';
 import { renderInteractive } from '../../ui/render.js';
 import { withSpinner } from '../../ui/spinner.js';
 import { theme } from '../../ui/theme.js';
+import { renderTextUsagePayg } from '../../output/text/usage.js';
 
 /**
  * Register the `usage payg` action.
  */
-export function usagePaygAction(cmd: Command): (...args: any[]) => void | Promise<void> {
+export function usagePaygAction(
+  cmd: Command,
+  getClient: ClientFactory,
+): (...args: any[]) => void | Promise<void> {
   return async function (this: Command, options: Record<string, string>) {
     const config = getEffectiveConfig();
     const format: ResolvedFormat = resolveFormatFromCommand(this ?? cmd, config);
@@ -54,7 +57,7 @@ export function usagePaygAction(cmd: Command): (...args: any[]) => void | Promis
         throw err;
       }
 
-      const client = await createClient();
+      const client = await getClient();
       const summaryOpts: UsageSummaryOptions = {
         from: dateRange.from,
         to: dateRange.to,
@@ -79,21 +82,15 @@ export function usagePaygAction(cmd: Command): (...args: any[]) => void | Promis
       }
 
       if (format === 'text') {
-        for (const row of payg.rows) {
-          console.log(`${row.modelId}  ${row.usage}  ${row.cost}`);
-        }
-        console.log(`Total  ${payg.total.cost}`);
+        renderTextUsagePayg(payg.items, payg.total);
         return;
       }
 
       if (process.stdout.isTTY) {
-        await renderPaygInteractive(payg.rows, payg.totalCount, payg.total, payg.period);
+        await renderPaygInteractive(payg.items, payg.totalCount, payg.total, payg.period);
       } else {
         // Non-TTY fallback: use text rendering path
-        for (const row of payg.rows) {
-          console.log(`${row.modelId}  ${row.usage}  ${row.cost}`);
-        }
-        console.log(`Total  ${payg.total.cost}`);
+        renderTextUsagePayg(payg.items, payg.total);
       }
     } catch (error) {
       handleError(error, format);

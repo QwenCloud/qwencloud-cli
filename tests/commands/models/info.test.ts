@@ -18,6 +18,8 @@ vi.mock('../../../src/ui/spinner.js', () => ({
 
 const { modelsInfoAction } = await import('../../../src/commands/models/info.js');
 
+const getClient = async () => holder.client as any;
+
 beforeEach(() => {
   holder.client = makeMockApiClient();
 });
@@ -41,7 +43,7 @@ function buildInfo(program: import('commander').Command) {
     .option('--format <fmt>');
   info.action(async function (this: import('commander').Command, id: string, opts: { format?: string }) {
     opts.format = opts.format ?? resolveFormatFromAncestors(this);
-    await modelsInfoAction(id, opts);
+    await modelsInfoAction(id, opts, getClient);
   });
 }
 

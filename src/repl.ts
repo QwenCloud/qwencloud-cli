@@ -6,11 +6,15 @@ import { getEffectiveConfig } from './config/manager.js';
 import { VERSION } from './index.js';
 import { flushDebugReport, clearDebugBuffer } from './api/debug-buffer.js';
 import { SUBCOMMANDS, tabCompleter, getGhostSuffix, unknownCommandMsg } from './repl/completer.js';
+import { surfaceCommanderError } from './repl/repl-error.js';
 import { setReplMode } from './utils/runtime-mode.js';
 import chalk from 'chalk';
+import { theme, colors } from './ui/theme.js';
 
 // Brand purple for prompt
-const brand = chalk.hex('#987BFE');
+const brand = theme.brand;
+const helpTitle = theme.help.sectionTitle;
+const helpCommand = theme.help.commandName;
 
 async function resolveUserDisplay(): Promise<string> {
   const creds = resolveCredentials();
@@ -29,6 +33,7 @@ async function resolveUserDisplay(): Promise<string> {
     const response = await fetch(`${baseUrl}/api/account/info.json`, {
       headers: { Authorization: `Bearer ${creds.access_token}` },
       signal: controller.signal,
+      redirect: 'error',
     });
     clearTimeout(timeout);
     if (response.ok) {
@@ -97,8 +102,12 @@ export async function startRepl(): Promise<void> {
         const line: string = (rl as any).line ?? '';
         ghostSuffix = getGhostSuffix(line);
         if (ghostSuffix) {
-          // Save cursor pos, write dim ghost, restore cursor pos
-          process.stdout.write('\x1b7' + chalk.italic.hex('#888888')(ghostSuffix) + '\x1b8');
+          if (process.stdout.hasColors?.()) {
+            process.stdout.write('\x1b7' + theme.ghost(ghostSuffix) + '\x1b8');
+          } else {
+            const ghostWidth = displayWidth(ghostSuffix);
+            process.stdout.write(theme.ghost(ghostSuffix) + `\x1b[${ghostWidth}D`);
+          }
         }
       });
     });
@@ -174,9 +183,9 @@ export async function startRepl(): Promise<void> {
       // Helper: append REPL-only built-ins after Commander's top-level help
       const printReplBuiltins = () => {
         console.log('');
-        console.log(`  REPL built-ins:`);
-        console.log(`  ${'clear, cls'.padEnd(24)}Clear the terminal screen`);
-        console.log(`  ${'exit, quit, q'.padEnd(24)}Exit the REPL`);
+        console.log(`  ${helpTitle('REPL built-ins:')}`);
+        console.log(`  ${helpCommand('clear, cls'.padEnd(24))}Clear the terminal screen`);
+        console.log(`  ${helpCommand('exit, quit, q'.padEnd(24))}Exit the REPL`);
         console.log('');
       };
 
@@ -186,6 +195,9 @@ export async function startRepl(): Promise<void> {
           let helpOutput = '';
           const origWrite = process.stdout.write.bind(process.stdout);
           try {
+            program.configureOutput({
+              getOutHasColors: () => true,
+            });
             (process.stdout as any).write = (chunk: any) => {
               helpOutput += String(chunk);
               return true;
@@ -212,6 +224,8 @@ export async function startRepl(): Promise<void> {
           // Find the target command and show its help
           program.exitOverride();
           program.configureOutput({
+            getOutHasColors: () => true,
+            getErrHasColors: () => true,
             writeErr: () => {},
             writeOut: (str) => process.stdout.write(str),
           });
@@ -241,6 +255,8 @@ export async function startRepl(): Promise<void> {
 
       // Suppress Commander's default error output in REPL
       program.configureOutput({
+        getOutHasColors: () => true,
+        getErrHasColors: () => true,
         writeErr: (str) => {
           // Filter out Commander's boilerplate, show useful errors
           if (!str.includes('error: unknown command')) {
@@ -284,12 +300,12 @@ export async function startRepl(): Promise<void> {
         } else if (err.code === 'commander.unknownCommand') {
           console.log(unknownCommandMsg(input));
         } else if (err.exitCode !== undefined && err.exitCode !== 0) {
-          // Command returned non-zero exit - already printed error
+          const msg = surfaceCommanderError(err);
+          if (msg) console.error(`  Error: ${msg}`);
         } else {
           console.error(`  Error: ${err.message || err}`);
         }
       } finally {
-        executingCommand = false;
         flushDebugReport();
         clearDebugBuffer();
       }
@@ -321,18 +337,28 @@ export async function startRepl(): Promise<void> {
     (rl as any).line = '';
     (rl as any).cursor = 0;
     rl.prompt();
+    executingCommand = false;
   });
 
   // Start
   rl.prompt();
 }
 
+/**
+ * Wrap ANSI escape sequences with readline-safe markers (\x01..\x02)
+ * so that readline correctly computes the visible prompt width.
+ */
+function wrapAnsiForReadline(str: string): string {
+  // eslint-disable-next-line no-control-regex
+  return str.replace(/(\x1b\[[0-9;]*m)/g, '\x01$1\x02');
+}
+
 function getPrompt(): string {
-  return brand('qwencloud ▸ ');
+  return wrapAnsiForReadline(brand('qwencloud ▸ '));
 }
 
 /** Returns the terminal display width of a string (CJK chars count as 2 columns). */
-function displayWidth(str: string): number {
+export function displayWidth(str: string): number {
   let w = 0;
   for (const char of str) {
     const cp = char.codePointAt(0)!;
@@ -359,7 +385,7 @@ function displayWidth(str: string): number {
 }
 
 /** Truncate a path from the left so its display width ≤ maxW, prefixing with '…'. */
-function truncatePathLeft(path: string, maxW: number): string {
+export function truncatePathLeft(path: string, maxW: number): string {
   if (displayWidth(path) <= maxW) return path;
   const chars = [...path];
   for (let i = 1; i < chars.length; i++) {
@@ -420,7 +446,7 @@ function printLogo(userDisplay: string): void {
   // Merge QWEN + CLOUD into single lines
   const combined = qwen.map((q, i) => q.padEnd(QWEN_W) + ' ' + (cloud[i] ?? '').padEnd(CLOUD_W));
 
-  const box = chalk.hex('#4C1D95');
+  const box = chalk.hex(colors.darkPurple);
 
   const emptyRow = `  ${box('║')}${' '.repeat(INNER + 2)}${box('║')}`;
   const topRow = `  ${box('╔' + '═'.repeat(INNER + 2) + '╗')}`;
@@ -430,7 +456,7 @@ function printLogo(userDisplay: string): void {
   // Full-width gradient across the combined line (purple → periwinkle)
   const artRow = (line: string) => {
     const padded = line.padEnd(INNER);
-    return `  ${box('║')} ${gradientLine(padded, '#8340FF', '#6073FF')} ${box('║')}`;
+    return `  ${box('║')} ${gradientLine(padded, colors.logoGradientFrom, colors.logoGradientTo)} ${box('║')}`;
   };
 
   // Centered text row (raw for length calc, styled for display)
@@ -483,10 +509,10 @@ function printLogo(userDisplay: string): void {
   // Truncate cwd from the left so "· <cwd>" fits within R display cols
   const rawCwd = process.cwd().replace(homedir(), '~');
   const cwdRaw = truncatePathLeft(rawCwd, R - 2); // subtract 2 for "· "
-  const cwdStyled = chalk.hex('#6B7280')(cwdRaw);
+  const cwdStyled = chalk.hex(colors.muted)(cwdRaw);
 
-  const dim = (s: string) => chalk.hex('#6B7280')(s);
-  const blue = (s: string) => chalk.hex('#6073FF')(s);
+  const dim = (s: string) => chalk.hex(colors.muted)(s);
+  const blue = (s: string) => chalk.hex(colors.logoGradientTo)(s);
 
   const websiteText = 'www.qwencloud.com';
   const websiteStyled = blue(link(websiteText, 'https://www.qwencloud.com'));
@@ -501,14 +527,14 @@ function printLogo(userDisplay: string): void {
     ],
     [
       `v${VERSION}`,
-      chalk.hex('#8340FF')(`v${VERSION}`),
+      chalk.hex(colors.logoGradientFrom)(`v${VERSION}`),
       `· ${userRaw}`,
       `${dim('·')} ${userStyled}`,
     ],
     ['', '', `· ${cwdRaw}`, `${dim('·')} ${cwdStyled}`],
     [
       'Built for Builders. Native to Agents.',
-      chalk.hex('#987BFE')('Built for Builders. Native to Agents.'),
+      brand('Built for Builders. Native to Agents.'),
       '',
       '',
     ],
@@ -527,7 +553,7 @@ function printLogo(userDisplay: string): void {
 /**
  * Parse a command line string into tokens, respecting quoted strings.
  */
-function parseArgs(input: string): string[] {
+export function parseArgs(input: string): string[] {
   const args: string[] = [];
   let current = '';
   let inQuote: string | null = null;

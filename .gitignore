@@ -15,3 +15,4 @@ coverage/
 .playwright-mcp/
 ref/
 *copilot*
+.e2e-output/

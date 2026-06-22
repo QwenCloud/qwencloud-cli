@@ -2,12 +2,19 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   renderTextUsageSummary,
   renderTextUsageBreakdown,
+  renderTextUsageLogs,
 } from '../../../src/output/text/usage.js';
 import {
   buildUsageSummaryViewModel,
   buildUsageBreakdownViewModel,
-} from '../../../src/view-models/usage.js';
-import type { UsageSummaryResponse, UsageBreakdownResponse } from '../../../src/types/usage.js';
+  buildUsageLogsViewModel,
+} from '../../../src/view-models/usage/index.js';
+import type {
+  UsageSummaryResponse,
+  UsageBreakdownResponse,
+  UsageLogsResponse,
+  UsageLogItem,
+} from '../../../src/types/usage.js';
 
 // Captures console.log output produced by renderText* functions, so tests can
 // assert on the rendered string. The pure render functions are themselves
@@ -172,5 +179,87 @@ describe('renderTextUsageBreakdown', () => {
     const out = captureStdout(() => renderTextUsageBreakdown(vm));
     expect(out).toContain('Pay-as-you-go (overflow only)');
     expect(out).toContain('Coding Plan usage is excluded');
+  });
+});
+
+describe('renderTextUsageLogs', () => {
+  function makeItem(overrides: Partial<UsageLogItem> = {}): UsageLogItem {
+    return {
+      requestId: '9f2c6a40-1234-4abc-9def-0000000000a1bd',
+      model: 'qwen3.6-plus',
+      createdAt: '2026-05-23 14:32:17',
+      statusCode: 200,
+      durationMs: 1234,
+      firstOutputDurationMs: 456,
+      errorCode: null,
+      usages: [
+        { key: 'input', value: 100 },
+        { key: 'output', value: 50 },
+        { key: 'total', value: 150 },
+      ],
+      ...overrides,
+    };
+  }
+
+  function makeResponse(items: UsageLogItem[], overrides: Partial<UsageLogsResponse> = {}): UsageLogsResponse {
+    return {
+      totalCount: items.length,
+      page: 1,
+      pageSize: 20,
+      period: { from: '2026-05-22T14:00:00.000Z', to: '2026-05-23T14:00:00.000Z' },
+      items,
+      ...overrides,
+    };
+  }
+
+  it('renders header, period label, and per-row columns', () => {
+    const vm = buildUsageLogsViewModel(makeResponse([makeItem()]));
+    const out = captureStdout(() => renderTextUsageLogs(vm));
+
+    // Header carries the section title and period
+    expect(out).toMatch(/Usage Logs|Call Logs/i);
+    expect(out).toMatch(/\d{4}-\d{2}-\d{2}/);
+    // Row content: model, status code, latency, usage entries
+    expect(out).toContain('qwen3.6-plus');
+    expect(out).toContain('200');
+    expect(out).toContain('input: 100, output: 50');
+  });
+
+  it('renders empty usage as a single em-dash', () => {
+    const vm = buildUsageLogsViewModel(
+      makeResponse([makeItem({ usages: [] })]),
+    );
+    const out = captureStdout(() => renderTextUsageLogs(vm));
+    expect(out).toContain('—');
+  });
+
+  it('renders the documented total / page / page-size summary line', () => {
+    const vm = buildUsageLogsViewModel(
+      makeResponse([makeItem(), makeItem({ statusCode: 429 })], {
+        totalCount: 47,
+        page: 1,
+        pageSize: 20,
+      }),
+    );
+    const out = captureStdout(() => renderTextUsageLogs(vm));
+    // Page summary surfaces totalCount and either page or pageCount
+    expect(out).toMatch(/47/);
+  });
+
+  it('renders the empty-state hint when there are no rows', () => {
+    const vm = buildUsageLogsViewModel(makeResponse([], { totalCount: 0 }));
+    const out = captureStdout(() => renderTextUsageLogs(vm));
+    expect(out.toLowerCase()).toMatch(/no\s+(call\s+)?(logs|results)|no\s+usage|未找到/);
+  });
+
+  it('keeps error-code visible when a row has a non-2xx status', () => {
+    const vm = buildUsageLogsViewModel(
+      makeResponse([
+        makeItem({ statusCode: 429, errorCode: 'Throttling.User' }),
+      ]),
+    );
+    const out = captureStdout(() => renderTextUsageLogs(vm));
+    expect(out).toContain('429');
+    expect(out).toContain('Throttling.User');
   });
 });
