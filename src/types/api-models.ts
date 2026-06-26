@@ -1,18 +1,25 @@
+// ============================================================
+// API raw response type definitions
+// These types directly map the JSON structure returned by the backend API.
+// ============================================================
+
+// Price item (element of Prices array / BuiltInToolMultiPrices array)
 export interface ApiPriceItem {
-  Type: string;
-  PriceUnit: string;
-  Price: string;
-  PriceName: string;
-  Discount?: string;
+  Type: string; // e.g. "text_input_token", "vision_input_token_cache"
+  PriceUnit: string; // e.g. "Per 1M tokens"
+  Price: string; // Note: string type, e.g. "0.07"
+  PriceName: string; // e.g. "Input: Text"
+  Discount?: string; // Discount multiplier (e.g. "0.8" = 20% off, pay 80%)
 }
 
+// QPM rate-limit info
 export interface ApiQpmLimit {
-  UsageLimitField: string;
-  CountLimit: number;
-  Type: string;
-  UsageLimit: number;
-  CountLimitPeriod: number;
-  UsageLimitPeriod: number;
+  UsageLimitField: string; // e.g. "total_tokens"
+  CountLimit: number; // Request count limit
+  Type: string; // e.g. "model-default"
+  UsageLimit: number; // Token count limit
+  CountLimitPeriod: number; // Request count limit period (seconds)
+  UsageLimitPeriod: number; // Token count limit period (seconds)
 }
 
 export interface ApiQpmInfo {
@@ -20,17 +27,20 @@ export interface ApiQpmInfo {
   ModelDefaultActual?: ApiQpmLimit;
 }
 
+// Inference metadata (multimodal info)
 export interface ApiInferenceMetadata {
-  RequestModality: string[];
-  ResponseModality: string[];
+  RequestModality: string[]; // e.g. ["Text", "Image", "Video", "Audio"]
+  ResponseModality: string[]; // e.g. ["Text", "Audio"]
 }
 
+// Model specification info
 export interface ApiModelInfo {
   ContextWindow: number;
   MaxInputTokens: number;
   MaxOutputTokens: number;
 }
 
+// Model capability support
 export interface ApiModelSupports {
   Sft: boolean;
   App: boolean;
@@ -43,7 +53,7 @@ export interface ApiModelSupports {
   Workflow: boolean;
   Deploy: boolean;
   SelfServiceLimitIncrease: boolean;
-  Experience: boolean;
+  Experience: boolean; // -> can_try
   SellingByQpm: boolean;
   AppV1: boolean;
   ExperienceUpcoming: boolean;
@@ -54,85 +64,100 @@ export interface ApiModelSupports {
   FineTune: boolean;
 }
 
+// Model permissions
 export interface ApiModelPermissions {
   Inference: boolean;
 }
 
+// Sample code (currently an empty object)
 export interface ApiSampleCodeV2 {
   Openai?: Record<string, unknown>;
 }
 
+// Built-in tool price item
 export interface ApiBuiltInToolPrice {
-  Type: string;
-  Name: string;
+  Type: string; // Tool type, e.g. "web_search"
+  Name: string; // Tool name
   Prices: Array<{
-    PriceUnit: string;
-    Price: string;
-    Currency?: string;
+    PriceUnit: string; // e.g. "Per 1K calls"
+    Price: string; // Price string
+    Currency?: string; // e.g. "USD"
   }>;
-  DocUrl?: string;
-  SupportedApi?: string;
+  DocUrl?: string; // Documentation URL
+  SupportedApi?: string; // Supported API, e.g. "Responses API"
 }
 
+// Multi-price range (element of MultiPrices array)
 export interface ApiMultiPriceRange {
   RangeName: string;
   Prices: ApiPriceItem[];
 }
 
+// Concrete model version (element of Items array) — this is the data actually consumed by the CLI
 export interface ApiModelItem {
+  // Basic info
+  Model: string; // Model ID, e.g. "qwen-omni-turbo" (globally unique)
+  Name: string; // Display name, e.g. "Qwen-Omni-Turbo"
+  Description: string; // Full description
+  ShortDescription: string; // Short description
+  Category: string; // Category, e.g. "Older"
+  Language: string; // e.g. "en-US"
 
-  Model: string;
-  Name: string;
-  Description: string;
-  ShortDescription: string;
-  Category: string;
-  Language: string;
-
+  // Identifiers
   DataId: string;
-  GroupModel: string;
-  EquivalentSnapshot?: string;
-  VersionTag: string;
+  GroupModel: string; // Owning series name
+  EquivalentSnapshot?: string; // Equivalent snapshot version
+  VersionTag: string; // e.g. "MAJOR"
 
-  ActivationStatus: number;
-  Scope: string;
+  // Status flags
+  ActivationStatus: number; // Activation status (meaning to be confirmed)
+  Scope: string; // e.g. "PUBLIC"
   OpenSource: boolean;
-  FreeTierOnly: boolean;
-  NeedApply: boolean;
+  FreeTierOnly: boolean; // Free-only flag
+  NeedApply: boolean; // Whether application is required
   AliyunRecommend: boolean;
 
-  UpdateAt: string;
-  LatestOnlineAt: string;
+  // Timestamps
+  UpdateAt: string; // ISO 8601 format
+  LatestOnlineAt: string; // ISO 8601 format
 
+  // Multimodal
   InferenceMetadata: ApiInferenceMetadata;
-  Capabilities: string[];
+  Capabilities: string[]; // e.g. ["Multimodal-Omni"]
 
+  // Pricing
   Prices?: ApiPriceItem[];
-  MultiPrices?: ApiMultiPriceRange[];
-  BuiltInToolMultiPrices?: ApiBuiltInToolPrice[];
+  MultiPrices?: ApiMultiPriceRange[]; // Tiered pricing by input length
+  BuiltInToolMultiPrices?: ApiBuiltInToolPrice[]; // Built-in tool pricing
 
+  // Specifications
   ModelInfo: ApiModelInfo;
-  ContextWindow: number;
-  MaxInputTokens: number;
-  MaxOutputTokens: number;
+  ContextWindow: number; // Redundant field, same as ModelInfo
+  MaxInputTokens: number; // Redundant field, same as ModelInfo
+  MaxOutputTokens: number; // Redundant field, same as ModelInfo
 
+  // Rate limiting
   QpmInfo: ApiQpmInfo;
 
+  // Capability support
   Supports: ApiModelSupports;
   Permissions: ApiModelPermissions;
-  Features: string[];
+  Features: string[]; // e.g. ["cache", "model-experience"]
   Tags: string[];
-  InferenceProvider: string;
-  Provider: string;
+  InferenceProvider: string; // e.g. "bailian"
+  Provider: string; // e.g. "qwen"
 
+  // Misc
   SampleCodeV2: ApiSampleCodeV2;
   ApplyType: number;
 }
 
+// Model series / group (outer wrapper)
 export interface ApiModelGroup {
   Group: boolean;
-  Name: string;
+  Name: string; // Series name, e.g. "Qwen-Omni-Turbo"
   DataId: string;
-  Providers: string[];
+  Providers: string[]; // e.g. ["qwen"]
   LatestOnlineAt: string;
   InstanceLatestOnlineAt: string;
   ActivationStatus: number;
@@ -141,10 +166,11 @@ export interface ApiModelGroup {
   Language: string;
   Permissions: ApiModelPermissions;
   Features: string[];
-  Items: ApiModelItem[];
+  Items: ApiModelItem[]; // Actual list of model versions
   ApplyType: number;
 }
 
+// API list response structure
 export interface ApiModelsListResponse {
   requestId: string;
   code: string;
@@ -155,6 +181,10 @@ export interface ApiModelsListResponse {
     Data: ApiModelGroup[];
   };
 }
+
+// ============================================================
+// Free-tier quota query API types
+// ============================================================
 
 export interface FqCapacity {
   BaseValue: number;
@@ -183,6 +213,10 @@ export interface FqInstanceResponse {
   Data: FqInstanceItem[];
 }
 
+// ============================================================
+// DescribeFrInstances API types (Token Plan subscription query)
+// ============================================================
+
 export interface FrInstanceItem {
   InstanceId: string;
   CommodityCode: string;
@@ -207,22 +241,26 @@ export interface FrInstanceResponse {
   Data: FrInstanceItem[];
 }
 
+// ============================================================
+// MaasListConsumeSummary API types (Pay-as-you-go billing)
+// ============================================================
+
 export interface ConsumeSummaryLineItem {
-  LineItemCategory?: string;
-  BillingItemCode?: string;
-  BillingDate?: string;
-  BillingMonth?: string;
-  ModelName?: string;
-  Model?: string;
-  JobId?: string;
-  MaasType?: string;
-  MaasTypeName?: string;
-  BillQuantity?: string | number;
-  StepQuantityUnit?: string;
-  RequireAmount?: string | number;
-  Amount?: string | number;
-  Cost?: string | number;
-  ListPrice?: string | number;
+  LineItemCategory?: string; // e.g. "LLM Token Consumption", "Free Tier Image Generation"
+  BillingItemCode?: string; // e.g. "image_number", "token_number", "char_number", "video_duration"
+  BillingDate?: string; // YYYY-MM-DD
+  BillingMonth?: string; // YYYY-MM
+  ModelName?: string; // model ID like "qwen-plus"
+  Model?: string; // alternative model ID field
+  JobId?: string; // job identifier (e.g. fine-tuning job)
+  MaasType?: string; // e.g. "training", "inference"
+  MaasTypeName?: string; // e.g. "Training", "Inference"
+  BillQuantity?: string | number; // quantity in step units
+  StepQuantityUnit?: string; // e.g. "1K tokens", "seconds", "Page"
+  RequireAmount?: string | number; // actual charged amount
+  Amount?: string | number; // alternative amount field
+  Cost?: string | number; // alternative cost field
+  ListPrice?: string | number; // list price (fallback)
   [key: string]: unknown;
 }
 
@@ -232,23 +270,27 @@ export interface ConsumeSummaryResponse {
   RequestId?: string;
 }
 
+// ============================================================
+// Coding Plan API types (queryCodingPlanInstanceInfoV2)
+// ============================================================
+
 export interface CodingPlanQuotaInfo {
   per5HourTotalQuota?: number;
   per5HourUsedQuota?: number;
-  per5HourQuotaNextRefreshTime?: number;
+  per5HourQuotaNextRefreshTime?: number; // ms timestamp
   perWeekTotalQuota?: number;
   perWeekUsedQuota?: number;
-  perWeekQuotaNextRefreshTime?: number;
+  perWeekQuotaNextRefreshTime?: number; // ms timestamp
   perBillMonthTotalQuota?: number;
   perBillMonthUsedQuota?: number;
-  perBillMonthQuotaNextRefreshTime?: number;
+  perBillMonthQuotaNextRefreshTime?: number; // ms timestamp
 }
 
 export interface CodingPlanInstance {
-  instanceType?: string;
-  status?: string;
+  instanceType?: string; // e.g. "pro", "starter"
+  status?: string; // "VALID" or other
   codingPlanQuotaInfo?: CodingPlanQuotaInfo;
-  nextResetTime?: string;
+  nextResetTime?: string; // ISO 8601
 }
 
 export interface CodingPlanApiResponse {
@@ -264,6 +306,7 @@ export interface CodingPlanApiResponse {
   };
 }
 
+// API single-model detail response (same structure as an Items element)
 export interface ApiModelDetailResponse {
   requestId: string;
   code: string;
@@ -273,6 +316,10 @@ export interface ApiModelDetailResponse {
   data: ApiModelItem;
 }
 
+// ============================================================
+// DescribeUsageLimit (billing limit)
+// ============================================================
+
 export interface DescribeUsageLimitResponse {
   Status?: string;
   LimitAmount?: string | number;
@@ -281,6 +328,10 @@ export interface DescribeUsageLimitResponse {
   Receivers?: string[];
   RequestId?: string;
 }
+
+// ============================================================
+// MaasListConsumeSummary (grouped) — breakdown rows
+// ============================================================
 
 export interface ConsumeSummaryGroupedItem {
   GroupKey?: string;
@@ -294,6 +345,10 @@ export interface MaasListConsumeSummaryGroupedResponse {
   TotalCount?: number;
   RequestId?: string;
 }
+
+// ============================================================
+// MaasConsumeSummaryDimensionValues (legacy dimension dictionary)
+// ============================================================
 
 export interface DimensionValueItem {
   Value?: string;
@@ -309,6 +364,10 @@ export interface MaasConsumeSummaryDimensionValuesResponse {
   TotalCount?: number;
   RequestId?: string;
 }
+
+// ============================================================
+// MaasDescribeCostAnalysis (cost trend)
+// ============================================================
 
 export interface CostAnalysisDataPoint {
   Period?: string;
@@ -337,14 +396,18 @@ export interface MaasDescribeCostAnalysisResponse {
   RequestId?: string;
 }
 
+// ============================================================
+// ListSettleBillTotalSummary (account-cycle settle summary)
+// ============================================================
+
 export interface SettleBillTotalItem {
   BillingCycle?: string;
-
+  // Actual API fields
   TotalPriceSettleFee?: string | number;
   TotalPriceTaxFee?: string | number;
   TotalPricePostTaxFee?: string | number;
   Currency?: string;
-
+  // Legacy fields (retained for backward compatibility)
   PretaxAmount?: string | number;
   Tax?: string | number;
   AftertaxAmount?: string | number;
@@ -358,6 +421,10 @@ export interface ListSettleBillTotalSummaryResponse {
   Currency?: string;
   RequestId?: string;
 }
+
+// ============================================================
+// Subscription — raw response types
+// ============================================================
 
 export interface QuerySubscriptionGrayResponse {
   IsGray?: boolean;
@@ -494,6 +561,10 @@ export interface CheckInstancesRenewableResponse {
   }>;
 }
 
+// ============================================================
+// QueryOrderList + QueryOrderDetail
+// ============================================================
+
 export interface OrderListItem {
   OrderId?: string;
   OrderType?: string;
@@ -522,7 +593,7 @@ export interface QueryOrderListResponse {
   PageSize?: number;
   CurrentPage?: number;
   RequestId?: string;
-
+  /** Business code surfaced when the upstream BSS service rejects the call. */
   Code?: string;
   Message?: string;
   Success?: boolean;

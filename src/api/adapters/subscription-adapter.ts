@@ -1,3 +1,9 @@
+/**
+ * Subscription adapter — pure transformations from raw flat-parameter
+ * responses into Service-layer DTOs. Each transform is a single-arg pure
+ * function; missing fields fall back to null/empty defaults so the Service
+ * layer can compose partial results without per-field guards.
+ */
 import type {
   QuerySubscriptionGrayResponse,
   GetSeatSubscriptionSummaryResponse,
@@ -20,6 +26,10 @@ import type {
   OrderDetailLine,
 } from '../../types/subscription.js';
 
+// ────────────────────────────────────────────────────────────────────
+// Helpers
+// ────────────────────────────────────────────────────────────────────
+
 function toAmountString(value: unknown, fallback = '0'): string {
   if (value == null) return fallback;
   if (typeof value === 'number') {
@@ -41,6 +51,10 @@ function toQuantity(value: unknown): number {
   return 0;
 }
 
+// ────────────────────────────────────────────────────────────────────
+// QuerySubscriptionGray
+// ────────────────────────────────────────────────────────────────────
+
 export function transformSubscriptionGray(
   raw: QuerySubscriptionGrayResponse | null | undefined,
 ): SubscriptionGrayDto {
@@ -48,6 +62,11 @@ export function transformSubscriptionGray(
   return { isGray: typeof safe.IsGray === 'boolean' ? safe.IsGray : null };
 }
 
+// ────────────────────────────────────────────────────────────────────
+// GetSeatSubscriptionSummary
+// ────────────────────────────────────────────────────────────────────
+
+/** Coerce a raw period boundary into a stable ISO 8601 string, or null if missing. */
 function toPeriodIso(value: unknown): string | null {
   if (typeof value === 'string') {
     return value.length > 0 ? value : null;
@@ -62,7 +81,7 @@ export function transformSeatSubscriptionSummary(
   raw: GetSeatSubscriptionSummaryResponse | null | undefined,
 ): SeatSubscriptionSummaryDto {
   const outer = raw ?? {};
-
+  // Unwrap BSS response envelope.
   const inner = (outer.Data ?? {}) as Partial<typeof outer>;
   const pick = <K extends keyof typeof outer>(key: K): (typeof outer)[K] | undefined =>
     inner[key] ?? outer[key];
@@ -82,6 +101,10 @@ export function transformSeatSubscriptionSummary(
     seats: typeof seats === 'number' ? seats : null,
   };
 }
+
+// ────────────────────────────────────────────────────────────────────
+// GetSubscriptionDetail
+// ────────────────────────────────────────────────────────────────────
 
 export function transformSubscriptionDetail(
   raw: GetSubscriptionDetailResponse | null | undefined,
@@ -107,6 +130,10 @@ export function transformSubscriptionDetail(
   return { instances, activeInstance };
 }
 
+// ────────────────────────────────────────────────────────────────────
+// CheckTokenPlanAutoRenewal
+// ────────────────────────────────────────────────────────────────────
+
 export function transformAutoRenewal(
   raw: CheckTokenPlanAutoRenewalResponse | null | undefined,
 ): AutoRenewalDto {
@@ -122,6 +149,10 @@ export function transformAutoRenewal(
   return { autoRenew: null };
 }
 
+// ────────────────────────────────────────────────────────────────────
+// CheckInstancesRenewable
+// ────────────────────────────────────────────────────────────────────
+
 export function transformInstancesRenewable(
   raw: CheckInstancesRenewableResponse | null | undefined,
 ): InstancesRenewableDto {
@@ -136,13 +167,17 @@ export function transformInstancesRenewable(
   return { renewable: typeof safe.Renewable === 'boolean' ? safe.Renewable : null };
 }
 
+// ────────────────────────────────────────────────────────────────────
+// QueryOrderList
+// ────────────────────────────────────────────────────────────────────
+
 export function transformOrderList(raw: QueryOrderListResponse | null | undefined): OrderListDto {
   const safe = raw ?? {};
   const list = Array.isArray(safe.Data) ? safe.Data : [];
   const orders: SubscriptionOrder[] = list.map((o) => ({
     orderId: o.OrderId ?? '',
     orderType: o.OrderType ?? '',
-
+    // Compatible with multiple API response versions.
     orderTime: o.GmtCreate ?? o.GmtPay ?? o.OrderTime ?? '',
     amount: toAmountString(
       o.PayAmount ??
@@ -166,6 +201,10 @@ export function transformOrderList(raw: QueryOrderListResponse | null | undefine
     },
   };
 }
+
+// ────────────────────────────────────────────────────────────────────
+// QueryOrderDetail
+// ────────────────────────────────────────────────────────────────────
 
 export function transformOrderDetail(
   raw: QueryOrderDetailResponse | null | undefined,

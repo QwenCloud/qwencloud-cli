@@ -145,7 +145,8 @@ describe('<TextArea /> text input', () => {
     // Now backspace should merge lines
     pressKey('', { backspace: true });
     const out = stripAnsi(lastFrame() ?? '');
-    expect(out).toContain('XY');
+    // Merged to "XY" with the caret marking the merge point between X and Y.
+    expect(out).toContain('X▌Y');
     unmount();
   });
 });
@@ -158,9 +159,9 @@ describe('<TextArea /> arrow navigation', () => {
     pressKey('A', {});
     pressKey('B', {});
     pressKey('', { leftArrow: true });
-    // After moving left, cursor should be between A and B
+    // After moving left, the caret sits between A and B.
     const out = stripAnsi(lastFrame() ?? '');
-    expect(out).toContain('AB');
+    expect(out).toContain('A▌B');
     unmount();
   });
 
@@ -197,9 +198,9 @@ describe('<TextArea /> arrow navigation', () => {
     pressKey('i', {});
     // Move up
     pressKey('', { upArrow: true });
-    // Should be on line 1
+    // Cursor moved up to line 1; caret lands at column 2 (between "Lo" and "ng").
     const out = stripAnsi(lastFrame() ?? '');
-    expect(out).toContain('Long');
+    expect(out).toContain('Lo▌ng');
     expect(out).toContain('Hi');
     unmount();
   });
@@ -324,6 +325,77 @@ describe('<TextArea /> cancellation', () => {
     pressKey('c', { ctrl: true });
     expect(onCancel).toHaveBeenCalledTimes(1);
     expect(exitMock).toHaveBeenCalled();
+    unmount();
+  });
+});
+
+// ── BUG-6: visible cursor caret glyph (stripAnsi-survivable) ───────────────
+//
+// Contract (per architecture design, aligned with the interactive-session
+// caret convention): while the editor holds focus, the caret is rendered as a
+// visible insertion glyph `▌` that survives ANSI stripping. ink-testing-library
+// strips ALL escape sequences, so an inverse-only cursor would be invisible to
+// this harness — the glyph is the implementation-decoupled signal.
+//
+// Three states must carry the glyph: an empty buffer (placeholder), the end of
+// a line, and mid-line (caret sits BEFORE the current column character). A
+// non-focused state (buttons focused) is the negative control that guards
+// against a collapsed always-on glyph.
+
+const CARET = '▌';
+
+describe('<TextArea /> cursor caret glyph (BUG-6)', () => {
+  it('renders a visible caret glyph on the empty placeholder buffer', () => {
+    const { lastFrame, unmount } = render(
+      <TextArea placeholder="Type here..." onSubmit={vi.fn()} onCancel={vi.fn()} />,
+    );
+    const out = stripAnsi(lastFrame() ?? '');
+    expect(out).toContain(CARET);
+    unmount();
+  });
+
+  it('renders a visible caret glyph at the end of the typed line', () => {
+    const { lastFrame, unmount } = render(
+      <TextArea onSubmit={vi.fn()} onCancel={vi.fn()} />,
+    );
+    pressKey('H', {});
+    pressKey('i', {});
+    const out = stripAnsi(lastFrame() ?? '');
+    expect(out).toContain('Hi');
+    expect(out).toContain(CARET);
+    unmount();
+  });
+
+  it('renders a visible caret glyph when the cursor is mid-line', () => {
+    const { lastFrame, unmount } = render(
+      <TextArea onSubmit={vi.fn()} onCancel={vi.fn()} />,
+    );
+    pressKey('A', {});
+    pressKey('B', {});
+    pressKey('C', {});
+    // Move cursor left twice → caret sits before 'B'.
+    pressKey('', { leftArrow: true });
+    pressKey('', { leftArrow: true });
+    const out = stripAnsi(lastFrame() ?? '');
+    // All characters remain readable …
+    expect(out).toContain('A');
+    expect(out).toContain('B');
+    expect(out).toContain('C');
+    // … and the caret glyph is present (caret placed before the current column).
+    expect(out).toContain(CARET);
+    unmount();
+  });
+
+  it('does NOT render the editor caret glyph while focus is on the buttons (negative control)', () => {
+    const { lastFrame, unmount } = render(
+      <TextArea onSubmit={vi.fn()} onCancel={vi.fn()} />,
+    );
+    pressKey('a', {});
+    // Tab moves focus to the buttons; the editor caret must not persist.
+    pressKey('', { tab: true });
+    const out = stripAnsi(lastFrame() ?? '');
+    expect(out).toContain('a');
+    expect(out).not.toContain(CARET);
     unmount();
   });
 });

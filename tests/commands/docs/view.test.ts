@@ -97,9 +97,9 @@ describe('docs view command', () => {
     });
 
     it('missing <path> positional argument is rejected', async () => {
-      await expect(runCommand(buildView, ['docs', 'view'])).rejects.toMatchObject({
-        code: 'commander.missingArgument',
-      });
+      const r = await runCommand(buildView, ['docs', 'view']);
+      expect(r.exitCode).toBeGreaterThan(0);
+      expect(r.stderr).toContain('missing required argument');
     });
   });
 
@@ -136,20 +136,19 @@ describe('docs view command', () => {
       expect(requestedUrl.startsWith('http')).toBe(true);
     });
 
-    it('full URL path strips .md suffix for browser-facing URL', async () => {
+    it('full URL path is passed through verbatim, preserving .md', async () => {
       const directUrl = 'https://docs.qwencloud.com/resources/free-quota.md';
-      const expectedUrl = 'https://docs.qwencloud.com/resources/free-quota';
       const fetchSpy = vi.fn(async (url: string) =>
-        makeDocResult({ url, resolvedMarkdownUrl: url + '.md', content: '# Free Quota\n' }),
+        makeDocResult({ url, resolvedMarkdownUrl: url, content: '# Free Quota\n' }),
       );
       holder.client = makeMockApiClient({ fetchDocContent: fetchSpy });
 
       const r = await runCommand(buildView, ['docs', 'view', directUrl, '--format', 'json']);
 
       expect(r.exitCode).toBeUndefined();
-      expect(fetchSpy).toHaveBeenCalledWith(expectedUrl);
+      expect(fetchSpy).toHaveBeenCalledWith(directUrl);
       const payload = JSON.parse(r.stdout);
-      expect(payload.url).toBe(expectedUrl);
+      expect(payload.url).toBe(directUrl);
     });
 
     it('anchor in path is preserved in the JSON anchor field', async () => {
@@ -281,7 +280,8 @@ describe('docs view command', () => {
       return [
         {
           path: 'developer-guides/getting-started/pricing',
-          fullUrl: 'https://mock-docs.test.qwencloud.com/developer-guides/getting-started/pricing.md',
+          fullUrl:
+            'https://mock-docs.test.qwencloud.com/developer-guides/getting-started/pricing.md',
           title: 'Pricing',
           description: 'Pay-as-you-go pricing for API usage',
           section: 'Getting Started',
@@ -313,10 +313,7 @@ describe('docs view command', () => {
     it('exact-path input fetches the resolved document body', async () => {
       const loadIndexSpy = vi.fn(async () => buildIndex());
       const fetchSpy = vi.fn(async (url: string) => makeDocResult({ url }));
-      holder.client = injectIndex(
-        makeMockApiClient({ fetchDocContent: fetchSpy }),
-        loadIndexSpy,
-      );
+      holder.client = injectIndex(makeMockApiClient({ fetchDocContent: fetchSpy }), loadIndexSpy);
 
       const r = await runCommand(buildView, [
         'docs',
@@ -335,10 +332,7 @@ describe('docs view command', () => {
     it('ambiguous suffix input emits a candidates payload without fetching', async () => {
       const loadIndexSpy = vi.fn(async () => buildIndex());
       const fetchSpy = vi.fn(async (url: string) => makeDocResult({ url }));
-      holder.client = injectIndex(
-        makeMockApiClient({ fetchDocContent: fetchSpy }),
-        loadIndexSpy,
-      );
+      holder.client = injectIndex(makeMockApiClient({ fetchDocContent: fetchSpy }), loadIndexSpy);
 
       // 'overview' suffix-matches both token-plan/overview and coding-plan/overview.
       const r = await runCommand(buildView, ['docs', 'view', 'overview', '--format', 'json']);
@@ -355,10 +349,7 @@ describe('docs view command', () => {
       const fetchSpy = vi.fn(async (url: string) =>
         makeDocResult({ url, content: null, error: 'HTTP 404' }),
       );
-      holder.client = injectIndex(
-        makeMockApiClient({ fetchDocContent: fetchSpy }),
-        loadIndexSpy,
-      );
+      holder.client = injectIndex(makeMockApiClient({ fetchDocContent: fetchSpy }), loadIndexSpy);
 
       const r = await runCommand(buildView, ['docs', 'view', 'pricng', '--format', 'json']);
 
@@ -371,18 +362,9 @@ describe('docs view command', () => {
     it('empty index degrades silently and lets the command fall through to fetch', async () => {
       const loadIndexSpy = vi.fn(async () => [] as DocsIndexEntry[]);
       const fetchSpy = vi.fn(async (url: string) => makeDocResult({ url }));
-      holder.client = injectIndex(
-        makeMockApiClient({ fetchDocContent: fetchSpy }),
-        loadIndexSpy,
-      );
+      holder.client = injectIndex(makeMockApiClient({ fetchDocContent: fetchSpy }), loadIndexSpy);
 
-      const r = await runCommand(buildView, [
-        'docs',
-        'view',
-        PRICING_PATH,
-        '--format',
-        'json',
-      ]);
+      const r = await runCommand(buildView, ['docs', 'view', PRICING_PATH, '--format', 'json']);
 
       expect(r.exitCode).toBeUndefined();
       expect(fetchSpy).toHaveBeenCalledTimes(1);
@@ -398,10 +380,7 @@ describe('docs view command', () => {
       const fetchSpy = vi.fn(async (url: string) =>
         makeDocResult({ url, content: '# Preview Feature\n\nDetails.' }),
       );
-      holder.client = injectIndex(
-        makeMockApiClient({ fetchDocContent: fetchSpy }),
-        loadIndexSpy,
-      );
+      holder.client = injectIndex(makeMockApiClient({ fetchDocContent: fetchSpy }), loadIndexSpy);
 
       const r = await runCommand(buildView, [
         'docs',

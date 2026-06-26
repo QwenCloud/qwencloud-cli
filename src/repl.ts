@@ -6,8 +6,9 @@ import { getEffectiveConfig } from './config/manager.js';
 import { VERSION } from './index.js';
 import { flushDebugReport, clearDebugBuffer } from './api/debug-buffer.js';
 import { SUBCOMMANDS, tabCompleter, getGhostSuffix, unknownCommandMsg } from './repl/completer.js';
-import { surfaceCommanderError } from './repl/repl-error.js';
+import { surfaceCommanderError, shouldSwallowReplError } from './repl/repl-error.js';
 import { setReplMode } from './utils/runtime-mode.js';
+import { setActivePromptInterface, clearActivePromptInterface } from './utils/confirm.js';
 import chalk from 'chalk';
 import { theme, colors } from './ui/theme.js';
 
@@ -79,12 +80,17 @@ export async function startRepl(): Promise<void> {
     completer: tabCompleter,
   });
 
+  // Route in-command confirmation prompts through this interface so the
+  // answer is consumed by the prompt callback instead of the line handler.
+  setActivePromptInterface(rl);
+
   // ── Ghost text (inline suggestion) ─────────────────────────────────────────
   let ghostSuffix = '';
 
   if (process.stdin.isTTY) {
     readline.emitKeypressEvents(process.stdin, rl);
     process.stdin.on('keypress', (_str: string | undefined, key: any) => {
+      if (executingCommand) return;
       if (!key) return;
       // Right arrow / End at end-of-line → accept the ghost text
       if ((key.name === 'right' || key.name === 'end') && ghostSuffix) {
@@ -129,6 +135,7 @@ export async function startRepl(): Promise<void> {
       // Second Ctrl+C within 2 seconds
       if (ctrlCTimer) clearTimeout(ctrlCTimer);
       console.log('');
+      clearActivePromptInterface();
       realExit(0);
     }
   });
@@ -139,6 +146,7 @@ export async function startRepl(): Promise<void> {
   // case we must NOT exit — the command's finally block will restore stdin.
   rl.on('close', () => {
     if (executingCommand) return;
+    clearActivePromptInterface();
     realExit(0);
   });
 
@@ -299,6 +307,8 @@ export async function startRepl(): Promise<void> {
           // Version was displayed, that's fine
         } else if (err.code === 'commander.unknownCommand') {
           console.log(unknownCommandMsg(input));
+        } else if (shouldSwallowReplError(err)) {
+          // HandledError: the command already printed its output; continue.
         } else if (err.exitCode !== undefined && err.exitCode !== 0) {
           const msg = surfaceCommanderError(err);
           if (msg) console.error(`  Error: ${msg}`);

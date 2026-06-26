@@ -22,6 +22,7 @@ export const TOP_COMMANDS = [
   'help',
   'models',
   'subscription',
+  'support',
   'update',
   'usage',
   'version',
@@ -36,6 +37,7 @@ export const SUBCOMMANDS: Record<string, string[]> = {
   docs: ['search', 'view'],
   subscription: ['status', 'orders', 'tokenplan'],
   'subscription tokenplan': ['status', 'seats'],
+  support: ['list', 'view', 'create', 'close', 'reply', 'rate'],
   workspace: ['list', 'limit'],
   config: ['list', 'get', 'set', 'unset'],
   completion: ['install', 'generate'],
@@ -97,6 +99,12 @@ export const COMMAND_FLAGS: Record<string, string[]> = {
   'subscription tokenplan': [],
   'subscription tokenplan status': ['--format'],
   'subscription tokenplan seats': ['--spec-type', '--page', '--page-size', '--format'],
+  'support list': ['--page', '--page-size', '--format'],
+  'support view': ['--format'],
+  'support create': ['--list-categories', '--category-id', '--description', '--format'],
+  'support close': ['--yes', '--format'],
+  'support reply': ['--message', '--format'],
+  'support rate': ['--rating', '--comment', '--format'],
   'workspace list': ['--format'],
   'workspace limit': ['--format'],
   'config list': ['--format'],
@@ -106,11 +114,11 @@ export const COMMAND_FLAGS: Record<string, string[]> = {
   'auth login': ['--format'],
   'auth logout': ['--format'],
   'auth status': ['--format'],
-  doctor: ['--format'],
-  update: [],
   version: ['--check'],
   'completion install': ['--shell'],
   'completion generate': ['--shell'],
+  doctor: ['--format'],
+  update: [],
 };
 
 /** Universal flag injected into every command level. */
@@ -191,6 +199,7 @@ export function tabCompleter(line: string): [string[], string] {
 
   const cmd = tokens[0];
   const subs = SUBCOMMANDS[cmd];
+  const ownFlags = COMMAND_FLAGS[cmd] ?? [];
 
   // Commands without subcommands (doctor, version, etc.)
   if (!subs) {
@@ -219,17 +228,42 @@ export function tabCompleter(line: string): [string[], string] {
   }
 
   // After "<top> " (trailing space) the split produces ['<top>', ''] so
-  // length=2 with endsWithSpace=true. Suggest the full subcommand list + --help.
+  // length=2 with endsWithSpace=true. Suggest subcommands + own flags + --help.
   if (tokens.length === 2 && endsWithSpace) {
-    return [[...subs, HELP_FLAG], ''];
+    return [[...subs, ...ownFlags, HELP_FLAG], ''];
   }
 
   if (tokens.length === 2 && !endsWithSpace) {
-    return [fuzzyFilter([...subs, HELP_FLAG], tokens[1]), tokens[1]];
+    return [fuzzyFilter([...subs, ...ownFlags, HELP_FLAG], tokens[1]), tokens[1]];
   }
 
   const sub = tokens[1];
-  if (!sub || !subs.includes(sub)) return [[], ''];
+
+  // tokens[1] is not a known subcommand. If the command has its own flags,
+  // treat the tail as direct flag completion at the command level.
+  if (!subs.includes(sub)) {
+    if (ownFlags.length === 0) return [[], ''];
+
+    const availableFlags = [...ownFlags, HELP_FLAG];
+    const completedTokens = endsWithSpace ? tokens.slice(1) : tokens.slice(1, -1);
+    const usedFlags = new Set(completedTokens.filter((t) => t.startsWith('--')));
+    const remainingFlags = availableFlags.filter((f) => !usedFlags.has(f));
+
+    if (endsWithSpace) {
+      const prevToken = tokens[tokens.length - 2];
+      const knownValues = getFlagValues(cmd, prevToken);
+      if (knownValues) return [knownValues, ''];
+      return [remainingFlags, ''];
+    }
+
+    const partial = tokens[tokens.length - 1];
+    const prevToken = tokens.length >= 3 ? tokens[tokens.length - 2] : null;
+    if (prevToken) {
+      const knownValues = getFlagValues(cmd, prevToken);
+      if (knownValues) return [fuzzyFilter(knownValues, partial), partial];
+    }
+    return [fuzzyFilter(remainingFlags, partial), partial];
+  }
 
   // 3-level subcommand support: e.g. `subscription tokenplan status`.
   const subSubKey = `${cmd} ${sub}`;

@@ -95,6 +95,14 @@ export function invalidArgError(message: string): CliError {
   });
 }
 
+export function ticketNotFoundError(ticketId: string): CliError {
+  return new CliError({
+    code: 'NOT_FOUND',
+    message: `Ticket not found: ${ticketId}`,
+    exitCode: EXIT_CODES.GENERAL_ERROR,
+  });
+}
+
 export function invalidDateRangeError(from: string, to: string): CliError {
   return new CliError({
     code: 'INVALID_RANGE',
@@ -242,8 +250,8 @@ export function handleError(error: unknown, format: 'json' | 'table' | 'text'): 
   }
 
   // Plain Error carrying a numeric `.exitCode` hint — used by Service-layer
-  // errors that don't import `CliError` to surface a contract-defined exit
-  // code without coupling to the command layer's error type.
+  // errors that surface a contract-defined exit code without coupling to
+  // the command layer's error type.
   if (error instanceof Error && typeof (error as { exitCode?: unknown }).exitCode === 'number') {
     const e = error as Error & { exitCode: number; code?: string };
     const code = typeof e.code === 'string' ? e.code : 'ERROR';

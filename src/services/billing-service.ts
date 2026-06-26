@@ -62,7 +62,6 @@ const DIM_FIELD_MAP: Record<string, string> = {
   'api-key': 'API_KEY_ID',
 };
 
-
 function toNumber(value: string | number | undefined | null): number {
   if (value == null) return 0;
   const n = typeof value === 'string' ? parseFloat(value) : value;
@@ -551,7 +550,8 @@ export class BillingService {
           }
         } else {
           // Fallback: treat entire month chunk as a single period
-          const periodLabel = monthStart === monthEnd ? monthStart : `${monthStart} → ${monthEnd}`;
+          const periodLabel =
+            monthStart === monthEnd ? monthStart : `${monthStart} \u2192 ${monthEnd}`;
           const slice = this.buildPeriodSlice(periodLabel, rawPretax, rawTax, topNum);
           slices.push(slice);
         }
@@ -671,7 +671,6 @@ export class BillingService {
 
     return this.shapeBreakdown(rows, { ...options, from: fromDate, to: toDate });
   }
-
 
   private async fetchPaygItems(
     fromDate: string,

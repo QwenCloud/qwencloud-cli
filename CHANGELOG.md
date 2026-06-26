@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-06-26
+
+### Added
+
+- `support list`, `support view`, `support create`, `support reply`, `support close`, `support rate` commands for ticket lifecycle management
+
 ## [1.1.0] - 2026-06-19
 
 ### Added

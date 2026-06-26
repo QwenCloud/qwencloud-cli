@@ -10,7 +10,6 @@ describe('output/text/index re-exports', () => {
     expect(textExports.renderTextWorkspaceLimit).toBeTypeOf('function');
   });
 
-
   it('exports renderTextBillingLimit', () => {
     expect(textExports.renderTextBillingLimit).toBeTypeOf('function');
   });
@@ -42,7 +41,6 @@ describe('output/text/index re-exports', () => {
   it('exports renderTextUsageLogs', () => {
     expect(textExports.renderTextUsageLogs).toBeTypeOf('function');
   });
-
 
   it('exports renderTextDocsSearch', () => {
     expect(textExports.renderTextDocsSearch).toBeTypeOf('function');

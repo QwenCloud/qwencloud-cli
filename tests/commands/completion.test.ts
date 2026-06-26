@@ -371,3 +371,4 @@ describe('completion — bare command shows help', () => {
     stdoutWriteSpy.mockRestore();
   });
 });
+

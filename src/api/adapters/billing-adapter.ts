@@ -1,3 +1,7 @@
+/**
+ * Billing adapter — pure transformations from raw flat-parameter responses
+ * to Service-layer DTOs.
+ */
 import type {
   ConsumeSummaryResponse,
   FqInstanceItem,
@@ -190,7 +194,7 @@ export function transformConsumeBreakdown(
   raw: MaasDescribeCostAnalysisResponse | null | undefined,
 ): ConsumeBreakdownDto {
   const safe = raw ?? {};
-
+  // Form C response has GroupByTotal: [{Key, Name, Amount, Percentage}]
   const groupByTotal = Array.isArray(safe.GroupByTotal) ? safe.GroupByTotal : [];
   const rows: ConsumeBreakdownRow[] = groupByTotal.map((item) => {
     const groupKey = item.Key ?? '';

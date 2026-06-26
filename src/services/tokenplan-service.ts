@@ -12,6 +12,7 @@ import type {
 } from '../types/api-models.js';
 import type { TokenPlan } from '../types/usage.js';
 import { addDiagnostic } from '../api/debug-buffer.js';
+import { preciseAdd } from '../utils/precise-math.js';
 import { site } from '../site.js';
 
 const API_PRODUCT_BSS = 'BssOpenAPI-V3';
@@ -61,10 +62,15 @@ export class TokenplanService {
         return statusCode === 'valid';
       }) ?? allPlanInstances[0];
 
-    const addonRemaining = (addonRes?.Data ?? []).reduce(
-      (sum: number, inst: FrInstanceItem) => sum + Number(inst.CurrCapacityBaseValue || 0),
-      0,
-    );
+    const addonRemaining = (addonRes?.Data ?? [])
+      .filter((inst) => {
+        const statusCode = typeof inst.Status === 'object' ? inst.Status?.Code : inst.Status;
+        return statusCode === 'valid';
+      })
+      .reduce(
+        (sum: number, inst: FrInstanceItem) => preciseAdd(sum, Number(inst.CurrCapacityBaseValue || 0)),
+        0,
+      );
 
     if (!validInstance) {
       if (addonRemaining > 0) return { subscribed: false, addonRemaining };
@@ -108,8 +114,8 @@ export class TokenplanService {
       const equity = Array.isArray(group.EquityList) ? group.EquityList[0] : undefined;
       const total = parseFloat(equity?.TotalValue ?? group.TotalValue ?? '0');
       const remaining = parseFloat(equity?.SurplusValue ?? group.SurplusValue ?? '0');
-      if (Number.isFinite(total)) totalCredits += total;
-      if (Number.isFinite(remaining)) remainingCredits += remaining;
+      if (Number.isFinite(total)) totalCredits = preciseAdd(totalCredits, total);
+      if (Number.isFinite(remaining)) remainingCredits = preciseAdd(remainingCredits, remaining);
     }
 
     const subscribed = groups.length > 0 && totalCredits > 0;
@@ -142,10 +148,15 @@ export class TokenplanService {
   private async fetchAddonRemaining(): Promise<number> {
     const codes = site.features.tokenPlanCommodityCodes;
     const addonRes = await this.fetchFrInstances(codes.addon, 100);
-    return (addonRes?.Data ?? []).reduce(
-      (sum: number, inst: FrInstanceItem) => sum + Number(inst.CurrCapacityBaseValue || 0),
-      0,
-    );
+    return (addonRes?.Data ?? [])
+      .filter((inst) => {
+        const statusCode = typeof inst.Status === 'object' ? inst.Status?.Code : inst.Status;
+        return statusCode === 'valid';
+      })
+      .reduce(
+        (sum: number, inst: FrInstanceItem) => preciseAdd(sum, Number(inst.CurrCapacityBaseValue || 0)),
+        0,
+      );
   }
 
   private async fetchFrInstances(
