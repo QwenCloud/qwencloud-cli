@@ -44,6 +44,4 @@ describe('buildBillingLimitViewModel', () => {
     const limitField = vm.fields.find((f) => f.label === 'Limit');
     expect(limitField?.value).toContain('—');
   });
-
-
 });

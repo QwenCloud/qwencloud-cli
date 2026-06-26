@@ -13,6 +13,7 @@ import type {
   ResolveResult,
 } from '../types/docs.js';
 import type { WorkspaceListResult, WorkspaceLimitResult } from '../types/workspace.js';
+
 import { getEffectiveConfig } from '../config/manager.js';
 import { createServices, type ServiceContainer } from '../services/index.js';
 import type { LoginInitResult } from '../services/auth-service.js';
@@ -21,6 +22,7 @@ import type { WorkspaceService } from '../services/workspace-service.js';
 import type { BillingService } from '../services/billing-service.js';
 import type { SubscriptionService } from '../services/subscription-service.js';
 import type { SubscriptionTokenPlanService } from '../services/subscription-tokenplan-service.js';
+import type { SupportService } from '../services/support-service.js';
 import type { DocsService, DocsSearchOptions } from '../services/docs-service.js';
 import type { UsageLogsOptions } from '../services/usage-service.js';
 import type {
@@ -99,6 +101,7 @@ export interface CliFacade {
   subscriptionService: SubscriptionService;
   subscriptionTokenPlanService: SubscriptionTokenPlanService;
   docsService: DocsService;
+  supportService: SupportService;
 
   // Flat command-facing methods (delegated to services)
   listWorkspaces(): Promise<WorkspaceListResult>;
@@ -182,6 +185,7 @@ export async function createClient(_options?: { endpoint?: string }): Promise<Cl
     billingService,
     subscriptionService,
     docsService,
+    supportService,
   } = services;
   const { subscriptionTokenPlanService } = services;
 
@@ -224,6 +228,7 @@ export async function createClient(_options?: { endpoint?: string }): Promise<Cl
     subscriptionService,
     subscriptionTokenPlanService,
     docsService,
+    supportService,
 
     // Flat command-facing methods
     listWorkspaces: () => workspaceService.list(),

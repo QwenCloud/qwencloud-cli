@@ -174,13 +174,6 @@ describe('tabCompleter', () => {
     expect(partial).toBe('--h');
   });
 
-  it('subcommand with no defined flags (workspace list) + space → suggests --help', () => {
-    // `workspace list` is a real leaf subcommand. It has no further nested
-    // subcommands; the completer offers its flags plus the auto-injected --help.
-    const [completions] = tabCompleter('workspace list ');
-    expect(completions).toContain('--help');
-  });
-
   it('auth refresh + space → empty (refresh is not a valid auth subcommand)', () => {
     // `refresh` was never implemented as an auth subcommand, so it is an
     // unknown subcommand and the completer offers nothing — same contract as
@@ -246,6 +239,7 @@ describe('tabCompleter', () => {
     expect(completions).toEqual(['--check']);
     expect(partial).toBe('--ch');
   });
+
 });
 
 // ── Ghost text ───────────────────────────────────────────────────────

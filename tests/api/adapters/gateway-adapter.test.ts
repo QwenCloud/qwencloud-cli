@@ -36,7 +36,7 @@ describe('GatewayAdapter — cornerstoneParam injection', () => {
   it('does NOT inject switchAgent or sec_token in cornerstoneParam', async () => {
     const { buildEnvelopePayload } = await import('../../../src/api/adapters/gateway-adapter.js');
     const result = buildEnvelopePayload({
-      api: 'zeldaEasy.bailian-telemetry.workspace.listWorkspaces',
+      api: 'zeldaEasy.bailian-telemetry.alertRule.listAlertRules',
       data: {},
     });
     const corner = result.cornerstoneParam!;

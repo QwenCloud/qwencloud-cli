@@ -32,8 +32,8 @@ export const site = {
   localConfigFile: '.qwencloud.json',
   apiEndpoint: 'https://cli.qwencloud.com',
   authEndpoint: 'https://t.qwencloud.com',
-  docsBaseUrl: 'https://docs.qwencloud.com',
   websiteUrl: 'www.qwencloud.com',
+  docsBaseUrl: 'https://docs.qwencloud.com',
   userAgentPrefix: 'qwencloud-cli',
   replPrompt: 'qwencloud ▸ ',
   asciiArt: {
@@ -65,6 +65,10 @@ export const site = {
     },
     codingPlanCommodityCode: 'sfm_codingplan_public_intl',
     currency: 'USD',
+    workorder: {
+      siteTag: 'maas',
+      productCodes: ['bailian'],
+    },
   },
   cacheTtlMs: 10 * 60 * 1000, // 10 minutes; file-cache default TTL
   uiTheme: {

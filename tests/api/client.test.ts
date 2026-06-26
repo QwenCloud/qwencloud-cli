@@ -35,7 +35,6 @@ const mockAuthService = {
 };
 
 const mockWorkspaceService = { list: vi.fn(async () => ({})), limit: vi.fn(async () => ({})) };
-
 const mockBillingService = {
   getUsageLimit: vi.fn(async () => ({})),
   getConsumeBreakdown: vi.fn(async () => ({})),
@@ -46,11 +45,11 @@ const mockSubscriptionService = {
   listOrders: vi.fn(async () => ({})),
 };
 const mockSubscriptionTokenPlanService = {};
-
 const mockDocsService = {
   searchDocs: vi.fn(async () => ({})),
   fetchDocContent: vi.fn(async () => ({})),
 };
+const mockSupportService = {};
 
 vi.mock('../../src/services/index.js', () => ({
   createServices: () => ({
@@ -58,12 +57,11 @@ vi.mock('../../src/services/index.js', () => ({
     usageService: mockUsageService,
     authService: mockAuthService,
     workspaceService: mockWorkspaceService,
-
     billingService: mockBillingService,
     subscriptionService: mockSubscriptionService,
     subscriptionTokenPlanService: mockSubscriptionTokenPlanService,
-
     docsService: mockDocsService,
+    supportService: mockSupportService,
   }),
 }));
 
@@ -143,7 +141,6 @@ describe('createClient — service delegation', () => {
     expect(mockUsageService.getUsageLogs).toHaveBeenCalledWith(opts);
   });
 
-
   it('delegates searchDocs to docsService', async () => {
     const opts = { query: 'hello', page: 1, limit: 10 };
     const client = await createClient();
@@ -186,7 +183,6 @@ describe('createClient — service delegation', () => {
     await client.getWorkspaceLimit();
     expect(mockWorkspaceService.limit).toHaveBeenCalled();
   });
-
 
   it('delegates getUsageLimit to billingService', async () => {
     const client = await createClient();
@@ -234,6 +230,7 @@ describe('createClient — service delegation', () => {
     expect(client.subscriptionService).toBe(mockSubscriptionService);
     expect(client.subscriptionTokenPlanService).toBe(mockSubscriptionTokenPlanService);
     expect(client.docsService).toBe(mockDocsService);
+    expect(client.supportService).toBe(mockSupportService);
   });
 });
 

@@ -1,7 +1,7 @@
 /**
  * Pure function tests for the billing adapter extensions.
  *
- * Validates the transforms for the billing command group:
+ * Validates the transforms introduced for the billing command group:
  *   - transformUsageLimit
  *   - transformConsumeBreakdown
  *   - transformSettleBillSummary

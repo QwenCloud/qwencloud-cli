@@ -266,7 +266,7 @@ describe('BillingService.getConsumeBreakdown', () => {
       top: 10,
       granularity: 'day',
     });
-    // 2 months * 2 calls (pretax + tax) = 4
+    // 2 months * 2 calls each = 4
     expect(apiClient.callFlatApi.mock.calls.length).toBeGreaterThanOrEqual(4);
     const firstCall = apiClient.callFlatApi.mock.calls[0][0];
     expect(firstCall.params.Granularity).toBe('DAY');

@@ -84,21 +84,19 @@ export function formatHelp(cmd: Command): string {
   // because the root name is stripped, so use `isRoot` for level detection.
 
   // Determine usage suffix
+  const args = getCommandArgs(cmd);
+  const argToken = (a: { name: () => string; variadic: boolean }): string =>
+    a.variadic ? `${a.name()}...` : a.name();
+  const argParts = args.map((a) => (a.required ? `<${argToken(a)}>` : `[${argToken(a)}]`));
   let usageSuffix: string;
   if (isRoot && hasSubcommands) {
     // L0: qwencloud <command> [flags]
     usageSuffix = '<command> [flags]';
   } else if (hasSubcommands) {
-    usageSuffix = '<subcommand> [flags]';
+    // A command can own positional arguments and subcommands at once; show the
+    // positionals before <subcommand> so the invocation order reads correctly.
+    usageSuffix = [...argParts, '<subcommand> [flags]'].join(' ');
   } else {
-    // Collect arguments
-    const args = getCommandArgs(cmd);
-    const argParts: string[] = [];
-    if (args) {
-      for (const a of args) {
-        argParts.push(a.required ? `<${a.name()}>` : `[${a.name()}]`);
-      }
-    }
     usageSuffix = [...argParts, '[flags]'].join(' ');
   }
 
@@ -110,6 +108,19 @@ export function formatHelp(cmd: Command): string {
   const desc = getLongDescription(cmd);
   if (desc) {
     lines.push(`${indent}${desc}`);
+    lines.push('');
+  }
+
+  // --- Arguments ---
+  // Only positional arguments that carry a description are surfaced; commands
+  // whose positionals are purely structural keep their prior help untouched.
+  const describedArgs = args.filter((a) => a.description);
+  if (describedArgs.length > 0) {
+    lines.push(`${indent}${styleSectionTitle('Arguments:')}`);
+    const maxArgLen = Math.max(...describedArgs.map((a) => a.name().length));
+    for (const a of describedArgs) {
+      lines.push(`${indent}  ${padCmd(a.name(), maxArgLen + 4)}${a.description}`);
+    }
     lines.push('');
   }
 

@@ -6,7 +6,7 @@
 
 > [QwenCloud](https://www.qwencloud.com/) 官方命令行工具。用于在终端或 AI Agent 运行环境中发现模型、查询用量、管理认证并诊断本地配置。
 
-![Version](https://img.shields.io/badge/version-1.1.0-blue)
+![Version](https://img.shields.io/badge/version-1.2.0-blue)
 ![Node](https://img.shields.io/badge/node-%3E%3D18-green)
 ![License](https://img.shields.io/badge/license-Apache--2.0-green)
 
@@ -138,6 +138,7 @@ qwencloud auth login --complete --format json
 | 业务空间 | `workspace list`, `workspace limit` | `--format` |
 | 订阅 | `subscription status`, `subscription orders`, `subscription tokenplan status`, `subscription tokenplan seats` | `--format` |
 | 文档 | `docs search`, `docs view` | `--format` |
+| 工单 | `support list`, `support view`, `support create`, `support reply`, `support close`, `support rate` | `--format` |
 | 配置 | `config list`, `config get`, `config set`, `config unset` | `--format` |
 | 诊断 | `doctor` | `--format` |
 | Shell | `completion install`, `completion generate` | `--shell` |

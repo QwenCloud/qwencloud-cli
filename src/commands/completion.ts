@@ -66,24 +66,25 @@ _qwencloud() {
   case "$prev" in
     --format)      compadd table json text; return ;;
     --granularity) compadd day month; return ;;
-    --charge-type) compadd all postpaid prepaid; return ;;
-    --group-by)    compadd model api-key; return ;;
     --period)      compadd today yesterday week month last-month quarter year; return ;;
     --shell)       compadd bash zsh fish; return ;;
     --input|--output) compadd text image audio video; return ;;
+    --charge-type) compadd all postpaid prepaid; return ;;
+    --group-by)    compadd model api-key; return ;;
   esac
 
   # ── Top-level dispatch ────────────────────────────────────────────────────
   local -a top_commands
   top_commands=(
     'auth:Manage authentication'
-    'billing:View billing and cost breakdown'
+    'billing:Inspect billing limits, breakdown, and summaries'
     'completion:Install shell tab completion'
     'config:Manage CLI configuration'
     'docs:Search documentation'
     'doctor:Run diagnostics'
     'models:Browse and search models'
     'subscription:Manage subscriptions and token plans'
+    'support:Manage support tickets'
     'usage:View usage and billing'
     'version:Show CLI version'
     'workspace:Manage workspaces'
@@ -216,7 +217,7 @@ _qwencloud() {
             ;;
           view)
             _arguments \\
-              '1:path:()' \\
+              '1:path:_files' \\
               '--format[Output format]:format:(table json text)' \\
               '(-h --help)'{-h,--help}'[Show help]'
             ;;
@@ -272,6 +273,36 @@ _qwencloud() {
       fi
       ;;
 
+    support)
+      if (( CURRENT == 3 )); then
+        local -a subs
+        subs=('list:List tickets' 'view:View ticket' 'create:Create ticket' 'close:Close ticket' 'reply:Reply to ticket' 'rate:Rate ticket')
+        _describe -t commands 'support subcommand' subs
+      else
+        case "\${words[3]}" in
+          list)
+            _arguments \\
+              '--page[Page number]:n:()' \\
+              '--page-size[Page size]:n:()' \\
+              '--format[Output format]:format:(table json text)' \\
+              '(-h --help)'{-h,--help}'[Show help]'
+            ;;
+          view|create)
+            _arguments '--format[Output format]:format:(table json text)' '(-h --help)'{-h,--help}'[Show help]'
+            ;;
+          close)
+            _arguments '--yes[Skip confirmation]' '--format[Output format]:format:(table json text)' '(-h --help)'{-h,--help}'[Show help]'
+            ;;
+          reply)
+            _arguments '--message[Reply message]:msg:()' '--format[Output format]:format:(table json text)' '(-h --help)'{-h,--help}'[Show help]'
+            ;;
+          rate)
+            _arguments '--rating[Rating]:rating:()' '--comment[Comment]:comment:()' '--format[Output format]:format:(table json text)' '(-h --help)'{-h,--help}'[Show help]'
+            ;;
+        esac
+      fi
+      ;;
+
     workspace)
       if (( CURRENT == 3 )); then
         local -a subs
@@ -312,7 +343,7 @@ _qwencloud() {
           breakdown)
             _arguments \\
               '--model[Model ID (required)]:model:()' \\
-              '--granularity[Time granularity]:granularity:(day month)' \\
+              '--granularity[Time granularity]:granularity:(day month quarter)' \\
               '--from[Start date]:date:()' \\
               '--to[End date]:date:()' \\
               '--period[Period preset]:period:(today yesterday week month last-month quarter year)' \\
@@ -346,7 +377,7 @@ _qwencloud() {
         case "\${words[3]}" in
           list) _arguments '--format[Output format]:format:(table json text)' '(-h --help)'{-h,--help}'[Show help]' ;;
           get|unset) _arguments '1:key:()' '--format[Output format]:format:(table json text)' '(-h --help)'{-h,--help}'[Show help]' ;;
-          set) _arguments '1:key:()' '2:value:()' '--format[Output format]:format:(table json text)' '(-h --help)'{-h,--help}'[Show help]' ;;
+          set) _arguments '1:key:()' '1:value:()' '--format[Output format]:format:(table json text)' '(-h --help)'{-h,--help}'[Show help]' ;;
         esac
       fi
       ;;
@@ -359,6 +390,10 @@ _qwencloud() {
       else
         _arguments '--shell[Shell type]:shell:(bash zsh fish)' '(-h --help)'{-h,--help}'[Show help]'
       fi
+      ;;
+
+    update)
+      _arguments '(-h --help)'{-h,--help}'[Show help]'
       ;;
 
     doctor)
@@ -394,16 +429,16 @@ function generateBashCompletion(): string {
       COMPREPLY=( $(compgen -W "table json text" -- "$cur") ); return 0 ;;
     --granularity)
       COMPREPLY=( $(compgen -W "day month" -- "$cur") ); return 0 ;;
-    --charge-type)
-      COMPREPLY=( $(compgen -W "all postpaid prepaid" -- "$cur") ); return 0 ;;
-    --group-by)
-      COMPREPLY=( $(compgen -W "model api-key" -- "$cur") ); return 0 ;;
     --period)
       COMPREPLY=( $(compgen -W "today yesterday week month last-month quarter year" -- "$cur") ); return 0 ;;
     --shell)
       COMPREPLY=( $(compgen -W "bash zsh fish" -- "$cur") ); return 0 ;;
     --input|--output)
       COMPREPLY=( $(compgen -W "text image audio video" -- "$cur") ); return 0 ;;
+    --charge-type)
+      COMPREPLY=( $(compgen -W "all postpaid prepaid" -- "$cur") ); return 0 ;;
+    --group-by)
+      COMPREPLY=( $(compgen -W "model api-key" -- "$cur") ); return 0 ;;
   esac
 
   # ── Subcommand option completions ─────────────────────────────────────────
@@ -438,10 +473,21 @@ function generateBashCompletion(): string {
               *)      COMPREPLY=( $(compgen -W "status seats -h --help" -- "$cur") ); return 0 ;;
             esac ;;
         esac ;;
-      auth)
+      support)
         case "$sub" in
-          login)  COMPREPLY=( $(compgen -W "--format --init-only --complete --timeout -h --help" -- "$cur") ); return 0 ;;
-          logout|status) COMPREPLY=( $(compgen -W "--format -h --help" -- "$cur") ); return 0 ;;
+          list)    COMPREPLY=( $(compgen -W "--page --page-size --format -h --help" -- "$cur") ); return 0 ;;
+          view|create) COMPREPLY=( $(compgen -W "--format -h --help" -- "$cur") ); return 0 ;;
+          close) COMPREPLY=( $(compgen -W "--yes --format -h --help" -- "$cur") ); return 0 ;;
+          reply)   COMPREPLY=( $(compgen -W "--message --format -h --help" -- "$cur") ); return 0 ;;
+          rate)    COMPREPLY=( $(compgen -W "--rating --comment --format -h --help" -- "$cur") ); return 0 ;;
+        esac ;;
+      usage)
+        local date_opts="--from --to --period --format"
+        case "$sub" in
+          summary|free-tier) COMPREPLY=( $(compgen -W "$date_opts -h --help" -- "$cur") ); return 0 ;;
+          payg)              COMPREPLY=( $(compgen -W "$date_opts --days -h --help" -- "$cur") ); return 0 ;;
+          breakdown)         COMPREPLY=( $(compgen -W "--model --granularity $date_opts --days -h --help" -- "$cur") ); return 0 ;;
+          logs)              COMPREPLY=( $(compgen -W "--from --to --period --model --status --request-id --page --page-size --format -h --help" -- "$cur") ); return 0 ;;
         esac ;;
       config)
         case "$sub" in
@@ -449,8 +495,21 @@ function generateBashCompletion(): string {
           get|unset)   COMPREPLY=( $(compgen -W "--format -h --help" -- "$cur") ); return 0 ;;
           set)         COMPREPLY=( $(compgen -W "--format -h --help" -- "$cur") ); return 0 ;;
         esac ;;
+      completion)
+        COMPREPLY=( $(compgen -W "--shell -h --help" -- "$cur") ); return 0 ;;
+      auth)
+        case "$sub" in
+          login)  COMPREPLY=( $(compgen -W "--format --init-only --complete --timeout -h --help" -- "$cur") ); return 0 ;;
+          logout|status) COMPREPLY=( $(compgen -W "--format -h --help" -- "$cur") ); return 0 ;;
+        esac ;;
       doctor)
         COMPREPLY=( $(compgen -W "--format -h --help" -- "$cur") ); return 0 ;;
+      version)
+        COMPREPLY=( $(compgen -W "--check -h --help" -- "$cur") ); return 0 ;;
+      workspace)
+        COMPREPLY=( $(compgen -W "--format -h --help" -- "$cur") ); return 0 ;;
+      update)
+        COMPREPLY=( $(compgen -W "-h --help" -- "$cur") ); return 0 ;;
     esac
   fi
 
@@ -464,6 +523,7 @@ function generateBashCompletion(): string {
       docs)         COMPREPLY=( $(compgen -W "search view" -- "$cur") ); return 0 ;;
       models)       COMPREPLY=( $(compgen -W "list info search" -- "$cur") ); return 0 ;;
       subscription) COMPREPLY=( $(compgen -W "status orders tokenplan" -- "$cur") ); return 0 ;;
+      support)      COMPREPLY=( $(compgen -W "list view create close reply rate" -- "$cur") ); return 0 ;;
       usage)        COMPREPLY=( $(compgen -W "summary breakdown free-tier payg logs" -- "$cur") ); return 0 ;;
       workspace)    COMPREPLY=( $(compgen -W "list limit" -- "$cur") ); return 0 ;;
     esac
@@ -471,7 +531,7 @@ function generateBashCompletion(): string {
 
   # ── Top-level command completions ─────────────────────────────────────────
   if [ "$COMP_CWORD" -eq 1 ]; then
-    COMPREPLY=( $(compgen -W "auth billing completion config docs doctor models subscription usage version workspace update -h --help" -- "$cur") )
+    COMPREPLY=( $(compgen -W "auth billing completion config docs doctor models subscription support usage version workspace update -h --help" -- "$cur") )
   fi
 }
 
@@ -494,19 +554,20 @@ function __qwencloud_seen_sub
 end
 
 # ── Top-level commands ────────────────────────────────────────────────────────
-complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription usage version workspace update' -f
-complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription usage version workspace update' -a auth         -d 'Manage authentication'
-complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription usage version workspace update' -a billing      -d 'View billing and cost breakdown'
-complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription usage version workspace update' -a completion   -d 'Install shell tab completion'
-complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription usage version workspace update' -a config       -d 'Manage CLI configuration'
-complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription usage version workspace update' -a docs         -d 'Search documentation'
-complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription usage version workspace update' -a doctor       -d 'Run diagnostics'
-complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription usage version workspace update' -a models       -d 'Browse and search models'
-complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription usage version workspace update' -a subscription -d 'Manage subscriptions'
-complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription usage version workspace update' -a usage        -d 'View usage and billing'
-complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription usage version workspace update' -a version      -d 'Show CLI version'
-complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription usage version workspace update' -a workspace    -d 'Manage workspaces'
-complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription usage version workspace update' -a update       -d 'Update CLI'
+complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription support usage version workspace update' -f
+complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription support usage version workspace update' -a auth         -d 'Manage authentication'
+complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription support usage version workspace update' -a billing      -d 'Inspect billing limits, breakdown, and summaries'
+complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription support usage version workspace update' -a completion   -d 'Install shell tab completion'
+complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription support usage version workspace update' -a config       -d 'Manage CLI configuration'
+complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription support usage version workspace update' -a docs         -d 'Search documentation'
+complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription support usage version workspace update' -a doctor       -d 'Run diagnostics'
+complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription support usage version workspace update' -a models       -d 'Browse and search models'
+complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription support usage version workspace update' -a subscription -d 'Manage subscriptions'
+complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription support usage version workspace update' -a support      -d 'Manage support tickets'
+complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription support usage version workspace update' -a usage        -d 'View usage and billing'
+complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription support usage version workspace update' -a version      -d 'Show CLI version'
+complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription support usage version workspace update' -a workspace    -d 'Manage workspaces'
+complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription support usage version workspace update' -a update       -d 'Update CLI'
 
 # ── billing subcommands ──────────────────────────────────────────────────
 complete -c qwencloud -n '__fish_seen_subcommand_from billing; and not __fish_seen_subcommand_from limit breakdown summary' -f
@@ -536,7 +597,6 @@ complete -c qwencloud -n '__fish_seen_subcommand_from docs; and __fish_seen_subc
 complete -c qwencloud -n '__fish_seen_subcommand_from docs; and __fish_seen_subcommand_from search' -l language -d 'Language' -a 'en zh'
 complete -c qwencloud -n '__fish_seen_subcommand_from docs; and __fish_seen_subcommand_from search' -l view     -d 'View result by index'
 complete -c qwencloud -n '__fish_seen_subcommand_from docs; and __fish_seen_subcommand_from search' -l format   -d 'Output format' -a 'table json text'
-complete -c qwencloud -n '__fish_seen_subcommand_from docs; and __fish_seen_subcommand_from view'   -l format   -d 'Output format' -a 'table json text'
 
 # ── auth subcommands ──────────────────────────────────────────────────────────
 complete -c qwencloud -n '__fish_seen_subcommand_from auth; and not __fish_seen_subcommand_from login logout status' -f
@@ -576,7 +636,7 @@ complete -c qwencloud -n '__fish_seen_subcommand_from summary free-tier payg bre
 complete -c qwencloud -n '__fish_seen_subcommand_from summary free-tier payg breakdown logs' -l period -d 'Period preset' -a 'today yesterday week month last-month quarter year'
 complete -c qwencloud -n '__fish_seen_subcommand_from payg breakdown'                       -l days   -d 'Days to look back'
 complete -c qwencloud -n '__fish_seen_subcommand_from breakdown'                            -l model       -d 'Model ID (required)'
-complete -c qwencloud -n '__fish_seen_subcommand_from breakdown'                            -l granularity -d 'Time granularity' -a 'day month'
+complete -c qwencloud -n '__fish_seen_subcommand_from breakdown'                            -l granularity -d 'Time granularity' -a 'day month quarter'
 complete -c qwencloud -n '__fish_seen_subcommand_from logs'                                 -l model      -d 'Model ID'
 complete -c qwencloud -n '__fish_seen_subcommand_from logs'                                 -l status     -d 'Status filter' -a '0 2xx 4xx 5xx'
 complete -c qwencloud -n '__fish_seen_subcommand_from logs'                                 -l request-id -d 'Request ID'
@@ -617,12 +677,34 @@ complete -c qwencloud -n '__fish_seen_subcommand_from subscription; and __fish_s
 complete -c qwencloud -n '__fish_seen_subcommand_from subscription; and __fish_seen_subcommand_from tokenplan; and __fish_seen_subcommand_from seats' -l page-size -d 'Page size'
 complete -c qwencloud -n '__fish_seen_subcommand_from subscription; and __fish_seen_subcommand_from tokenplan; and __fish_seen_subcommand_from seats' -l format    -d 'Output format' -a 'table json text'
 
+# ── support subcommands ──────────────────────────────────────────────────────
+complete -c qwencloud -n '__fish_seen_subcommand_from support; and not __fish_seen_subcommand_from list view create close reply rate' -f
+complete -c qwencloud -n '__fish_seen_subcommand_from support; and not __fish_seen_subcommand_from list view create close reply rate' -a list    -d 'List tickets'
+complete -c qwencloud -n '__fish_seen_subcommand_from support; and not __fish_seen_subcommand_from list view create close reply rate' -a view    -d 'View ticket'
+complete -c qwencloud -n '__fish_seen_subcommand_from support; and not __fish_seen_subcommand_from list view create close reply rate' -a create  -d 'Create ticket'
+complete -c qwencloud -n '__fish_seen_subcommand_from support; and not __fish_seen_subcommand_from list view create close reply rate' -a close   -d 'Close ticket'
+complete -c qwencloud -n '__fish_seen_subcommand_from support; and not __fish_seen_subcommand_from list view create close reply rate' -a reply   -d 'Reply to ticket'
+complete -c qwencloud -n '__fish_seen_subcommand_from support; and not __fish_seen_subcommand_from list view create close reply rate' -a rate    -d 'Rate ticket'
+complete -c qwencloud -n '__fish_seen_subcommand_from support; and __fish_seen_subcommand_from list' -l page      -d 'Page number'
+complete -c qwencloud -n '__fish_seen_subcommand_from support; and __fish_seen_subcommand_from list' -l page-size -d 'Page size'
+complete -c qwencloud -n '__fish_seen_subcommand_from support; and __fish_seen_subcommand_from list view create close reply rate' -l format -d 'Output format' -a 'table json text'
+complete -c qwencloud -n '__fish_seen_subcommand_from support; and __fish_seen_subcommand_from close' -l yes     -d 'Skip confirmation'
+complete -c qwencloud -n '__fish_seen_subcommand_from support; and __fish_seen_subcommand_from reply'         -l message -d 'Reply message'
+complete -c qwencloud -n '__fish_seen_subcommand_from support; and __fish_seen_subcommand_from rate'          -l rating  -d 'Rating'
+complete -c qwencloud -n '__fish_seen_subcommand_from support; and __fish_seen_subcommand_from rate'          -l comment -d 'Comment'
 
 # ── workspace subcommands ────────────────────────────────────────────────────
 complete -c qwencloud -n '__fish_seen_subcommand_from workspace; and not __fish_seen_subcommand_from list limit' -f
 complete -c qwencloud -n '__fish_seen_subcommand_from workspace; and not __fish_seen_subcommand_from list limit' -a list  -d 'List workspaces'
 complete -c qwencloud -n '__fish_seen_subcommand_from workspace; and not __fish_seen_subcommand_from list limit' -a limit -d 'View workspace limits'
 complete -c qwencloud -n '__fish_seen_subcommand_from workspace; and __fish_seen_subcommand_from list limit' -l format -d 'Output format' -a 'table json text'
+
+
+# ── update options ───────────────────────────────────────────────────────────
+complete -c qwencloud -n '__fish_seen_subcommand_from update' -a '' -d ''
+
+# ── docs view ────────────────────────────────────────────────────────────────
+complete -c qwencloud -n '__fish_seen_subcommand_from docs; and __fish_seen_subcommand_from view' -l format -d 'Output format' -a 'table json text'
 
 # ── auth options ─────────────────────────────────────────────────────────────
 complete -c qwencloud -n '__fish_seen_subcommand_from login'  -l format    -d 'Output format' -a 'table json text'
@@ -637,6 +719,9 @@ complete -c qwencloud -n '__fish_seen_subcommand_from doctor' -l format -d 'Outp
 
 # ── version options ──────────────────────────────────────────────────────────
 complete -c qwencloud -n '__fish_seen_subcommand_from version' -l check -d 'Check for updates'
+
+# ── models list format (missing from above) ──────────────────────────────────
+complete -c qwencloud -n '__fish_seen_subcommand_from list'   -l format    -d 'Output format' -a 'table json text'
 
 # ── Global options ────────────────────────────────────────────────────────────
 complete -c qwencloud -l format -d 'Output format' -a 'table json text'

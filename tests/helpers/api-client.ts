@@ -15,11 +15,13 @@ import type { BillingService } from '../../src/services/billing-service.js';
 import type { SubscriptionService } from '../../src/services/subscription-service.js';
 import type { SubscriptionTokenPlanService } from '../../src/services/subscription-tokenplan-service.js';
 import type { DocsService, DocsSearchOptions } from '../../src/services/docs-service.js';
+import type { SupportService } from '../../src/services/support-service.js';
 import type { DocContentResult } from '../../src/types/docs.js';
 
 export function makeMockApiClient(overrides: Partial<ApiClient> = {}): ApiClient {
   const emptyWorkspaces = { items: [], total: 0, limit: 0 };
   const emptyWorkspaceLimit = { current: 0, max: 0 };
+
   const workspaceServiceStub = {
     list: async () => emptyWorkspaces,
     limit: async () => emptyWorkspaceLimit,
@@ -28,6 +30,7 @@ export function makeMockApiClient(overrides: Partial<ApiClient> = {}): ApiClient
   const subscriptionServiceStub = {} as unknown as SubscriptionService;
   const subscriptionTokenPlanServiceStub = {} as unknown as SubscriptionTokenPlanService;
   const docsServiceStub = {} as unknown as DocsService;
+  const supportServiceStub = {} as unknown as SupportService;
 
   const emptyUsageLimit = {
     threshold: '0',
@@ -89,7 +92,7 @@ export function makeMockApiClient(overrides: Partial<ApiClient> = {}): ApiClient
       items: [],
     }),
 
-    searchDocs: async (opts) => ({
+    searchDocs: async (opts: DocsSearchOptions) => ({
       totalCount: 0,
       page: opts.page ?? 1,
       pageSize: opts.limit ?? 20,
@@ -106,7 +109,7 @@ export function makeMockApiClient(overrides: Partial<ApiClient> = {}): ApiClient
     }),
 
     loadDocsIndex: async () => [],
-    resolveDocPath: () => ({ type: 'notfound' as const, suggestions: [] }),
+    resolveDocPath: () => ({ type: 'not_found' }) as never,
 
     getAuthStatus: async () => ({ authenticated: true, server_verified: true }),
     loginInit: async () => ({
@@ -120,12 +123,14 @@ export function makeMockApiClient(overrides: Partial<ApiClient> = {}): ApiClient
     subscriptionService: subscriptionServiceStub,
     subscriptionTokenPlanService: subscriptionTokenPlanServiceStub,
     docsService: docsServiceStub,
+    supportService: supportServiceStub,
 
     listWorkspaces: async () => emptyWorkspaces,
     getWorkspaceLimit: async () => emptyWorkspaceLimit,
 
     getUsageLimit: async () => emptyUsageLimit as never,
     getConsumeBreakdown: async () => emptyConsumeBreakdown as never,
+    getConsumeBreakdownByPeriods: async () => ({ slices: [], groupBy: 'model', dateRange: { from: '', to: '' }, granularity: 'day', chargeType: 'all', currency: 'USD' }) as never,
     getSettleBillSummary: async () => emptySettleBillSummary as never,
     getSubscriptionStatus: async () => emptySubscriptionStatus as never,
     listSubscriptionOrders: async () => emptySubscriptionOrders as never,

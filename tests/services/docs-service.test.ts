@@ -272,9 +272,7 @@ describe('DocsService.fetchDocContent', () => {
       text: async () => 'plain text',
     });
 
-    const result = await service.fetchDocContent(
-      'https://mock-docs.test.qwencloud.com/llms.txt',
-    );
+    const result = await service.fetchDocContent('https://mock-docs.test.qwencloud.com/llms.txt');
 
     expect(result.resolvedMarkdownUrl).toBe('https://mock-docs.test.qwencloud.com/llms.txt');
   });
@@ -491,18 +489,14 @@ describe('DocsService.buildDocsUrl', () => {
     expect(result).not.toContain('//developer');
   });
 
-  it('passes a fully qualified https:// URL through with .md stripped', () => {
+  it('passes a fully qualified https:// URL through verbatim, preserving .md', () => {
     const direct = 'https://mock-docs.test.qwencloud.com/resources/free-quota.md';
-    expect(service.buildDocsUrl(direct)).toBe(
-      'https://mock-docs.test.qwencloud.com/resources/free-quota',
-    );
+    expect(service.buildDocsUrl(direct)).toBe(direct);
   });
 
-  it('passes a fully qualified http:// URL through with .md stripped', () => {
+  it('passes a fully qualified http:// URL through verbatim, preserving .md', () => {
     const direct = 'http://mock-docs.test.qwencloud.com/resources/free-quota.md';
-    expect(service.buildDocsUrl(direct)).toBe(
-      'http://mock-docs.test.qwencloud.com/resources/free-quota',
-    );
+    expect(service.buildDocsUrl(direct)).toBe(direct);
   });
 
   it('passes a fully qualified URL without .md through verbatim', () => {
@@ -602,11 +596,7 @@ describe('DocsService.loadDocsIndex', () => {
       },
     ];
     const staleFetchedAt = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString();
-    writeFileSync(
-      cachePath,
-      JSON.stringify({ fetchedAt: staleFetchedAt, entries: stale }),
-      'utf8',
-    );
+    writeFileSync(cachePath, JSON.stringify({ fetchedAt: staleFetchedAt, entries: stale }), 'utf8');
     fetchSpy.mockResolvedValue({
       status: 200,
       ok: true,
@@ -620,9 +610,7 @@ describe('DocsService.loadDocsIndex', () => {
     expect(requestedUrl).toContain('llms.txt');
     // Returned data must reflect the fresh fetch, not the stale cache.
     expect(result.find((e) => e.path === 'old/entry')).toBeUndefined();
-    expect(
-      result.find((e) => e.path === 'developer-guides/getting-started/pricing'),
-    ).toBeDefined();
+    expect(result.find((e) => e.path === 'developer-guides/getting-started/pricing')).toBeDefined();
     // Cache file must be updated on disk so the next call re-uses the fresh data.
     expect(existsSync(cachePath)).toBe(true);
     const persisted = JSON.parse(readFileSync(cachePath, 'utf8')) as {

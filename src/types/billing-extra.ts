@@ -1,5 +1,5 @@
 // Service DTO + ViewModel-facing types for billing limit / breakdown /
-// summary commands. Monetary amounts stay as decimal strings
+// analysis / summary commands. Monetary amounts stay as decimal strings
 // so they pass through the high-precision sumAmountStrings path without
 // IEEE-754 truncation.
 
@@ -49,7 +49,7 @@ export interface ConsumeBreakdownOptions {
   to: string;
   chargeType: ChargeType;
   top: number;
-  granularity: AnalysisGranularity;
+  granularity: 'day' | 'month';
 }
 
 // ────────────────────────────────────────────────────────────────────
@@ -65,17 +65,11 @@ export interface ConsumeBreakdownPeriodSlice {
 export interface ConsumeBreakdownByPeriods {
   groupBy: BreakdownGroupBy;
   dateRange: { from: string; to: string };
-  granularity: AnalysisGranularity;
+  granularity: 'day' | 'month';
   chargeType: ChargeType;
   slices: ConsumeBreakdownPeriodSlice[];
   currency: string;
 }
-
-// ────────────────────────────────────────────────────────────────────
-// Shared granularity type
-// ────────────────────────────────────────────────────────────────────
-
-export type AnalysisGranularity = 'day' | 'month';
 
 // ────────────────────────────────────────────────────────────────────
 // ListSettleBillTotalSummary

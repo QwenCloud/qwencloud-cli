@@ -40,7 +40,10 @@ export function renderTextBillingBreakdownByPeriods(
   for (const slice of data.slices) {
     console.log(`  \u2500\u2500\u2500 ${slice.period} \u2500\u2500\u2500`);
     const headers = [groupHeader, 'Amount'];
-    const rows = slice.rows.map((r) => [r.groupLabel, formatMoney(r.amount, ctx)]);
+    const rows = slice.rows.map((r: { groupLabel: string; amount: string }) => [
+      r.groupLabel,
+      formatMoney(r.amount, ctx),
+    ]);
     rows.push(['TOTAL', formatMoney(slice.totalAmount, ctx)]);
     console.log(formatTextTable(headers, rows));
     console.log('');

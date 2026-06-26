@@ -67,7 +67,6 @@ export type {
   ConsumeBreakdownRow,
   ConsumeBreakdownDto,
   ConsumeBreakdownOptions,
-  AnalysisGranularity,
   SettleBillSummary,
   SettleBillSummaryDto,
   SettleBillSummaryOptions,
@@ -88,6 +87,19 @@ export type {
   SubscriptionOrdersResult,
   ListOrdersOptions,
 } from './subscription.js';
+
+export type {
+  RawTicketItem,
+  RawListTicketsResponse,
+  RawGetTicketResponse,
+  RawMessageItem,
+  RawListEnhancedMessageResponse,
+  SupportTicket,
+  SupportMessage,
+  SupportTicketDetail,
+  SupportTicketListResult,
+  SupportMessagesResult,
+} from './support.js';
 
 export type {
   TokenPlanSeatGroup,

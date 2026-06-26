@@ -24,13 +24,11 @@ describe('renderTextBillingLimit', () => {
       { label: 'Status', value: 'Active' },
       { label: 'Limit', value: '$1,000.00' },
       { label: 'Alert threshold', value: '80%' },
-      { label: 'Receivers', value: 'ops@team.test.qwencloud.com' },
     ];
     return {
       fields,
       currency: 'USD',
       statusRaw: 'normal',
-      receiversRaw: ['ops@team.test.qwencloud.com'],
       ...overrides,
     };
   }

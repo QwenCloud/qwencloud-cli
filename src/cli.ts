@@ -12,6 +12,7 @@ import { registerDocsCommands } from './commands/docs/index.js';
 import { registerWorkspaceCommands } from './commands/workspace/index.js';
 import { registerBillingCommands } from './commands/billing/index.js';
 import { registerSubscriptionCommands } from './commands/subscription/index.js';
+import { registerSupportCommands } from './commands/support/index.js';
 import {
   setCommandHelpMetadata,
   setCommandHidden,
@@ -19,6 +20,7 @@ import {
   addExamples,
 } from './utils/commander-helpers.js';
 import { formatHelp } from './output/help-formatter.js';
+import { isHelpRequest } from './utils/cli-help.js';
 import { createClient, type ClientFactory } from './api/client.js';
 
 // ---------------------------------------------------------------------------
@@ -47,6 +49,26 @@ function applyExitOverride(cmd: Command): void {
   }
 }
 
+// Commander assigns the token after a value-taking option as that option's
+// value, so `<cmd> --opt --help` swallows the help flag instead of triggering
+// help. Reaching preAction with a -h/--help token still in the raw args means
+// it was swallowed (a standalone help flag fires during parsing and never gets
+// here), so render the action command's help instead. Scanning the raw args
+// rather than parsed options also catches options whose argParser would have
+// turned the swallowed flag into NaN/other values.
+function applyHelpFlagGuard(program: Command): void {
+  program.hook('preAction', (_thisCommand, actionCommand) => {
+    const rawArgs = (program as unknown as { rawArgs?: string[] }).rawArgs ?? [];
+    if (isHelpRequest(...rawArgs)) {
+      actionCommand.outputHelp();
+      throw Object.assign(new Error('(outputHelp)'), {
+        code: 'commander.helpDisplayed',
+        exitCode: 0,
+      });
+    }
+  });
+}
+
 function setTopLevelHelpMetadata(
   program: Command,
   commandName: string,
@@ -58,11 +80,11 @@ function setTopLevelHelpMetadata(
 }
 
 function applyTopLevelHelpMetadata(program: Command): void {
-  setTopLevelHelpMetadata(program, 'models', 'Core', 110);
+  setTopLevelHelpMetadata(program, 'models', 'Core', 100);
   setTopLevelHelpMetadata(program, 'docs', 'Core', 120);
 
   setTopLevelHelpMetadata(program, 'auth', 'Account & access', 200);
-  setTopLevelHelpMetadata(program, 'workspace', 'Account & access', 220);
+  setTopLevelHelpMetadata(program, 'workspace', 'Account & access', 210);
 
   setTopLevelHelpMetadata(program, 'usage', 'Usage & billing', 300);
   setTopLevelHelpMetadata(program, 'billing', 'Usage & billing', 310);
@@ -73,7 +95,8 @@ function applyTopLevelHelpMetadata(program: Command): void {
   setTopLevelHelpMetadata(program, 'completion', 'Operations', 420);
   setTopLevelHelpMetadata(program, 'version', 'Operations', 430);
 
-  setTopLevelHelpMetadata(program, 'update', 'Operations', 440);
+  setTopLevelHelpMetadata(program, 'support', 'Support', 500);
+  setTopLevelHelpMetadata(program, 'update', 'Support', 510);
 }
 
 // ---------------------------------------------------------------------------
@@ -155,7 +178,7 @@ export function createProgram(): Command {
   registerWorkspaceCommands(program, getClient);
   registerBillingCommands(program, getClient);
   registerSubscriptionCommands(program, getClient);
-
+  registerSupportCommands(program, getClient);
   applyTopLevelHelpMetadata(program);
 
   // Hide the top-level login/logout aliases from L0 help
@@ -167,6 +190,7 @@ export function createProgram(): Command {
   // Apply custom help formatting to all commands
   applyCustomHelp(program);
   applyExitOverride(program);
+  applyHelpFlagGuard(program);
 
   // Override the top-level help
   program.configureHelp({

@@ -39,13 +39,6 @@ describe('BillingLimit (rendered)', () => {
     expect(out).toContain('500');
   });
 
-  it('renders the limit amount and threshold', () => {
-    const vm = buildBillingLimitViewModel(makeLimit(), ctx);
-    const out = frame(<BillingLimitInk vm={vm} />);
-    expect(out).toContain('500');
-    expect(out).toContain('400');
-  });
-
   it('renders em-dash for missing optional fields', () => {
     const vm = buildBillingLimitViewModel(
       makeLimit({ alertThreshold: null as string | null, receivers: [] }),

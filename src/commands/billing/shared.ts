@@ -1,13 +1,20 @@
-import type { BreakdownGroupBy, ChargeType } from '../../types/billing-extra.js';
+import type {
+  BreakdownGroupBy,
+  ChargeType,
+} from '../../types/billing-extra.js';
 import { CliError } from '../../utils/errors.js';
 import { EXIT_CODES } from '../../utils/exit-codes.js';
 
-type Granularity = 'day' | 'month';
+type AnalysisGranularity = 'day' | 'month';
 
 const VALID_GROUP_BY: BreakdownGroupBy[] = ['model', 'api-key'];
 const VALID_CHARGE_INPUT = ['all', 'subscription', 'payg'] as const;
-const CHARGE_TYPE_MAP: Record<string, ChargeType> = { subscription: 'prepaid', payg: 'postpaid', all: 'all' };
-const VALID_GRANULARITY: Granularity[] = ['day', 'month'];
+const CHARGE_TYPE_MAP: Record<string, ChargeType> = {
+  subscription: 'prepaid',
+  payg: 'postpaid',
+  all: 'all',
+};
+const VALID_GRANULARITY: AnalysisGranularity[] = ['day', 'month'];
 
 function invalidEnum(flag: string, value: string, valid: readonly string[]): never {
   throw new CliError({
@@ -33,10 +40,13 @@ export function parseChargeType(raw: unknown, fallback: ChargeType = 'all'): Cha
   invalidEnum('charge-type', String(raw), VALID_CHARGE_INPUT);
 }
 
-export function parseGranularity(raw: unknown, fallback: Granularity = 'day'): Granularity {
+export function parseGranularity(
+  raw: unknown,
+  fallback: AnalysisGranularity = 'day',
+): AnalysisGranularity {
   if (raw === undefined || raw === null || raw === '') return fallback;
   if (typeof raw === 'string' && (VALID_GRANULARITY as string[]).includes(raw)) {
-    return raw as Granularity;
+    return raw as AnalysisGranularity;
   }
   invalidEnum('granularity', String(raw), VALID_GRANULARITY);
 }
