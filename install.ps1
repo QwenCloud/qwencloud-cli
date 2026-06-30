@@ -30,7 +30,7 @@ $script:IsCLM = ($ExecutionContext.SessionState.LanguageMode -eq 'ConstrainedLan
 
 # ─── Default Version ────────────────────────────────────────────────────────
 # Update this value when releasing a new version.
-$DefaultVersion = "v1.2.0"
+$DefaultVersion = "v1.3.0"
 
 # ─── Brand Colors ────────────────────────────────────────────────────────────
 # #987BFE via ANSI 24-bit true color escape sequences (matching install.sh)

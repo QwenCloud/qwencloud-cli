@@ -38,6 +38,7 @@ import type {
   SubscriptionOrdersResult,
   ListOrdersOptions,
 } from '../types/subscription.js';
+import type { PaymentMethodsResult } from '../types/payment-method.js';
 
 export type ClientFactory = () => Promise<CliFacade>;
 
@@ -112,6 +113,7 @@ export interface CliFacade {
   getConsumeBreakdown(opts: ConsumeBreakdownOptions): Promise<ConsumeBreakdown>;
   getConsumeBreakdownByPeriods(opts: ConsumeBreakdownOptions): Promise<ConsumeBreakdownByPeriods>;
   getSettleBillSummary(opts: SettleBillSummaryOptions): Promise<SettleBillSummary>;
+  getPaymentMethods(): Promise<PaymentMethodsResult>;
 
   // Subscription
   getSubscriptionStatus(opts?: { plan?: 'token' | 'coding' }): Promise<SubscriptionStatusResult>;
@@ -239,6 +241,7 @@ export async function createClient(_options?: { endpoint?: string }): Promise<Cl
     getConsumeBreakdown: (opts) => billingService.getConsumeBreakdown(opts),
     getConsumeBreakdownByPeriods: (opts) => billingService.getConsumeBreakdownByPeriods(opts),
     getSettleBillSummary: (opts) => billingService.getSettleBillSummary(opts),
+    getPaymentMethods: () => billingService.getOuterPaymentMethods(),
 
     // Subscription
     getSubscriptionStatus: (opts) => subscriptionService.getStatus(opts ?? {}),
