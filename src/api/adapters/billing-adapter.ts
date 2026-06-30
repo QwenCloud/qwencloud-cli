@@ -12,6 +12,10 @@ import type {
   MaasDescribeCostAnalysisResponse,
   ListSettleBillTotalSummaryResponse,
 } from '../../types/api-models.js';
+import type {
+  GetOuterPaymentMethodResponse,
+  PaymentMethodsResult,
+} from '../../types/payment-method.js';
 import { parseBillingItem } from '../../services/billing-service.js';
 import type {
   UsageLimit,
@@ -223,5 +227,24 @@ export function transformSettleBillSummary(
   return {
     cycles,
     currency: resolveCurrency(safe.Currency ?? firstItemCurrency),
+  };
+}
+
+// ────────────────────────────────────────────────────────────────────
+// GetOuterPaymentMethod -> PaymentMethodsResult
+// ────────────────────────────────────────────────────────────────────
+
+export function transformPaymentMethods(
+  raw: GetOuterPaymentMethodResponse | null | undefined,
+): PaymentMethodsResult {
+  const safe = raw ?? ({} as Partial<GetOuterPaymentMethodResponse>);
+  const list = Array.isArray(safe.Data) ? safe.Data : [];
+  return {
+    items: list.map((dto) => ({
+      paymentTypeName: dto.PaymentTypeName ?? '',
+      cardBrand: dto.CardBrand || undefined,
+      paymentMethodName: dto.PaymentMethodName ?? '',
+      status: dto.Status ?? '',
+    })),
   };
 }

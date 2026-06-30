@@ -240,6 +240,21 @@ describe('tabCompleter', () => {
     expect(partial).toBe('--ch');
   });
 
+  // ── Three-level subcommand: billing payment-method ─────────────────
+
+  it('billing payment-method list + space → suggests --format', () => {
+    const [completions] = tabCompleter('billing payment-method list ');
+    expect(completions).toContain('--format');
+    expect(completions).toContain('--help');
+    expect(completions).not.toContain('bind');
+  });
+
+  it('billing payment-method bind + space → suggests --format', () => {
+    const [completions] = tabCompleter('billing payment-method bind ');
+    expect(completions).toContain('--format');
+    expect(completions).toContain('--help');
+  });
+
 });
 
 // ── Ghost text ───────────────────────────────────────────────────────

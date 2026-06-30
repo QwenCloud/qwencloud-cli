@@ -16,3 +16,5 @@ coverage/
 ref/
 *copilot*
 .e2e-output/
+.npmrc
+.npmignore

@@ -15,6 +15,10 @@ import type {
   UsageBreakdownTotal,
 } from '../types/usage.js';
 import type {
+  GetOuterPaymentMethodResponse,
+  PaymentMethodsResult,
+} from '../types/payment-method.js';
+import type {
   UsageLimit,
   ConsumeBreakdown,
   ConsumeBreakdownByPeriods,
@@ -31,6 +35,7 @@ import {
   transformUsageLimit,
   transformConsumeBreakdown,
   transformSettleBillSummary,
+  transformPaymentMethods,
 } from '../api/adapters/billing-adapter.js';
 import {
   aggregatePaygByModel,
@@ -288,6 +293,15 @@ export class BillingService {
       action: 'DescribeUsageLimit',
     });
     return transformUsageLimit(raw);
+  }
+
+  async getOuterPaymentMethods(): Promise<PaymentMethodsResult> {
+    const raw = await this.apiClient.callFlatApi<GetOuterPaymentMethodResponse>({
+      product: API_PRODUCT_BSS,
+      action: 'GetOuterPaymentMethod',
+      params: { PageSize: 100 },
+    });
+    return transformPaymentMethods(raw);
   }
 
   async getConsumeBreakdown(opts: ConsumeBreakdownOptions): Promise<ConsumeBreakdown> {
