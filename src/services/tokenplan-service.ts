@@ -68,7 +68,8 @@ export class TokenplanService {
         return statusCode === 'valid';
       })
       .reduce(
-        (sum: number, inst: FrInstanceItem) => preciseAdd(sum, Number(inst.CurrCapacityBaseValue || 0)),
+        (sum: number, inst: FrInstanceItem) =>
+          preciseAdd(sum, Number(inst.CurrCapacityBaseValue || 0)),
         0,
       );
 
@@ -154,7 +155,8 @@ export class TokenplanService {
         return statusCode === 'valid';
       })
       .reduce(
-        (sum: number, inst: FrInstanceItem) => preciseAdd(sum, Number(inst.CurrCapacityBaseValue || 0)),
+        (sum: number, inst: FrInstanceItem) =>
+          preciseAdd(sum, Number(inst.CurrCapacityBaseValue || 0)),
         0,
       );
   }

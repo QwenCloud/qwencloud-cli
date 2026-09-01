@@ -18,8 +18,11 @@ export function registerBillingPaymentMethodListCommand(
     .command('list')
     .description('List bound payment methods')
     .addOption(
-      new Option('--format <fmt>', 'Output format: table, json, text (default: auto)')
-        .choices(['table', 'json', 'text']),
+      new Option('--format <fmt>', 'Output format: table, json, text (default: auto)').choices([
+        'table',
+        'json',
+        'text',
+      ]),
     );
 
   list.action(billingPaymentMethodListAction(list, getClient));

@@ -407,7 +407,6 @@ export interface SettleBillTotalItem {
   TotalPriceTaxFee?: string | number;
   TotalPricePostTaxFee?: string | number;
   Currency?: string;
-  // Legacy fields (retained for backward compatibility)
   PretaxAmount?: string | number;
   Tax?: string | number;
   AftertaxAmount?: string | number;

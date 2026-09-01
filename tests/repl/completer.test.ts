@@ -254,7 +254,6 @@ describe('tabCompleter', () => {
     expect(completions).toContain('--format');
     expect(completions).toContain('--help');
   });
-
 });
 
 // ── Ghost text ───────────────────────────────────────────────────────
@@ -269,7 +268,12 @@ describe('getGhostSuffix', () => {
   });
 
   it('completes a partial top command (single match)', () => {
-    expect(getGhostSuffix('au')).toBe('th'); // → auth
+    // 'au' is ambiguous now (auth + audio share the "au" prefix) → no ghost.
+    expect(getGhostSuffix('au')).toBe('');
+    // 'aut' uniquely picks auth → suffix is 'h'
+    expect(getGhostSuffix('aut')).toBe('h');
+    // 'aud' uniquely picks audio → suffix is 'io'
+    expect(getGhostSuffix('aud')).toBe('io');
   });
 
   it('returns longest common prefix when multiple match', () => {

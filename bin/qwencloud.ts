@@ -19,7 +19,7 @@ if (args.length === 0) {
 } else {
   // One-shot mode
   const { createProgram } = await import('../src/cli.js');
-  const { CliError, HandledError } = await import('../src/utils/errors.js');
+  const { CliError, HandledError, friendlyFsMessage } = await import('../src/utils/errors.js');
   const { flushDebugReport } = await import('../src/api/debug-buffer.js');
   const program = createProgram();
 
@@ -93,7 +93,7 @@ if (args.length === 0) {
           process.stderr.write(
             JSON.stringify(
               {
-                error: { code, message, exitCode },
+                error: { code, message, exit_code: exitCode },
               },
               null,
               2,
@@ -119,12 +119,17 @@ if (args.length === 0) {
       resetGlobalCache();
       process.exitCode = err.exitCode;
     } else {
-      const message = err instanceof Error ? err.message : String(err);
+      // Classify raw local filesystem failures (EACCES/EPERM/ENOSPC while
+      // writing a config/output file) into a structured IO_ERROR; anything
+      // else falls back to UNKNOWN_ERROR with the raw message.
+      const fsMessage = friendlyFsMessage(err);
+      const code = fsMessage ? 'IO_ERROR' : 'UNKNOWN_ERROR';
+      const message = fsMessage ?? (err instanceof Error ? err.message : String(err));
       if (wantsJSON()) {
         process.stderr.write(
           JSON.stringify(
             {
-              error: { code: 'UNKNOWN_ERROR', message, exitCode: 1 },
+              error: { code, message, exit_code: 1 },
             },
             null,
             2,

@@ -17,6 +17,8 @@ export const CONFIG_DEFAULTS: ConfigSchema = {
   'auth.endpoint': site.authEndpoint,
   'cache.ttl': String(DEFAULT_CACHE_TTL_MS),
   'pricing.precision': 'full',
+  'model.endpoint': site.dashscopeEndpoint,
+  'model.api_key': '',
 };
 
 /**
@@ -62,6 +64,8 @@ const VALIDATORS: Record<ConfigKey, (value: string) => boolean> = {
   // Non-negative integer milliseconds. '0' disables the file cache.
   'cache.ttl': (v) => /^\d+$/.test(v),
   'pricing.precision': (v) => ['full', 'fixed'].includes(v),
+  'model.endpoint': (v) => v === site.dashscopeEndpointName || isValidUrl(v),
+  'model.api_key': (v) => v.trim().length > 0,
 };
 
 /**
@@ -84,6 +88,10 @@ export function validateConfigValue(key: ConfigKey, value: string): string | nul
         return `Invalid value for cache.ttl. Must be a non-negative integer (milliseconds); '0' disables the file cache`;
       case 'pricing.precision':
         return `Invalid value for pricing.precision. Allowed: full, fixed`;
+      case 'model.endpoint':
+        return `Invalid value for model.endpoint. Must be a valid URL or '${site.dashscopeEndpointName}'`;
+      case 'model.api_key':
+        return `Invalid value for model.api_key. Must be a non-empty string`;
       default:
         return `Invalid value for ${key}`;
     }

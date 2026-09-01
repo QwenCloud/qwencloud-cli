@@ -38,7 +38,7 @@ describe('CliError', () => {
       error: {
         code: 'AUTH_REQUIRED',
         message: 'Not authenticated',
-        exitCode: 2,
+        exit_code: 2,
       },
     });
   });
@@ -127,6 +127,45 @@ describe('handleError', () => {
     expect(thrown.exitCode).toBe(2);
   });
 
+  it('CliError with hint → text output appends the hint line', () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const err = new CliError({
+      code: 'InvalidParameter',
+      message: 'The parameter foo is not supported',
+      exitCode: EXIT_CODES.GENERAL_ERROR,
+      model: 'wan2.7-t2v',
+      hint: 'Check the supported fields with `qwencloud docs search`.',
+    });
+
+    catchHandledError(err, 'text');
+
+    expect(consoleErrorSpy).toHaveBeenNthCalledWith(1, 'Error: The parameter foo is not supported');
+    expect(consoleErrorSpy).toHaveBeenNthCalledWith(
+      2,
+      '  Check the supported fields with `qwencloud docs search`.',
+    );
+  });
+
+  it('CliError with model/hint → json output includes both under error', () => {
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+    const err = new CliError({
+      code: 'InvalidParameter',
+      message: 'bad field',
+      exitCode: EXIT_CODES.GENERAL_ERROR,
+      model: 'wan2.7-t2v',
+      hint: 'Rebuild --request.',
+    });
+
+    catchHandledError(err, 'json');
+
+    const payload = JSON.parse((stderrSpy.mock.calls[0] as unknown[])[0] as string);
+    expect(payload.error.model).toBe('wan2.7-t2v');
+    expect(payload.error.hint).toBe('Rebuild --request.');
+    expect(payload.error.code).toBe('InvalidParameter');
+  });
+
   it('handles CliError in json format', () => {
     const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
 
@@ -141,9 +180,13 @@ describe('handleError', () => {
     // JSON errors must go to stderr so Agent pipelines (`cmd | jq`) don't see
     // them mixed into the data stream.
     expect(stderrSpy).toHaveBeenCalledWith(
-      JSON.stringify({
-        error: { code: 'AUTH_REQUIRED', message: 'Not authenticated', exitCode: 2 },
-      }, null, 2) + '\n'
+      JSON.stringify(
+        {
+          error: { code: 'AUTH_REQUIRED', message: 'Not authenticated', exit_code: 2 },
+        },
+        null,
+        2,
+      ) + '\n',
     );
     expect(thrown.exitCode).toBe(2);
   });
@@ -182,9 +225,65 @@ describe('handleError', () => {
     const thrown = catchHandledError(err, 'json');
 
     expect(stderrSpy).toHaveBeenCalledWith(
-      JSON.stringify({
-        error: { code: 'UNKNOWN_ERROR', message: 'Something went wrong', exitCode: 1 },
-      }, null, 2) + '\n'
+      JSON.stringify(
+        {
+          error: { code: 'UNKNOWN_ERROR', message: 'Something went wrong', exit_code: 1 },
+        },
+        null,
+        2,
+      ) + '\n',
+    );
+    expect(thrown.exitCode).toBe(1);
+  });
+
+  it('classifies a filesystem EACCES error as IO_ERROR (json)', () => {
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const err = Object.assign(new Error("EACCES: permission denied, open '/x/y.mp3'"), {
+      code: 'EACCES',
+    });
+
+    const thrown = catchHandledError(err, 'json');
+
+    expect(stderrSpy).toHaveBeenCalledWith(
+      JSON.stringify(
+        {
+          error: {
+            code: 'IO_ERROR',
+            message: 'Permission denied writing the output file.',
+            exit_code: 1,
+          },
+        },
+        null,
+        2,
+      ) + '\n',
+    );
+    expect(thrown.exitCode).toBe(1);
+  });
+
+  it('classifies a filesystem ENOSPC error as IO_ERROR (text)', () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const err = Object.assign(new Error('ENOSPC: no space left on device, write'), {
+      code: 'ENOSPC',
+    });
+
+    const thrown = catchHandledError(err, 'table');
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      'Error: Cannot write the output file: no space left on device.',
+    );
+    expect(thrown.exitCode).toBe(1);
+  });
+
+  it('classifies a filesystem ENOENT error (missing parent dir) as IO_ERROR (text)', () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const err = Object.assign(new Error("ENOENT: no such file or directory, mkdir '/x/y'"), {
+      code: 'ENOENT',
+    });
+
+    const thrown = catchHandledError(err, 'table');
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      'Error: Cannot write the output file: a parent directory does not exist or is not writable.',
     );
     expect(thrown.exitCode).toBe(1);
   });
@@ -207,7 +306,7 @@ describe('handleError', () => {
     const thrown = catchHandledError(err, 'table');
 
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      'Error: Failed to connect\n  Caused by: Root cause'
+      'Error: Failed to connect\n  Caused by: Root cause',
     );
     expect(thrown.exitCode).toBe(1);
   });

@@ -98,14 +98,14 @@ describe('oneshot commands (integration)', () => {
   // ── Doctor ──────────────────────────────────────────────────────────────
 
   describe('doctor', () => {
-    it('--format json: structured diagnostics with exitCode 0', async () => {
+    it('--format json: structured diagnostics with exit_code 0', async () => {
       const { data, exitCode } = await runCommandJSON(['doctor', '--format', 'json']);
       const json = data as any;
 
       expect(exitCode).toBe(0);
       expect(json).toHaveProperty('checks');
       expect(json).toHaveProperty('summary');
-      expect(json).toHaveProperty('exitCode', 0);
+      expect(json).toHaveProperty('exit_code', 0);
 
       expect(Array.isArray(json.checks)).toBe(true);
       expect(json.checks.length).toBeGreaterThan(0);

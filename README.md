@@ -6,7 +6,7 @@
 
 > Official command-line tool for [QwenCloud](https://www.qwencloud.com/). Discover models, check usage, manage authentication, and diagnose local setup from a terminal or an AI agent runtime.
 
-![Version](https://img.shields.io/badge/version-1.3.0-blue)
+![Version](https://img.shields.io/badge/version-1.4.0-blue)
 ![Node](https://img.shields.io/badge/node-%3E%3D18-green)
 ![License](https://img.shields.io/badge/license-Apache--2.0-green)
 
@@ -21,6 +21,7 @@ QwenCloud is an AI-native cloud for models, tools, and apps. It provides hosted 
 ## Features
 
 - **Interactive and one-shot modes**: run `qwencloud` with no arguments for a REPL, or pass a command for scripts, CI, and agent tools.
+- **Model invocation command family**: call chat, image, video, and speech models directly via `chat`, `image`, `video`, `audio`, and `task`, with streaming output, file downloads, and async task polling.
 - **Agent-ready contract**: commands support `--format json`, standardized exit codes, parseable JSON errors, and `--quiet` for exit-code-only checks.
 - **Model and usage workflows**: browse models, inspect model metadata, search by keyword, and review Free Tier, Coding Plan, and PAYG usage.
 - **Native credential storage**: credentials are stored in the OS keychain when available, with an encrypted file fallback. No `keytar` or native Node binding is required.
@@ -132,6 +133,7 @@ Run diagnostics to verify authentication, network access, configuration, and she
 
 | Area | Commands | Common flags |
 |---|---|---|
+| Model invocation | `chat create`, `image generate`, `video generate`, `audio transcribe`, `audio speech`, `task get` | `--model`, `--stream`, `--size`, `--image`, `--voice`, `--out`, `--no-wait`, `--timeout`, `--request`, `--api-key`, `--format` |
 | Auth | `auth login`, `auth logout`, `auth status` | `--init-only`, `--complete`, `--timeout`, `--format` |
 | Models | `models list`, `models info`, `models search` | `--input`, `--output`, `--all`, `--verbose`, `--page`, `--per-page`, `--format` |
 | Usage | `usage summary`, `usage breakdown`, `usage free-tier`, `usage payg`, `usage logs` | `--period`, `--from`, `--to`, `--days`, `--model`, `--granularity`, `--format` |

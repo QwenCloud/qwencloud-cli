@@ -1,6 +1,11 @@
 import { Command } from 'commander';
 import { VERSION } from './index.js';
 import { registerModelsCommands as registerModelsCommandsImpl } from './commands/models/index.js';
+import { registerChatCommands } from './commands/chat/index.js';
+import { registerImageCommands } from './commands/image/index.js';
+import { registerVideoCommands } from './commands/video/index.js';
+import { registerAudioCommands } from './commands/audio/index.js';
+import { registerTaskCommands } from './commands/task/index.js';
 import { registerConfigCommands } from './commands/config/index.js';
 import { registerDoctorCommand } from './commands/doctor.js';
 import { registerCompletionCommand } from './commands/completion.js';
@@ -80,7 +85,12 @@ function setTopLevelHelpMetadata(
 }
 
 function applyTopLevelHelpMetadata(program: Command): void {
+  setTopLevelHelpMetadata(program, 'chat', 'Core', 90);
+  setTopLevelHelpMetadata(program, 'image', 'Core', 95);
+  setTopLevelHelpMetadata(program, 'video', 'Core', 96);
+  setTopLevelHelpMetadata(program, 'audio', 'Core', 97);
   setTopLevelHelpMetadata(program, 'models', 'Core', 100);
+  setTopLevelHelpMetadata(program, 'task', 'Core', 110);
   setTopLevelHelpMetadata(program, 'docs', 'Core', 120);
 
   setTopLevelHelpMetadata(program, 'auth', 'Account & access', 200);
@@ -168,6 +178,11 @@ export function createProgram(): Command {
   // Register all command groups
   registerAuthCommands(program, getClient);
   registerModelsCommands(program, getClient);
+  registerChatCommands(program);
+  registerImageCommands(program);
+  registerVideoCommands(program);
+  registerAudioCommands(program);
+  registerTaskCommands(program);
   registerUsageCommands(program, getClient);
   registerConfigCommands(program);
   registerDoctorCommand(program, getClient);

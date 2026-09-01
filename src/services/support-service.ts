@@ -123,7 +123,7 @@ export class SupportService {
 
     const list = Array.isArray(raw?.Data?.DataInfo) ? raw.Data.DataInfo : [];
     const total = typeof raw?.Data?.Total === 'number' ? raw.Data.Total : list.length;
-    const tickets = list.map(item => ({
+    const tickets = list.map((item) => ({
       id: item.vid ?? '',
       title: item.title ?? '',
       status: item.statTicketBiz ?? '',
