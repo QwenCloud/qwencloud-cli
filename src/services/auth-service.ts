@@ -88,14 +88,14 @@ export class AuthService {
     return this.authClient.pollDeviceFlow(token, intervalSec);
   }
 
-  /** @deprecated Use `loginInit`. Retained for backwards compatibility. */
+  /** @deprecated Use `loginInit`. */
   async deviceFlowInit(): Promise<DeviceFlowInitResponse> {
     const result = await this.authClient.authorizeDeviceFlow();
     this.pkceVerifier = null;
     return result;
   }
 
-  /** @deprecated Use `loginPoll`. Retained for backwards compatibility. */
+  /** @deprecated Use `loginPoll`. */
   async deviceFlowPoll(token: string, intervalSec = 5): Promise<DeviceFlowPollResponse> {
     return this.loginPoll(token, intervalSec);
   }

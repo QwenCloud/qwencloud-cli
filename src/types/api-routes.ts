@@ -18,7 +18,6 @@ export const API_ACTION_DESCRIBE_FQ = 'DescribeFqInstance';
 export const API_ACTION_DESCRIBE_FR = 'DescribeFrInstances';
 export const API_ACTION_GATEWAY = 'IntlBroadScopeAspnGateway';
 export const API_ACTION_CONSUME_SUMMARY = 'MaasListConsumeSummary';
-export const API_ACTION_QUERY_ACCOUNT_INFO_OVERVIEW = 'QueryAccountInfoOverview';
 export const API_ACTION_SEARCH_ALL = 'SearchAll';
 
 // Products with optional authentication (public search API, etc.)

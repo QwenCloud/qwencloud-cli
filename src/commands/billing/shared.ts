@@ -1,7 +1,4 @@
-import type {
-  BreakdownGroupBy,
-  ChargeType,
-} from '../../types/billing-extra.js';
+import type { BreakdownGroupBy, ChargeType } from '../../types/billing-extra.js';
 import { CliError } from '../../utils/errors.js';
 import { EXIT_CODES } from '../../utils/exit-codes.js';
 
@@ -58,23 +55,6 @@ export function defaultMonthRange(): { from: string; to: string } {
   return { from: `${yyyy}-${mm}-01`, to: formatYMD(now) };
 }
 
-export function defaultLast7Days(): { from: string; to: string } {
-  const now = new Date();
-  const to = formatYMD(now);
-  const past = new Date(now);
-  past.setDate(past.getDate() - 6);
-  return { from: formatYMD(past), to };
-}
-
-export function defaultLast12Months(): { from: string; to: string } {
-  const now = new Date();
-  const to = formatYMD(now);
-  const past = new Date(now);
-  past.setMonth(past.getMonth() - 11);
-  past.setDate(1);
-  return { from: formatYMD(past), to };
-}
-
 export function defaultCurrentMonthCycle(): { from: string; to: string } {
   const now = new Date();
   const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -85,13 +65,6 @@ export function clampTop(raw: unknown, fallback = 10): number {
   const n = typeof raw === 'number' ? raw : Number(raw);
   if (!Number.isFinite(n) || n <= 0) return fallback;
   return Math.min(100, Math.trunc(n));
-}
-
-export function asStringArray(raw: unknown): string[] {
-  if (!raw) return [];
-  if (Array.isArray(raw)) return raw.map(String).filter((s) => s.length > 0);
-  if (typeof raw === 'string' && raw.length > 0) return [raw];
-  return [];
 }
 
 function formatYMD(d: Date): string {

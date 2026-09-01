@@ -265,7 +265,7 @@ export function registerDoctorCommand(program: Command, getClient: ClientFactory
             return item;
           }),
           summary,
-          exitCode,
+          exit_code: exitCode,
         });
 
         resetGlobalCache();

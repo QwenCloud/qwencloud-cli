@@ -69,7 +69,7 @@ describe('doctor command', () => {
     // doctor calls process.exit(0) → harness catches and records exit code
     const payload = JSON.parse(r.stdout);
     expect(payload.summary.fail).toBe(0);
-    expect(payload.exitCode).toBe(0);
+    expect(payload.exit_code).toBe(0);
     expect(payload.checks.find((c: any) => c.name === 'auth').status).toBe('pass');
     expect(payload.checks.find((c: any) => c.name === 'token').status).toBe('pass');
   });
@@ -86,7 +86,7 @@ describe('doctor command', () => {
     );
 
     const payload = JSON.parse(r.stdout);
-    expect(payload.exitCode).toBe(2);
+    expect(payload.exit_code).toBe(2);
     expect(payload.summary.fail).toBeGreaterThanOrEqual(1);
     const authCheck = payload.checks.find((c: any) => c.name === 'auth');
     expect(authCheck.status).toBe('fail');
@@ -111,7 +111,7 @@ describe('doctor command', () => {
     );
 
     const payload = JSON.parse(r.stdout);
-    expect(payload.exitCode).toBe(2);
+    expect(payload.exit_code).toBe(2);
     const tokenCheck = payload.checks.find((c: any) => c.name === 'token');
     expect(tokenCheck.status).toBe('fail');
     expect(tokenCheck.detail).toMatch(/expired/i);
@@ -166,7 +166,7 @@ describe('doctor command', () => {
     );
 
     const payload = JSON.parse(r.stdout);
-    expect(payload.exitCode).toBe(3);
+    expect(payload.exit_code).toBe(3);
     const netCheck = payload.checks.find((c: any) => c.name === 'network');
     expect(netCheck.status).toBe('fail');
   });
@@ -193,7 +193,7 @@ describe('doctor command', () => {
     );
 
     const payload = JSON.parse(r.stdout);
-    expect(payload.exitCode).toBe(0);
+    expect(payload.exit_code).toBe(0);
     const netCheck = payload.checks.find((c: any) => c.name === 'network');
     expect(netCheck.status).toBe('warn');
     expect(netCheck.detail).toMatch(/latency/i);

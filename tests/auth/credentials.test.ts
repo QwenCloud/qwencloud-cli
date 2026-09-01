@@ -9,7 +9,7 @@ function makeCredentials(expiresAt: Date): Credentials {
   return {
     access_token: 'test-token',
     expires_at: expiresAt.toISOString(),
-    user: { email: 'test@example.com', aliyunId: 'test-user' },
+    user: { email: 'test@test.qwencloud.com', aliyunId: 'test-user' },
   };
 }
 
@@ -172,7 +172,7 @@ describe('auth error factories (used by ensureAuthenticated)', () => {
       error: {
         code: 'AUTH_REQUIRED',
         message: expect.stringContaining('Not authenticated'),
-        exitCode: 2,
+        exit_code: 2,
       },
     });
   });
@@ -185,7 +185,7 @@ describe('auth error factories (used by ensureAuthenticated)', () => {
       error: {
         code: 'TOKEN_EXPIRED',
         message: expect.stringContaining('Token expired'),
-        exitCode: 2,
+        exit_code: 2,
       },
     });
   });

@@ -27,7 +27,10 @@ export function registerSupportCreateCommand(parent: Command, getClient: ClientF
     .description('Create a new support ticket')
     .option('--list-categories', 'List all available categories and exit')
     .option('--category-id <id>', 'Category ID for non-interactive ticket creation')
-    .option('--description <text>', 'Issue description for non-interactive ticket creation (max 2000 chars)')
+    .option(
+      '--description <text>',
+      'Issue description for non-interactive ticket creation (max 2000 chars)',
+    )
     .option('--format <format>', 'Output format: table, json, text (default: auto)')
     .addHelpText(
       'after',
@@ -79,14 +82,10 @@ export function supportCreateAction(cmd: Command, getClient: ClientFactory) {
       // Validate non-interactive partial args
       if (!isListMode && !isNonInteractive) {
         if (categoryId && !descriptionFlag) {
-          throw invalidArgError(
-            '--description is required when --category-id is provided.',
-          );
+          throw invalidArgError('--description is required when --category-id is provided.');
         }
         if (!categoryId && descriptionFlag) {
-          throw invalidArgError(
-            '--category-id is required when --description is provided.',
-          );
+          throw invalidArgError('--category-id is required when --description is provided.');
         }
       }
 
@@ -328,7 +327,10 @@ const CATEGORY_COLUMNS: Column[] = [
   { key: 'category', header: 'Category' },
 ];
 
-async function outputCategoryTree(tree: CategoryNode[], format: 'json' | 'table' | 'text'): Promise<void> {
+async function outputCategoryTree(
+  tree: CategoryNode[],
+  format: 'json' | 'table' | 'text',
+): Promise<void> {
   const rows: { id: string; category: string }[] = [];
   flattenCategoryTree(tree, '', rows);
 
@@ -343,7 +345,9 @@ async function outputCategoryTree(tree: CategoryNode[], format: 'json' | 'table'
   }
 
   if (format === 'table') {
-    await renderWithInk(React.createElement(Table, { columns: CATEGORY_COLUMNS, data: rows, paddingLeft: 0 }));
+    await renderWithInk(
+      React.createElement(Table, { columns: CATEGORY_COLUMNS, data: rows, paddingLeft: 0 }),
+    );
     return;
   }
 

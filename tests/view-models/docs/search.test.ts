@@ -280,14 +280,14 @@ describe('buildDocContentViewModel', () => {
     const result: DocContentResult = {
       url: 'https://mock-docs.test.qwencloud.com/guide',
       resolvedMarkdownUrl: 'https://mock-docs.test.qwencloud.com/guide.md',
-      content: 'See [the docs](https://example.org) for details.',
+      content: 'See [the docs](https://mock-link.test.qwencloud.com) for details.',
       error: null,
       anchor: null,
     };
     const vm = buildDocContentViewModel(result);
     expect(vm.renderedLines).not.toBeNull();
     expect(vm.renderedLines![0]).toContain('the docs');
-    expect(vm.renderedLines![0]).not.toContain('https://example.org');
+    expect(vm.renderedLines![0]).not.toContain('https://mock-link.test.qwencloud.com');
   });
 });
 

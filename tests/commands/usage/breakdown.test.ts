@@ -77,7 +77,7 @@ describe('usage breakdown command (one-shot)', () => {
       const payload = JSON.parse(r.stderr);
       expect(payload.error.code).toBe('MODEL_NOT_FOUND');
       expect(payload.error.message).toContain("Did you mean 'qwen3-max'");
-      expect(payload.error.exitCode).toBe(1);
+      expect(payload.error.exit_code).toBe(1);
     });
 
     it('valid model → breakdown payload on stdout, exit 0', async () => {

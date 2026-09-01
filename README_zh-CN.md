@@ -6,7 +6,7 @@
 
 > [QwenCloud](https://www.qwencloud.com/) 官方命令行工具。用于在终端或 AI Agent 运行环境中发现模型、查询用量、管理认证并诊断本地配置。
 
-![Version](https://img.shields.io/badge/version-1.3.0-blue)
+![Version](https://img.shields.io/badge/version-1.4.0-blue)
 ![Node](https://img.shields.io/badge/node-%3E%3D18-green)
 ![License](https://img.shields.io/badge/license-Apache--2.0-green)
 
@@ -21,6 +21,7 @@ QwenCloud 是面向模型、工具和应用的 AI-native cloud，提供文本、
 ## 功能
 
 - **交互式与一次性模式**：不带参数运行 `qwencloud` 进入 REPL；传入命令则执行一次性操作，适用于脚本、CI 和 Agent 工具。
+- **模型调用命令族**：通过 `chat`、`image`、`video`、`audio` 与 `task` 直接调用对话、图像、视频与语音模型，支持流式输出、文件落盘和异步任务查询。
 - **Agent 友好契约**：命令支持 `--format json`、标准化退出码、可解析的 JSON 错误，以及 `--quiet` 仅返回退出码。
 - **模型与用量工作流**：浏览模型、查看模型元数据、按关键词搜索，并查阅 Free Tier、Coding Plan 和 PAYG 用量。
 - **原生凭证存储**：凭证优先存储于操作系统密钥链，不可用时回退到加密文件。无需 `keytar` 或原生 Node 绑定。
@@ -131,6 +132,7 @@ qwencloud auth login --complete --format json
 
 | 领域 | 命令 | 常用标志 |
 |---|---|---|
+| 模型调用 | `chat create`, `image generate`, `video generate`, `audio transcribe`, `audio speech`, `task get` | `--model`, `--stream`, `--size`, `--image`, `--voice`, `--out`, `--no-wait`, `--timeout`, `--request`, `--api-key`, `--format` |
 | 认证 | `auth login`, `auth logout`, `auth status` | `--init-only`, `--complete`, `--timeout`, `--format` |
 | 模型 | `models list`, `models info`, `models search` | `--input`, `--output`, `--all`, `--verbose`, `--page`, `--per-page`, `--format` |
 | 用量 | `usage summary`, `usage breakdown`, `usage free-tier`, `usage payg`, `usage logs` | `--period`, `--from`, `--to`, `--days`, `--model`, `--granularity`, `--format` |

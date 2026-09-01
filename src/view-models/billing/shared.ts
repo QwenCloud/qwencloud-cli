@@ -42,13 +42,6 @@ export function formatMoney(amount: string | null | undefined, ctx: ViewContext)
   return sym.length > 0 ? `${sym}${formatted}` : `${formatted} ${ctx.currency}`;
 }
 
-/** Format an integer count. */
-export function formatCount(value: number | null | undefined): string {
-  if (value == null) return NA;
-  if (!Number.isFinite(value)) return NA;
-  return value.toLocaleString('en-US');
-}
-
 export function defaultViewContext(): ViewContext {
   return {
     currency: CURRENCY_CODE,

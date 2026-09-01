@@ -513,14 +513,14 @@ describe('AuthClient.checkVersion', () => {
       'data/v2/api.json': () => ({
         code: '200',
         data: {
-          latest_version: '1.2.0',
+          latest_version: '1.4.0',
           download_url: 'https://mock-api.test.qwencloud.com/download',
         },
       }),
     });
     const { createAuthClient } = await import('../../src/api/auth-client.js');
     const result = await createAuthClient().checkVersion();
-    expect(result.latest_version).toBe('1.2.0');
+    expect(result.latest_version).toBe('1.4.0');
   });
 
   it('does not require authentication (uses authOptional)', async () => {
@@ -530,13 +530,13 @@ describe('AuthClient.checkVersion', () => {
     activeMock = mockFetch({
       'data/v2/api.json': () => ({
         code: '200',
-        data: { latest_version: '1.2.0' },
+        data: { latest_version: '1.4.0' },
       }),
     });
     const { createAuthClient } = await import('../../src/api/auth-client.js');
     // Should not throw even without credentials
     const result = await createAuthClient().checkVersion();
-    expect(result.latest_version).toBe('1.2.0');
+    expect(result.latest_version).toBe('1.4.0');
   });
 
   it('gracefully handles server error without crashing', async () => {

@@ -43,21 +43,3 @@ export function unixMsToLocalIso(ms: number): string {
   const om = pad(Math.abs(offsetMin) % 60);
   return `${yyyy}-${MM}-${dd}T${hh}:${mm}:${ss}${sign}${oh}:${om}`;
 }
-
-/**
- * Format an ISO8601 timestamp as a local-timezone wall-clock string
- * ("YYYY-MM-DD HH:mm:ss"). Returns an em-dash placeholder for empty or
- * unparseable inputs.
- */
-export function formatLocalTime(iso: string): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  const y = d.getFullYear();
-  const mo = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  const h = String(d.getHours()).padStart(2, '0');
-  const mi = String(d.getMinutes()).padStart(2, '0');
-  const s = String(d.getSeconds()).padStart(2, '0');
-  return `${y}-${mo}-${dd} ${h}:${mi}:${s}`;
-}

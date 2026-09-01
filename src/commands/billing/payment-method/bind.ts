@@ -14,8 +14,11 @@ export function registerBillingPaymentMethodBindCommand(
     .command('bind')
     .description('Open browser to manage or bind a payment method')
     .addOption(
-      new Option('--format <fmt>', 'Output format: table, json, text')
-        .choices(['table', 'json', 'text']),
+      new Option('--format <fmt>', 'Output format: table, json, text').choices([
+        'table',
+        'json',
+        'text',
+      ]),
     );
 
   bind.action(billingPaymentMethodBindAction(bind, _getClient));
@@ -69,7 +72,6 @@ export function billingPaymentMethodBindAction(cmd: Command, _getClient: ClientF
       console.log('  Please copy the link below and open it in your browser:');
       console.log(`  ${oscUrl}`);
     }
-
   };
 }
 

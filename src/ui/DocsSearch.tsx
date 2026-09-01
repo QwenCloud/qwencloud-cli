@@ -1,7 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import { Section } from './Section.js';
-import { renderWithInk } from './render.js';
 import { colors } from './theme.js';
 import type { DocsSearchViewModel, DocsSearchItemViewModel } from '../view-models/docs/index.js';
 
@@ -103,8 +102,4 @@ export function DocsSearchInk({ vm }: DocsSearchInkProps) {
       ))}
     </Section>
   );
-}
-
-export async function renderDocsSearchInk(vm: DocsSearchViewModel): Promise<void> {
-  await renderWithInk(<DocsSearchInk vm={vm} />);
 }

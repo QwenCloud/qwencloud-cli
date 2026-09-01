@@ -3,7 +3,6 @@
  * Used for --format text (LLM-friendly output).
  */
 
-// Re-export from format.ts for backwards compatibility
 export { formatTextTable } from './format.js';
 
 /**

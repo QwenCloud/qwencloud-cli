@@ -71,12 +71,18 @@ _qwencloud() {
     --input|--output) compadd text image audio video; return ;;
     --charge-type) compadd all postpaid prepaid; return ;;
     --group-by)    compadd model api-key; return ;;
+    --response-format) compadd url b64; return ;;
   esac
 
   # ── Top-level dispatch ────────────────────────────────────────────────────
   local -a top_commands
   top_commands=(
     'auth:Manage authentication'
+    'chat:Chat completions with Qwen models'
+    'image:Image generation and editing'
+    'video:Video generation and editing'
+    'audio:Audio synthesis and transcription'
+    'task:Query asynchronous tasks'
     'billing:Inspect billing limits, breakdown, and summaries'
     'completion:Install shell tab completion'
     'config:Manage CLI configuration'
@@ -119,6 +125,138 @@ _qwencloud() {
             ;;
           logout|status)
             _arguments \\
+              '--format[Output format]:format:(table json text)' \\
+              '(-h --help)'{-h,--help}'[Show help]'
+            ;;
+        esac
+      fi
+      ;;
+
+    chat)
+      if (( CURRENT == 3 )); then
+        local -a subs
+        subs=('create:Create a chat completion')
+        _describe -t commands 'chat subcommand' subs
+      else
+        case "\${words[3]}" in
+          create)
+            _arguments \\
+              '1:prompt:()' \\
+              '--model[Model to use]:id:()' \\
+              '--temperature[Sampling temperature]:n:()' \\
+              '--max-tokens[Output token budget]:n:()' \\
+              '--stream[Stream the response as NDJSON]' \\
+              '--thinking[Reveal the model reasoning]' \\
+              '--no-thinking[Hide the model reasoning]' \\
+              '--image[Attach one image]:path:_files' \\
+              '--video[Attach one video]:path:_files' \\
+              '--request[Native request body passthrough]:json:()' \\
+              '--api-key[API key for this invocation]:key:()' \\
+              '--format[Output format]:format:(table json text)' \\
+              '(-h --help)'{-h,--help}'[Show help]'
+            ;;
+        esac
+      fi
+      ;;
+
+    image)
+      if (( CURRENT == 3 )); then
+        local -a subs
+        subs=('generate:Generate or edit an image')
+        _describe -t commands 'image subcommand' subs
+      else
+        case "\${words[3]}" in
+          generate)
+            _arguments \\
+              '1:prompt:()' \\
+              '--model[Model to use]:id:()' \\
+              '--size[Output image size, e.g. 1024*1024]:size:()' \\
+              '--n[Number of images]:count:()' \\
+              '--image[Source image to edit]:path:_files' \\
+              '--out[Output file or directory]:path:_files' \\
+              '--response-format[Response format]:fmt:(url b64)' \\
+              '--request[Native request body passthrough]:json:()' \\
+              '--no-wait[Return the task id immediately]' \\
+              '--timeout[Max seconds to wait]:seconds:()' \\
+              '--api-key[API key for this invocation]:key:()' \\
+              '--format[Output format]:format:(table json text)' \\
+              '(-h --help)'{-h,--help}'[Show help]'
+            ;;
+        esac
+      fi
+      ;;
+
+    video)
+      if (( CURRENT == 3 )); then
+        local -a subs
+        subs=('generate:Generate a video')
+        _describe -t commands 'video subcommand' subs
+      else
+        case "\${words[3]}" in
+          generate)
+            _arguments \\
+              '1:prompt:()' \\
+              '--model[Model to use]:id:()' \\
+              '--image[First-frame image (I2V)]:path:_files' \\
+              '--wait[Wait for the task to complete]' \\
+              '--no-wait[Return the task id immediately]' \\
+              '--timeout[Max seconds to wait]:seconds:()' \\
+              '--out[Output file or directory]:path:_files' \\
+              '--request[Native request body passthrough]:json:()' \\
+              '--api-key[API key for this invocation]:key:()' \\
+              '--format[Output format]:format:(table json text)' \\
+              '(-h --help)'{-h,--help}'[Show help]'
+            ;;
+        esac
+      fi
+      ;;
+
+    audio)
+      if (( CURRENT == 3 )); then
+        local -a subs
+        subs=('speech:Synthesize speech from text' 'transcribe:Transcribe audio to text')
+        _describe -t commands 'audio subcommand' subs
+      else
+        case "\${words[3]}" in
+          speech)
+            _arguments \\
+              '1:text:()' \\
+              '--model[Model to use]:id:()' \\
+              '--voice[Voice id or name]:voice:()' \\
+              '--out[Output file or directory]:path:_files' \\
+              '--request[Native request body passthrough]:json:()' \\
+              '--api-key[API key for this invocation]:key:()' \\
+              '--format[Output format]:format:(table json text)' \\
+              '(-h --help)'{-h,--help}'[Show help]'
+            ;;
+          transcribe)
+            _arguments \\
+              '1:file-or-url:_files' \\
+              '--model[Model to use]:id:()' \\
+              '--language[Language hint]:lang:(en zh)' \\
+              '--wait[Wait for the task to complete]' \\
+              '--no-wait[Return the task id immediately]' \\
+              '--timeout[Max seconds to wait]:seconds:()' \\
+              '--request[Native request body passthrough]:json:()' \\
+              '--api-key[API key for this invocation]:key:()' \\
+              '--format[Output format]:format:(table json text)' \\
+              '(-h --help)'{-h,--help}'[Show help]'
+            ;;
+        esac
+      fi
+      ;;
+
+    task)
+      if (( CURRENT == 3 )); then
+        local -a subs
+        subs=('get:Query an asynchronous task')
+        _describe -t commands 'task subcommand' subs
+      else
+        case "\${words[3]}" in
+          get)
+            _arguments \\
+              '1:task-id:()' \\
+              '--api-key[API key for this invocation]:key:()' \\
               '--format[Output format]:format:(table json text)' \\
               '(-h --help)'{-h,--help}'[Show help]'
             ;;
@@ -439,6 +577,10 @@ function generateBashCompletion(): string {
       COMPREPLY=( $(compgen -W "all postpaid prepaid" -- "$cur") ); return 0 ;;
     --group-by)
       COMPREPLY=( $(compgen -W "model api-key" -- "$cur") ); return 0 ;;
+    --response-format)
+      COMPREPLY=( $(compgen -W "url b64" -- "$cur") ); return 0 ;;
+    --language)
+      COMPREPLY=( $(compgen -W "en zh" -- "$cur") ); return 0 ;;
   esac
 
   # ── Subcommand option completions ─────────────────────────────────────────
@@ -449,6 +591,27 @@ function generateBashCompletion(): string {
           limit)     COMPREPLY=( $(compgen -W "--format -h --help" -- "$cur") ); return 0 ;;
           breakdown) COMPREPLY=( $(compgen -W "--group-by --granularity --from --to --period --charge-type --top --format -h --help" -- "$cur") ); return 0 ;;
           summary)   COMPREPLY=( $(compgen -W "--from --to --charge-type --format -h --help" -- "$cur") ); return 0 ;;
+        esac ;;
+      chat)
+        case "$sub" in
+          create) COMPREPLY=( $(compgen -W "--model --temperature --max-tokens --stream --thinking --no-thinking --image --video --request --api-key --format -h --help" -- "$cur") ); return 0 ;;
+        esac ;;
+      image)
+        case "$sub" in
+          generate) COMPREPLY=( $(compgen -W "--model --size --n --image --out --response-format --request --no-wait --timeout --api-key --format -h --help" -- "$cur") ); return 0 ;;
+        esac ;;
+      video)
+        case "$sub" in
+          generate) COMPREPLY=( $(compgen -W "--model --image --wait --no-wait --timeout --out --request --api-key --format -h --help" -- "$cur") ); return 0 ;;
+        esac ;;
+      audio)
+        case "$sub" in
+          speech)     COMPREPLY=( $(compgen -W "--model --voice --out --request --api-key --format -h --help" -- "$cur") ); return 0 ;;
+          transcribe) COMPREPLY=( $(compgen -W "--model --language --wait --no-wait --timeout --request --api-key --format -h --help" -- "$cur") ); return 0 ;;
+        esac ;;
+      task)
+        case "$sub" in
+          get) COMPREPLY=( $(compgen -W "--api-key --format -h --help" -- "$cur") ); return 0 ;;
         esac ;;
       docs)
         case "$sub" in
@@ -517,6 +680,11 @@ function generateBashCompletion(): string {
   if [ "$COMP_CWORD" -eq 2 ]; then
     case "$cmd" in
       auth)         COMPREPLY=( $(compgen -W "login logout status" -- "$cur") ); return 0 ;;
+      chat)         COMPREPLY=( $(compgen -W "create" -- "$cur") ); return 0 ;;
+      image)        COMPREPLY=( $(compgen -W "generate" -- "$cur") ); return 0 ;;
+      video)        COMPREPLY=( $(compgen -W "generate" -- "$cur") ); return 0 ;;
+      audio)        COMPREPLY=( $(compgen -W "speech transcribe" -- "$cur") ); return 0 ;;
+      task)         COMPREPLY=( $(compgen -W "get" -- "$cur") ); return 0 ;;
       billing)      COMPREPLY=( $(compgen -W "limit breakdown summary" -- "$cur") ); return 0 ;;
       completion)   COMPREPLY=( $(compgen -W "install generate" -- "$cur") ); return 0 ;;
       config)       COMPREPLY=( $(compgen -W "list get set unset" -- "$cur") ); return 0 ;;
@@ -531,7 +699,7 @@ function generateBashCompletion(): string {
 
   # ── Top-level command completions ─────────────────────────────────────────
   if [ "$COMP_CWORD" -eq 1 ]; then
-    COMPREPLY=( $(compgen -W "auth billing completion config docs doctor models subscription support usage version workspace update -h --help" -- "$cur") )
+    COMPREPLY=( $(compgen -W "auth chat image video audio task billing completion config docs doctor models subscription support usage version workspace update -h --help" -- "$cur") )
   fi
 }
 
@@ -540,6 +708,29 @@ complete -F _qwencloud qwencloud
 }
 
 function generateFishCompletion(): string {
+  // Single source of truth for the top-level command list so the "not seen"
+  // guard and the offered completions can never drift apart.
+  const topCommands = [
+    'auth',
+    'chat',
+    'image',
+    'video',
+    'audio',
+    'task',
+    'billing',
+    'completion',
+    'config',
+    'docs',
+    'doctor',
+    'models',
+    'subscription',
+    'support',
+    'usage',
+    'version',
+    'workspace',
+    'update',
+  ];
+  const topGuard = `not __fish_seen_subcommand_from ${topCommands.join(' ')}`;
   return `# QwenCloud CLI completions for fish
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -554,20 +745,93 @@ function __qwencloud_seen_sub
 end
 
 # ── Top-level commands ────────────────────────────────────────────────────────
-complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription support usage version workspace update' -f
-complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription support usage version workspace update' -a auth         -d 'Manage authentication'
-complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription support usage version workspace update' -a billing      -d 'Inspect billing limits, breakdown, and summaries'
-complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription support usage version workspace update' -a completion   -d 'Install shell tab completion'
-complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription support usage version workspace update' -a config       -d 'Manage CLI configuration'
-complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription support usage version workspace update' -a docs         -d 'Search documentation'
-complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription support usage version workspace update' -a doctor       -d 'Run diagnostics'
-complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription support usage version workspace update' -a models       -d 'Browse and search models'
-complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription support usage version workspace update' -a subscription -d 'Manage subscriptions'
-complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription support usage version workspace update' -a support      -d 'Manage support tickets'
-complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription support usage version workspace update' -a usage        -d 'View usage and billing'
-complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription support usage version workspace update' -a version      -d 'Show CLI version'
-complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription support usage version workspace update' -a workspace    -d 'Manage workspaces'
-complete -c qwencloud -n 'not __fish_seen_subcommand_from auth billing completion config docs doctor models subscription support usage version workspace update' -a update       -d 'Update CLI'
+complete -c qwencloud -n '${topGuard}' -f
+complete -c qwencloud -n '${topGuard}' -a auth         -d 'Manage authentication'
+complete -c qwencloud -n '${topGuard}' -a chat         -d 'Chat completions with Qwen models'
+complete -c qwencloud -n '${topGuard}' -a image        -d 'Image generation and editing'
+complete -c qwencloud -n '${topGuard}' -a video        -d 'Video generation and editing'
+complete -c qwencloud -n '${topGuard}' -a audio        -d 'Audio synthesis and transcription'
+complete -c qwencloud -n '${topGuard}' -a task         -d 'Query asynchronous tasks'
+complete -c qwencloud -n '${topGuard}' -a billing      -d 'Inspect billing limits, breakdown, and summaries'
+complete -c qwencloud -n '${topGuard}' -a completion   -d 'Install shell tab completion'
+complete -c qwencloud -n '${topGuard}' -a config       -d 'Manage CLI configuration'
+complete -c qwencloud -n '${topGuard}' -a docs         -d 'Search documentation'
+complete -c qwencloud -n '${topGuard}' -a doctor       -d 'Run diagnostics'
+complete -c qwencloud -n '${topGuard}' -a models       -d 'Browse and search models'
+complete -c qwencloud -n '${topGuard}' -a subscription -d 'Manage subscriptions'
+complete -c qwencloud -n '${topGuard}' -a support      -d 'Manage support tickets'
+complete -c qwencloud -n '${topGuard}' -a usage        -d 'View usage and billing'
+complete -c qwencloud -n '${topGuard}' -a version      -d 'Show CLI version'
+complete -c qwencloud -n '${topGuard}' -a workspace    -d 'Manage workspaces'
+complete -c qwencloud -n '${topGuard}' -a update       -d 'Update CLI'
+
+# ── chat subcommands ──────────────────────────────────────────────────────────
+complete -c qwencloud -n '__fish_seen_subcommand_from chat; and not __fish_seen_subcommand_from create' -f
+complete -c qwencloud -n '__fish_seen_subcommand_from chat; and not __fish_seen_subcommand_from create' -a create -d 'Create a chat completion'
+complete -c qwencloud -n '__fish_seen_subcommand_from chat; and __fish_seen_subcommand_from create' -l model       -d 'Model to use'
+complete -c qwencloud -n '__fish_seen_subcommand_from chat; and __fish_seen_subcommand_from create' -l temperature -d 'Sampling temperature'
+complete -c qwencloud -n '__fish_seen_subcommand_from chat; and __fish_seen_subcommand_from create' -l max-tokens  -d 'Output token budget'
+complete -c qwencloud -n '__fish_seen_subcommand_from chat; and __fish_seen_subcommand_from create' -l stream      -d 'Stream the response as NDJSON'
+complete -c qwencloud -n '__fish_seen_subcommand_from chat; and __fish_seen_subcommand_from create' -l thinking    -d 'Reveal the model reasoning'
+complete -c qwencloud -n '__fish_seen_subcommand_from chat; and __fish_seen_subcommand_from create' -l no-thinking -d 'Hide the model reasoning'
+complete -c qwencloud -n '__fish_seen_subcommand_from chat; and __fish_seen_subcommand_from create' -l image       -d 'Attach one image' -r
+complete -c qwencloud -n '__fish_seen_subcommand_from chat; and __fish_seen_subcommand_from create' -l video       -d 'Attach one video' -r
+complete -c qwencloud -n '__fish_seen_subcommand_from chat; and __fish_seen_subcommand_from create' -l request     -d 'Native request body passthrough'
+complete -c qwencloud -n '__fish_seen_subcommand_from chat; and __fish_seen_subcommand_from create' -l api-key     -d 'API key for this invocation'
+complete -c qwencloud -n '__fish_seen_subcommand_from chat; and __fish_seen_subcommand_from create' -l format      -d 'Output format' -a 'table json text'
+
+# ── image subcommands ─────────────────────────────────────────────────────────
+complete -c qwencloud -n '__fish_seen_subcommand_from image; and not __fish_seen_subcommand_from generate' -f
+complete -c qwencloud -n '__fish_seen_subcommand_from image; and not __fish_seen_subcommand_from generate' -a generate -d 'Generate or edit an image'
+complete -c qwencloud -n '__fish_seen_subcommand_from image; and __fish_seen_subcommand_from generate' -l model           -d 'Model to use'
+complete -c qwencloud -n '__fish_seen_subcommand_from image; and __fish_seen_subcommand_from generate' -l size            -d 'Output image size, e.g. 1024*1024'
+complete -c qwencloud -n '__fish_seen_subcommand_from image; and __fish_seen_subcommand_from generate' -l n               -d 'Number of images'
+complete -c qwencloud -n '__fish_seen_subcommand_from image; and __fish_seen_subcommand_from generate' -l image           -d 'Source image to edit' -r
+complete -c qwencloud -n '__fish_seen_subcommand_from image; and __fish_seen_subcommand_from generate' -l out             -d 'Output file or directory' -r
+complete -c qwencloud -n '__fish_seen_subcommand_from image; and __fish_seen_subcommand_from generate' -l response-format -d 'Response format' -a 'url b64'
+complete -c qwencloud -n '__fish_seen_subcommand_from image; and __fish_seen_subcommand_from generate' -l request         -d 'Native request body passthrough'
+complete -c qwencloud -n '__fish_seen_subcommand_from image; and __fish_seen_subcommand_from generate' -l no-wait         -d 'Return the task id immediately'
+complete -c qwencloud -n '__fish_seen_subcommand_from image; and __fish_seen_subcommand_from generate' -l timeout         -d 'Max seconds to wait'
+complete -c qwencloud -n '__fish_seen_subcommand_from image; and __fish_seen_subcommand_from generate' -l api-key         -d 'API key for this invocation'
+complete -c qwencloud -n '__fish_seen_subcommand_from image; and __fish_seen_subcommand_from generate' -l format          -d 'Output format' -a 'table json text'
+
+# ── video subcommands ─────────────────────────────────────────────────────────
+complete -c qwencloud -n '__fish_seen_subcommand_from video; and not __fish_seen_subcommand_from generate' -f
+complete -c qwencloud -n '__fish_seen_subcommand_from video; and not __fish_seen_subcommand_from generate' -a generate -d 'Generate a video'
+complete -c qwencloud -n '__fish_seen_subcommand_from video; and __fish_seen_subcommand_from generate' -l model   -d 'Model to use'
+complete -c qwencloud -n '__fish_seen_subcommand_from video; and __fish_seen_subcommand_from generate' -l image   -d 'First-frame image (I2V)' -r
+complete -c qwencloud -n '__fish_seen_subcommand_from video; and __fish_seen_subcommand_from generate' -l wait    -d 'Wait for the task to complete'
+complete -c qwencloud -n '__fish_seen_subcommand_from video; and __fish_seen_subcommand_from generate' -l no-wait -d 'Return the task id immediately'
+complete -c qwencloud -n '__fish_seen_subcommand_from video; and __fish_seen_subcommand_from generate' -l timeout -d 'Max seconds to wait'
+complete -c qwencloud -n '__fish_seen_subcommand_from video; and __fish_seen_subcommand_from generate' -l out     -d 'Output file or directory' -r
+complete -c qwencloud -n '__fish_seen_subcommand_from video; and __fish_seen_subcommand_from generate' -l request -d 'Native request body passthrough'
+complete -c qwencloud -n '__fish_seen_subcommand_from video; and __fish_seen_subcommand_from generate' -l api-key -d 'API key for this invocation'
+complete -c qwencloud -n '__fish_seen_subcommand_from video; and __fish_seen_subcommand_from generate' -l format  -d 'Output format' -a 'table json text'
+
+# ── audio subcommands ─────────────────────────────────────────────────────────
+complete -c qwencloud -n '__fish_seen_subcommand_from audio; and not __fish_seen_subcommand_from speech transcribe' -f
+complete -c qwencloud -n '__fish_seen_subcommand_from audio; and not __fish_seen_subcommand_from speech transcribe' -a speech     -d 'Synthesize speech from text'
+complete -c qwencloud -n '__fish_seen_subcommand_from audio; and not __fish_seen_subcommand_from speech transcribe' -a transcribe -d 'Transcribe audio to text'
+complete -c qwencloud -n '__fish_seen_subcommand_from audio; and __fish_seen_subcommand_from speech' -l model   -d 'Model to use'
+complete -c qwencloud -n '__fish_seen_subcommand_from audio; and __fish_seen_subcommand_from speech' -l voice   -d 'Voice id or name'
+complete -c qwencloud -n '__fish_seen_subcommand_from audio; and __fish_seen_subcommand_from speech' -l out     -d 'Output file or directory' -r
+complete -c qwencloud -n '__fish_seen_subcommand_from audio; and __fish_seen_subcommand_from speech' -l request -d 'Native request body passthrough'
+complete -c qwencloud -n '__fish_seen_subcommand_from audio; and __fish_seen_subcommand_from speech' -l api-key -d 'API key for this invocation'
+complete -c qwencloud -n '__fish_seen_subcommand_from audio; and __fish_seen_subcommand_from speech' -l format  -d 'Output format' -a 'table json text'
+complete -c qwencloud -n '__fish_seen_subcommand_from audio; and __fish_seen_subcommand_from transcribe' -l model    -d 'Model to use'
+complete -c qwencloud -n '__fish_seen_subcommand_from audio; and __fish_seen_subcommand_from transcribe' -l language -d 'Language hint' -a 'en zh'
+complete -c qwencloud -n '__fish_seen_subcommand_from audio; and __fish_seen_subcommand_from transcribe' -l wait     -d 'Wait for the task to complete'
+complete -c qwencloud -n '__fish_seen_subcommand_from audio; and __fish_seen_subcommand_from transcribe' -l no-wait  -d 'Return the task id immediately'
+complete -c qwencloud -n '__fish_seen_subcommand_from audio; and __fish_seen_subcommand_from transcribe' -l timeout  -d 'Max seconds to wait'
+complete -c qwencloud -n '__fish_seen_subcommand_from audio; and __fish_seen_subcommand_from transcribe' -l request  -d 'Native request body passthrough'
+complete -c qwencloud -n '__fish_seen_subcommand_from audio; and __fish_seen_subcommand_from transcribe' -l api-key  -d 'API key for this invocation'
+complete -c qwencloud -n '__fish_seen_subcommand_from audio; and __fish_seen_subcommand_from transcribe' -l format   -d 'Output format' -a 'table json text'
+
+# ── task subcommands ──────────────────────────────────────────────────────────
+complete -c qwencloud -n '__fish_seen_subcommand_from task; and not __fish_seen_subcommand_from get' -f
+complete -c qwencloud -n '__fish_seen_subcommand_from task; and not __fish_seen_subcommand_from get' -a get -d 'Query an asynchronous task'
+complete -c qwencloud -n '__fish_seen_subcommand_from task; and __fish_seen_subcommand_from get' -l api-key -d 'API key for this invocation'
+complete -c qwencloud -n '__fish_seen_subcommand_from task; and __fish_seen_subcommand_from get' -l format  -d 'Output format' -a 'table json text'
 
 # ── billing subcommands ──────────────────────────────────────────────────
 complete -c qwencloud -n '__fish_seen_subcommand_from billing; and not __fish_seen_subcommand_from limit breakdown summary' -f

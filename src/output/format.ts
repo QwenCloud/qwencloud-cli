@@ -55,7 +55,7 @@ function rejectInvalidFormat(value: string): never {
     error: {
       code: 'INVALID_FORMAT',
       message: `Invalid format '${value}'. Supported: ${VALID_FORMATS.join(', ')}`,
-      exitCode: 1,
+      exit_code: 1,
     },
   };
   process.stderr.write(JSON.stringify(payload, null, 2) + '\n');
