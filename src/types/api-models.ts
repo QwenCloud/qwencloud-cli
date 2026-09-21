@@ -69,6 +69,15 @@ export interface ApiModelPermissions {
   Inference: boolean;
 }
 
+export interface ApiModelOfflineInference {
+  AnnounceUrl?: string;
+  OfflineTime?: string;
+}
+
+export interface ApiModelOfflineInfo {
+  Inference?: ApiModelOfflineInference;
+}
+
 // Sample code (currently an empty object)
 export interface ApiSampleCodeV2 {
   Openai?: Record<string, unknown>;
@@ -150,6 +159,8 @@ export interface ApiModelItem {
   // Misc
   SampleCodeV2: ApiSampleCodeV2;
   ApplyType: number;
+
+  OfflineInfo?: ApiModelOfflineInfo;
 }
 
 // Model series / group (outer wrapper)
@@ -252,6 +263,7 @@ export interface ConsumeSummaryLineItem {
   BillingMonth?: string; // YYYY-MM
   ModelName?: string; // model ID like "qwen-plus"
   Model?: string; // alternative model ID field
+  BaseModel?: string; // base model name (e.g. for Deployment items)
   JobId?: string; // job identifier (e.g. fine-tuning job)
   MaasType?: string; // e.g. "training", "inference"
   MaasTypeName?: string; // e.g. "Training", "Inference"

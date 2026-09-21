@@ -54,9 +54,7 @@ export class TaskService {
     }
 
     const upstream = await this.deps.client.get(taskId.trim());
-    const enriched = await this.attachAssets(
-      await this.attachTranscript(this.normalize(upstream)),
-    );
+    const enriched = await this.attachAssets(await this.attachTranscript(this.normalize(upstream)));
     return finalizeTaskEnvelope(enriched, { includeType: true });
   }
 

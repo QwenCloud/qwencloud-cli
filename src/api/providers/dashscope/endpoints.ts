@@ -2,8 +2,7 @@
 
 export const CHAT_COMPLETIONS_PATH = '/compatible-mode/v1/chat/completions';
 
-export const MULTIMODAL_GENERATION_PATH =
-  '/api/v1/services/aigc/multimodal-generation/generation';
+export const MULTIMODAL_GENERATION_PATH = '/api/v1/services/aigc/multimodal-generation/generation';
 
 export const IMAGE_ASYNC_SYNTHESIS_PATH = '/api/v1/services/aigc/text2image/image-synthesis';
 

@@ -6,6 +6,7 @@ import { MappingRegistry, type MappingKey } from '../api/providers/mapping-regis
 import type { RequestPayloadParser } from './request-payload-parser.js';
 import type { LayerConflictDetector } from './layer-conflict-detector.js';
 import type { DefaultModelResolver } from './default-model-resolver.js';
+import type { ModelDeprecationGuard } from './model-deprecation-guard.js';
 import type { AssetPolicy } from './asset-policy.js';
 import type { InvocationEnvelope } from './invocation-envelope.js';
 import { withFieldRejectionHint } from './invocation-envelope.js';
@@ -37,6 +38,7 @@ export interface ChatServiceDeps {
   envelope: InvocationEnvelope;
   client: ChatClient;
   context: () => { site: string; account: string };
+  deprecationGuard?: ModelDeprecationGuard;
 }
 
 /** Register the sole OpenAI-compatible chat entry into a mapping registry. */
@@ -87,6 +89,9 @@ function invalidArg(message: string): CliError {
 }
 
 export class ChatService {
+  /** Populated after `buildRequest`; non-null when the model has a retirement notice. */
+  lastDeprecationNotice: string | null = null;
+
   constructor(private readonly deps: ChatServiceDeps) {}
 
   private mappingKey(model: string): MappingKey {
@@ -159,6 +164,8 @@ export class ChatService {
       explicitModel,
     );
     body.model = model;
+    this.lastDeprecationNotice =
+      (await this.deps.deprecationGuard?.notifyIfDeprecated(model)) ?? null;
 
     this.deps.conflictDetector.assertNoConflict(this.layer2Assignments(input), body);
 

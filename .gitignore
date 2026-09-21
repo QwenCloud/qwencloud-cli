@@ -19,3 +19,4 @@ ref/
 .e2e-output/
 .npmrc
 .npmignore
+tmp/

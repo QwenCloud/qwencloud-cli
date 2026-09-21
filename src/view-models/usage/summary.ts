@@ -12,6 +12,7 @@ import {
   formatAmount,
 } from '../../output/humanize.js';
 import { CUR } from './shared.js';
+import { formatDate } from '../../utils/date.js';
 
 // ── Usage Summary ViewModel ───────────────────────────────────────────
 
@@ -224,7 +225,7 @@ function buildTokenPlanSection(tokenPlan: TokenPlan): TokenPlanSectionViewModel 
   const remainingPct = total > 0 ? parseFloat(((remaining / total) * 100).toFixed(2)) : 0;
 
   const resetDate = tokenPlan.resetDate
-    ? tokenPlan.resetDate.split('T')[0] // ISO → YYYY-MM-DD
+    ? formatDate(new Date(tokenPlan.resetDate)) // ISO → local YYYY-MM-DD
     : '\u2014';
 
   const displayStatus = tokenPlan.status ?? '\u2014';

@@ -13,11 +13,13 @@ import {
   parsePaginationOptions,
   printPaginationFooter,
   buildModelRows,
+  RETIRING_LEGEND,
 } from './shared.js';
 import { buildModelsUiData, renderModelsTableInk } from '../../ui/ModelsTable.js';
 import { renderTextModelsList } from '../../output/text/models.js';
 import { withSpinner } from '../../ui/spinner.js';
 import { validateModalityFlag } from '../../utils/modality.js';
+import { isModelRetiring } from '../../services/model-lifecycle.js';
 
 export interface ModelsListOptions {
   input?: string;
@@ -162,6 +164,8 @@ export async function modelsListAction(
       // Pre-load first page data so initial render shows content immediately without loading state
       const initialRows = await loadPage(page);
 
+      const anyRetiring = allModelsWithQuota.some((m: any) => isModelRetiring(m));
+
       await renderInteractive(
         React.createElement(InteractiveTable, {
           columns: MODEL_LIST_COLUMNS,
@@ -171,6 +175,7 @@ export async function modelsListAction(
           initialPage: page,
           initialRows,
           title: 'Models',
+          note: anyRetiring ? RETIRING_LEGEND : undefined,
         }),
       );
       return;

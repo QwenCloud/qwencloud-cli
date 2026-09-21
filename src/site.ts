@@ -64,6 +64,7 @@ export const site = {
     enableCodingPlan: true,
     customHeaders: {},
     cdnBaseUrl: 'https://alioth-intl.alicdn.com/model-mapping',
+    modelOfflineUrl: 'https://alioth-intl.alicdn.com/model/prod/model-offline.json',
     tokenPlanCommodityCodes: {
       teams: 'sfm_tokenplanteams_dp_intl',
       personal: 'sfm_tokenplanpersonal_dp_intl',
@@ -107,7 +108,7 @@ export const site = {
 
 declare const __VERSION__: string;
 
-/** Brand-prefixed User-Agent for outbound requests, e.g. `qwencloud-cli/1.4.1`. */
+/** Brand-prefixed User-Agent for outbound requests, e.g. `qwencloud-cli/1.5.0`. */
 export function sourceUserAgent(): string {
   const version = typeof __VERSION__ !== 'undefined' ? __VERSION__ : '0.0.0-dev';
   return `${site.userAgentPrefix}/${version}`;

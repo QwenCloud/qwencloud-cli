@@ -341,11 +341,11 @@ describe('UsageService', () => {
       expect(result.page).toBe(1);
       expect(result.pageSize).toBe(20);
       const callArgs = apiClient.callEnvelopeApi.mock.calls[0][0] as { data: Record<string, unknown> };
-      expect(callArgs.data.maxResults).toBe(100);
+      expect(callArgs.data.maxResults).toBe(50);
       expect(callArgs.data.skip).toBe(0);
     });
 
-    it('passes modelRequestId when specified (short-circuits filters)', async () => {
+    it('passes modelRequestId along with other filters', async () => {
       apiClient.callEnvelopeApi.mockResolvedValue({ totalCount: 1, maxResults: 20, list: [] });
 
       await service.getUsageLogs({
@@ -357,7 +357,7 @@ describe('UsageService', () => {
 
       const callArgs = apiClient.callEnvelopeApi.mock.calls[0][0] as { data: Record<string, unknown> };
       expect(callArgs.data.modelRequestId).toBe('req-abc');
-      expect(callArgs.data.models).toBeUndefined();
+      expect(callArgs.data.models).toEqual(['qwen-plus']);
     });
 
     it('passes models and statusCodeTypes filters when no requestId', async () => {

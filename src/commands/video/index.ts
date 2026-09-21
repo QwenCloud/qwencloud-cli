@@ -14,8 +14,12 @@ export function registerVideoCommands(program: Command): void {
 
   addExamples(generate, [
     formatCmd('video generate "a sunset over the sea, slow push-in"'),
-    formatCmd('video generate "make the cat run" --model happyhorse-1.1-i2v --image cat.png --out cat.mp4'),
-    formatCmd('video generate --request \'{"model":"happyhorse-1.1-t2v","input":{"prompt":"a sunset"}}\''),
+    formatCmd(
+      'video generate "make the cat run" --model happyhorse-1.1-i2v --image cat.png --out cat.mp4',
+    ),
+    formatCmd(
+      'video generate --request \'{"model":"happyhorse-1.1-t2v","input":{"prompt":"a sunset"}}\'',
+    ),
   ]);
 
   video.action(() => {

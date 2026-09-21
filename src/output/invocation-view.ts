@@ -176,7 +176,9 @@ export function submittedView(
   const lines = [title(heading)];
   if (taskId !== undefined) {
     lines.push(
-      detail(`${labelText('task_id')} ${taskId} ${dot()} ${labelText('status')} ${statusText(status)}`),
+      detail(
+        `${labelText('task_id')} ${taskId} ${dot()} ${labelText('status')} ${statusText(status)}`,
+      ),
     );
     lines.push(detail(`Run \`${site.cliName} task get ${taskId}\` to check progress${note}`));
   } else {

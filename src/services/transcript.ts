@@ -25,7 +25,10 @@ export function extractTranscriptText(payload: unknown): string | undefined {
 }
 
 /** Cap a transcript to `limit` characters, flagging whether it was cut. */
-export function previewTranscript(text: string, limit = TRANSCRIPT_PREVIEW_LIMIT): TranscriptPreview {
+export function previewTranscript(
+  text: string,
+  limit = TRANSCRIPT_PREVIEW_LIMIT,
+): TranscriptPreview {
   const chars = [...text];
   if (chars.length <= limit) return { text, truncated: false, limit };
   return { text: chars.slice(0, limit).join(''), truncated: true, limit };
@@ -42,7 +45,10 @@ export class TranscriptFetcher {
    * Fetch the result JSON at `url` and return a character-capped preview. Returns
    * undefined when the fetch or parse fails so callers fall back to the URL alone.
    */
-  async preview(url: string, limit = TRANSCRIPT_PREVIEW_LIMIT): Promise<TranscriptPreview | undefined> {
+  async preview(
+    url: string,
+    limit = TRANSCRIPT_PREVIEW_LIMIT,
+  ): Promise<TranscriptPreview | undefined> {
     let raw: string;
     try {
       raw = await this.deps.fetchText(url);

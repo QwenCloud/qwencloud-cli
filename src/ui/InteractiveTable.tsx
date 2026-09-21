@@ -3,7 +3,7 @@ import { Box, Text, useInput, useApp } from 'ink';
 import { Table } from './Table.js';
 import type { Column } from './Table.js';
 import { Section } from './Section.js';
-import { theme } from './theme.js';
+import { theme, colors } from './theme.js';
 import { useTerminalSize } from './useTerminalSize.js';
 import { isConHost } from './terminalCompat.js';
 
@@ -21,6 +21,8 @@ export interface InteractiveTableProps {
   /** Section decoration */
   title?: string;
   subtitle?: string;
+  /** Single informational line rendered directly under the title. */
+  note?: string;
   /** Per-page labels shown in status bar (e.g. period identifiers). */
   pageLabels?: string[];
 }
@@ -35,6 +37,7 @@ export function InteractiveTable({
   footer,
   title,
   subtitle,
+  note,
   pageLabels,
 }: InteractiveTableProps) {
   const { exit } = useApp();
@@ -50,7 +53,7 @@ export function InteractiveTable({
 
   // Decoration rows reserved around the table viewport: title, table header,
   // separator, footer status bar, scroll hint, and surrounding margin.
-  const RESERVED = 8;
+  const RESERVED = note ? 9 : 8;
   const visibleRows = Math.max(1, termRows - RESERVED);
   const maxOffset = Math.max(0, rows.length - visibleRows);
   // Use Map to cache already-loaded page data
@@ -198,6 +201,14 @@ export function InteractiveTable({
         <Section title={sectionTitle} subtitle={subtitle} footer="">
           <Box />
         </Section>
+      )}
+
+      {note && (
+        <Box paddingLeft={2}>
+          <Text color={colors.warning} wrap="truncate-end">
+            {note}
+          </Text>
+        </Box>
       )}
 
       {/* Table content */}
