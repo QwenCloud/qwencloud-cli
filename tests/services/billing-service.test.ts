@@ -235,18 +235,19 @@ describe('BillingService — parseBillingItem', () => {
     expect(parsed!.modelId).toBe('ft-202605191420-ddb1');
   });
 
-  it('falls back to MaasTypeName when ModelName, Model, and JobId are all absent', () => {
+  it('uses BaseModel as highest priority for modelId', () => {
     const item = makeLineItem({
+      BaseModel: 'qwen3.8-max',
       ModelName: undefined,
       Model: undefined,
       JobId: undefined,
-      MaasTypeName: 'Training',
+      MaasTypeName: 'Deployment',
       BillQuantity: 10,
       RequireAmount: 1.5,
     });
     const parsed = parseBillingItem(item);
     expect(parsed).not.toBeNull();
-    expect(parsed!.modelId).toBe('Training');
+    expect(parsed!.modelId).toBe('qwen3.8-max');
   });
 
   it('falls back to "Other" when all identifier fields are absent', () => {

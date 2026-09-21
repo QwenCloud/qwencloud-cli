@@ -2,6 +2,8 @@ import type { ModelDetail, Pricing } from '../../types/model.js';
 import { humanizeNumber, humanizeWithUnit, formatAmount } from '../../output/humanize.js';
 import { abbreviateModality } from '../../utils/modality.js';
 import { CUR } from './shared.js';
+import { modelRetireDateLong, resolveAnnouncementUrl } from '../../services/model-lifecycle.js';
+import { formatDate } from '../../utils/date.js';
 
 // ── Model Detail ViewModel ────────────────────────────────────────────
 
@@ -40,6 +42,12 @@ export interface ModelDetailViewModel {
     openSource: string;
     updated: string;
   };
+
+  // Lifecycle: `RETIRING · <date>` for a scheduled model; absent otherwise.
+  lifecycle?: string;
+
+  // Retirement notice shown under the card; present only when retiring.
+  notice?: string;
 }
 
 export interface PricingLineViewModel {
@@ -71,6 +79,8 @@ export function buildModelDetailViewModel(detail: ModelDetail): ModelDetailViewM
   const pricingType = inferPricingType(detail);
   const pricingLines = buildPricingLines(detail.pricing);
 
+  const retireDate = modelRetireDateLong(detail);
+
   const vm: ModelDetailViewModel = {
     id: detail.id,
     description: detail.description,
@@ -87,9 +97,14 @@ export function buildModelDetailViewModel(detail: ModelDetail): ModelDetailViewM
       version: detail.metadata.version_tag,
       snapshot: detail.metadata.snapshot,
       openSource: detail.metadata.open_source ? 'Yes' : 'No',
-      updated: detail.metadata.updated,
+      updated: detail.metadata.updated.split('T')[0] || detail.metadata.updated,
     },
   };
+
+  if (retireDate) {
+    vm.lifecycle = `RETIRING · ${retireDate}`;
+    vm.notice = `This model will be retired on ${retireDate}, learn more at Announcement: ${resolveAnnouncementUrl()}`;
+  }
 
   // Context (LLM only)
   if (detail.context) {
@@ -119,7 +134,7 @@ export function buildModelDetailViewModel(detail: ModelDetail): ModelDetailViewM
       remainingPct: q.status === 'expire' ? 0 : pct,
       // Display layer wants a compact YYYY-MM-DD; the JSON layer keeps the
       // full ISO timestamp from FreeTierQuota.
-      resetDate: q.resetDate ? q.resetDate.slice(0, 10) : undefined,
+      resetDate: q.resetDate ? formatDate(new Date(q.resetDate)) : undefined,
       statusLabel,
     };
   } else if (detail.free_tier.mode === 'standard') {

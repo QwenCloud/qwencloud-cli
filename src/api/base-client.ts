@@ -4,11 +4,19 @@
  */
 
 declare const __VERSION__: string;
+declare const __ALLOW_PROXY__: boolean;
 
 import { resolveCredentials } from '../auth/credentials.js';
 import { site } from '../site.js';
 import { redactToken } from '../utils/redact.js';
 import { startRequest, endRequest, isEnabled } from './debug-buffer.js';
+
+let proxyInit: Promise<void> | undefined;
+if (typeof __ALLOW_PROXY__ !== 'undefined' && __ALLOW_PROXY__) {
+  proxyInit = import('undici').then(({ setGlobalDispatcher, EnvHttpProxyAgent }) => {
+    setGlobalDispatcher(new EnvHttpProxyAgent());
+  });
+}
 
 // ────────────────────────────────────────────────────────────────────
 // Public types
@@ -92,6 +100,7 @@ export function createBaseClient(opts?: BaseClientOptions): BaseClient {
       }, timeout);
 
       try {
+        if (proxyInit) await proxyInit;
         const response = await fetch(options.url, {
           method,
           headers,

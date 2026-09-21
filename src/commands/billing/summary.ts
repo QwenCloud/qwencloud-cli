@@ -10,7 +10,8 @@ import {
 } from '../../view-models/billing/index.js';
 import { renderBillingSummaryInk } from '../../ui/BillingSummary.js';
 import { renderTextBillingSummary } from '../../output/text/billing.js';
-import { handleError } from '../../utils/errors.js';
+import { handleError, CliError } from '../../utils/errors.js';
+import { EXIT_CODES } from '../../utils/exit-codes.js';
 import { defaultCurrentMonthCycle, parseChargeType } from './shared.js';
 
 const CYCLE_PATTERN = /^\d{4}-\d{2}$/;
@@ -44,12 +45,8 @@ export function billingSummaryAction(cmd: Command, getClient: ClientFactory) {
       return;
     }
     const defaults = defaultCurrentMonthCycle();
-    const from =
-      typeof options.from === 'string' && CYCLE_PATTERN.test(options.from)
-        ? options.from
-        : defaults.from;
-    const to =
-      typeof options.to === 'string' && CYCLE_PATTERN.test(options.to) ? options.to : defaults.to;
+    const from = parseBillingCycle(options.from, 'from') ?? defaults.from;
+    const to = parseBillingCycle(options.to, 'to') ?? defaults.to;
 
     try {
       await ensureAuthenticated();
@@ -91,4 +88,14 @@ export function billingSummaryAction(cmd: Command, getClient: ClientFactory) {
       handleError(error, format);
     }
   };
+}
+
+function parseBillingCycle(value: unknown, name: string): string | null {
+  if (typeof value !== 'string') return null;
+  if (CYCLE_PATTERN.test(value)) return value;
+  throw new CliError({
+    code: 'INVALID_ARGUMENT',
+    message: `Invalid --${name} format: '${value}'. Expected YYYY-MM (e.g. 2026-06)`,
+    exitCode: EXIT_CODES.INVALID_ARGUMENT,
+  });
 }

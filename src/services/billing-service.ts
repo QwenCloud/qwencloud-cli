@@ -153,7 +153,7 @@ export function parseBillingItem(
   const mode = costMode ?? 'full';
   const billingDate = item.BillingDate ?? '';
   const billingMonth = item.BillingMonth ?? '';
-  const modelId = item.ModelName ?? item.Model ?? item.JobId ?? item.MaasTypeName ?? 'Other';
+  const modelId = item.BaseModel ?? item.ModelName ?? item.Model ?? item.JobId ?? 'Other';
   const billQuantity = toNumber(item.BillQuantity);
   const stepUnit = item.StepQuantityUnit ?? '';
   const billingItemCode = item.BillingItemCode ?? '';
@@ -184,8 +184,15 @@ export function parseBillingItem(
 export function splitIntoMonths(fromDate: string, toDate: string): Array<[string, string]> {
   const result: Array<[string, string]> = [];
   let current = fromDate;
+  const MAX_ITERATIONS = 36; // 3 years upper bound
+  let iterations = 0;
 
   while (current <= toDate) {
+    if (++iterations > MAX_ITERATIONS) {
+      throw new Error(
+        `splitIntoMonths: exceeded ${MAX_ITERATIONS} iterations (from=${fromDate}, to=${toDate})`,
+      );
+    }
     const [yearStr, monthStr] = current.split('-') as [string, string];
     const year = parseInt(yearStr, 10);
     const month = parseInt(monthStr, 10);

@@ -6,7 +6,7 @@
 
 > Official command-line tool for [QwenCloud](https://www.qwencloud.com/). Discover models, check usage, manage authentication, and diagnose local setup from a terminal or an AI agent runtime.
 
-![Version](https://img.shields.io/badge/version-1.4.1-blue)
+![Version](https://img.shields.io/badge/version-1.5.0-blue)
 ![Node](https://img.shields.io/badge/node-%3E%3D18-green)
 ![License](https://img.shields.io/badge/license-Apache--2.0-green)
 

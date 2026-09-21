@@ -123,12 +123,12 @@ export class TokenplanService {
     const usedPct =
       totalCredits > 0 ? Math.round(((totalCredits - remainingCredits) / totalCredits) * 100) : 0;
 
-    const endTime = data?.EndTime;
+    const rawFlush = groups[0]?.NextCycleFlushTime;
     const resetDate =
-      typeof endTime === 'number' && endTime > 0
-        ? new Date(endTime).toISOString()
-        : typeof endTime === 'string' && endTime.length > 0
-          ? endTime
+      typeof rawFlush === 'number' && rawFlush > 0
+        ? new Date(rawFlush).toISOString()
+        : typeof rawFlush === 'string' && rawFlush.length > 0
+          ? rawFlush
           : undefined;
 
     const planName = data?.PlanName ?? 'Token Plan';
@@ -198,7 +198,6 @@ export class TokenplanService {
         ? Number(instance.periodCapacityBaseValue || instance.CurrCapacityBaseValue || 0)
         : Number(instance.CurrCapacityBaseValue || 0);
     const usedPct = totalCredits > 0 ? ((totalCredits - remainingCredits) / totalCredits) * 100 : 0;
-    const resetDate = instance.EndTime ? new Date(instance.EndTime).toISOString() : undefined;
 
     const dto: TokenPlan = {
       subscribed: statusCode === 'valid',
@@ -208,7 +207,6 @@ export class TokenplanService {
       remainingCredits,
       usedPct,
     };
-    if (resetDate) dto.resetDate = resetDate;
     if (addonRemaining > 0) dto.addonRemaining = addonRemaining;
     return dto;
   }

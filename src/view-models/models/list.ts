@@ -2,6 +2,7 @@ import type { Model, ModelsListResponse, ModelDetail } from '../../types/model.j
 import { abbreviateModality } from '../../utils/modality.js';
 import { splitPrice } from '../../utils/formatting.js';
 import { formatFreeTierSplit, formatPriceFromPricing } from './shared.js';
+import { isModelRetiring } from '../../services/model-lifecycle.js';
 
 // ── Model List ViewModel ──────────────────────────────────────────────
 
@@ -16,18 +17,20 @@ export interface ModelRowViewModel {
   freeTierExpired?: boolean; // true when quota status is 'expire'
   price: string; // "$0.50-2.00" (amount only)
   priceUnit: string; // "/1M tok" | "/img" | "/sec" | ""
+  retiring?: boolean; // true when the model is scheduled to retire
 }
 
 export interface ModelsListViewModel {
   rows: ModelRowViewModel[];
   total: number;
+  hasRetiring: boolean; // any row scheduled to retire — drives the legend line
 }
 
 /**
  * Build list view model from API response.
  */
 export function buildModelListViewModel(response: ModelsListResponse): ModelsListViewModel {
-  return buildModelListViewModelFromModels(response.models);
+  return buildModelListViewModelFromModels(response.models, undefined);
 }
 
 /**
@@ -66,8 +69,9 @@ export function buildModelListViewModelFromModels(
       freeTierExpired: ftExpired,
       price: priceAmt,
       priceUnit,
+      retiring: isModelRetiring(model),
     };
   });
 
-  return { rows, total: models.length };
+  return { rows, total: models.length, hasRetiring: rows.some((r) => r.retiring) };
 }

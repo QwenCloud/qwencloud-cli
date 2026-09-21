@@ -104,7 +104,7 @@ describe('TokenplanService', () => {
       expect(result.totalCredits).toBe(10000000);
       expect(result.remainingCredits).toBe(7500000);
       expect(result.usedPct).toBe(25);
-      expect(result.resetDate).toBe(new Date(1800000000000).toISOString());
+      expect(result.resetDate).toBeUndefined();
     });
 
     it('issues gray check plus three concurrent API calls for teams, personal, addon', async () => {
@@ -398,10 +398,12 @@ describe('TokenplanService', () => {
             SubscriptionGroupList: [
               {
                 SpecType: 'standard',
+                NextCycleFlushTime: 1700000000000,
                 EquityList: [{ TotalValue: '175000', SurplusValue: '100000' }],
               },
               {
                 SpecType: 'pro',
+                NextCycleFlushTime: 1700000000000,
                 EquityList: [{ TotalValue: '400000', SurplusValue: '300000' }],
               },
             ],
@@ -418,7 +420,7 @@ describe('TokenplanService', () => {
       expect(result.totalCredits).toBe(575000);
       expect(result.remainingCredits).toBe(400000);
       expect(result.usedPct).toBe(30);
-      expect(result.resetDate).toBe(new Date(1800000000000).toISOString());
+      expect(result.resetDate).toBe(new Date(1700000000000).toISOString());
     });
 
     it('includes addon remaining from DescribeFrInstances in gray path', async () => {
@@ -515,6 +517,64 @@ describe('TokenplanService', () => {
       const result = await service.fetchTokenPlan();
 
       expect(result.planName).toBe('Token Plan');
+    });
+
+    it('sets resetDate to undefined when NextCycleFlushTime is absent from groups', async () => {
+      apiClient.callFlatApi.mockReset();
+      apiClient.callFlatApi
+        .mockResolvedValueOnce({ IsGray: true } as QuerySubscriptionGrayResponse)
+        .mockResolvedValueOnce({
+          Data: {
+            PlanName: 'No Flush',
+            SubscriptionGroupList: [
+              { SpecType: 'standard', EquityList: [{ TotalValue: '100', SurplusValue: '50' }] },
+            ],
+          },
+        } as GetSeatSubscriptionSummaryResponse)
+        .mockResolvedValueOnce({ Data: [] } as FrInstanceResponse);
+
+      const result = await service.fetchTokenPlan();
+
+      expect(result.subscribed).toBe(true);
+      expect(result.resetDate).toBeUndefined();
+    });
+
+    it('sets resetDate to undefined when SubscriptionGroupList is empty', async () => {
+      apiClient.callFlatApi.mockReset();
+      apiClient.callFlatApi
+        .mockResolvedValueOnce({ IsGray: true } as QuerySubscriptionGrayResponse)
+        .mockResolvedValueOnce({
+          Data: { PlanName: 'Empty Groups', SubscriptionGroupList: [] },
+        } as GetSeatSubscriptionSummaryResponse)
+        .mockResolvedValueOnce({ Data: [] } as FrInstanceResponse);
+
+      const result = await service.fetchTokenPlan();
+
+      expect(result.subscribed).toBe(false);
+      expect(result.resetDate).toBeUndefined();
+    });
+
+    it('parses string-type NextCycleFlushTime as resetDate', async () => {
+      apiClient.callFlatApi.mockReset();
+      apiClient.callFlatApi
+        .mockResolvedValueOnce({ IsGray: true } as QuerySubscriptionGrayResponse)
+        .mockResolvedValueOnce({
+          Data: {
+            PlanName: 'String Flush',
+            SubscriptionGroupList: [
+              {
+                SpecType: 'standard',
+                NextCycleFlushTime: '2026-10-01T00:00:00Z',
+                EquityList: [{ TotalValue: '100', SurplusValue: '50' }],
+              },
+            ],
+          },
+        } as GetSeatSubscriptionSummaryResponse)
+        .mockResolvedValueOnce({ Data: [] } as FrInstanceResponse);
+
+      const result = await service.fetchTokenPlan();
+
+      expect(result.resetDate).toBe('2026-10-01T00:00:00Z');
     });
   });
 });

@@ -3,8 +3,8 @@
  *
  * Resolves the time range, dispatches to UsageService via the CliFacade, then
  * fans out to the three rendering modes (TUI / TEXT / JSON). Filter flags
- * (`--model`, `--status`) are repeatable; `--request-id` short-circuits the
- * other filters to mimic the upstream exact-match contract.
+ * (`--model`, `--status`) are repeatable; `--request-id` can be combined
+ * with other filters for intersection queries.
  */
 
 import React from 'react';
@@ -26,7 +26,7 @@ import type { UsageLogsOptions, UsageLogStatusType } from '../../services/usage-
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 20;
-const MAX_PAGE_SIZE = 100;
+const MAX_PAGE_SIZE = 50;
 const MAX_RANGE_DAYS = 14;
 
 /**
@@ -244,14 +244,14 @@ export function registerUsageLogsCommand(parent: Command, getClient: ClientFacto
     .description('Browse paginated call logs filtered by time, model, and status')
     .option('--from <date>', 'Start date (YYYY-MM-DD or RFC3339)')
     .option('--to <date>', 'End date (YYYY-MM-DD or RFC3339)')
-    .option('--period <preset>', 'Period preset: 1h, 24h, 7d, 14d, week, month, ...')
+    .option('--period <preset>', 'Period preset: today, yesterday, week, 1h, 24h, 7d, 14d')
     .option('--model <id>', 'Model id (repeatable)', collect)
     .option(
       '--status <type>',
       'Status filter: 0 (cancel), 2xx (success), 4xx (client error), 5xx (server error). Repeatable',
       collect,
     )
-    .option('--request-id <id>', 'Exact request id; ignores other filters when set')
+    .option('--request-id <id>', 'Filter by exact request id')
     .option('--page <n>', 'Page number', (v) => parseInt(v, 10), DEFAULT_PAGE)
     .option(
       '--page-size <n>',

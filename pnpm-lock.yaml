@@ -72,6 +72,9 @@ importers:
       typescript-eslint:
         specifier: ^8.15.0
         version: 8.59.1(eslint@9.39.4)(typescript@5.9.3)
+      undici:
+        specifier: 6.28.0
+        version: 6.28.0
       vitest:
         specifier: 3.2.4
         version: 3.2.4(@types/node@25.6.0)(terser@5.46.2)(tsx@4.21.0)
@@ -846,6 +849,7 @@ packages:
   eslint@9.39.4:
     resolution: {integrity: sha512-XoMjdBOwe/esVgEvLmNsD3IRHkm7fbKIUGvrleloJXUZgDHig2IPWNniv+GwjyJXzuNqVjlr5+4yVUZjycJwfQ==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'
@@ -1476,6 +1480,10 @@ packages:
 
   undici-types@7.19.2:
     resolution: {integrity: sha512-qYVnV5OEm2AW8cJMCpdV20CDyaN3g0AjDlOGf1OW4iaDEx8MwdtChUp4zu4H0VP3nDRF/8RKWH+IPp9uW0YGZg==}
+
+  undici@6.28.0:
+    resolution: {integrity: sha512-LIY910g9TI13YS95lrMFrs8Rm/u/irgHeTWoKCoteeJ04CUJ92eEfj0rVn+7VKMPBpUPiUoBKfhNyLI23EE/KA==}
+    engines: {node: '>=18.17'}
 
   uri-js@4.4.1:
     resolution: {integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==}
@@ -2901,6 +2909,8 @@ snapshots:
   ufo@1.6.3: {}
 
   undici-types@7.19.2: {}
+
+  undici@6.28.0: {}
 
   uri-js@4.4.1:
     dependencies:

@@ -493,7 +493,7 @@ _qwencloud() {
             _arguments \\
               '--from[Start date]:date:()' \\
               '--to[End date]:date:()' \\
-              '--period[Period preset]:period:(today yesterday week month last-month quarter year)' \\
+              '--period[Period preset]:period:(today yesterday week)' \\
               '--model[Model ID]:model:()' \\
               '--status[Status filter]:status:(0 2xx 4xx 5xx)' \\
               '--request-id[Request ID]:id:()' \\
@@ -897,7 +897,8 @@ complete -c qwencloud -n '__fish_seen_subcommand_from usage; and not __fish_seen
 
 complete -c qwencloud -n '__fish_seen_subcommand_from summary free-tier payg breakdown logs' -l from   -d 'Start date (YYYY-MM-DD)'
 complete -c qwencloud -n '__fish_seen_subcommand_from summary free-tier payg breakdown logs' -l to     -d 'End date (YYYY-MM-DD)'
-complete -c qwencloud -n '__fish_seen_subcommand_from summary free-tier payg breakdown logs' -l period -d 'Period preset' -a 'today yesterday week month last-month quarter year'
+complete -c qwencloud -n '__fish_seen_subcommand_from summary free-tier payg breakdown' -l period -d 'Period preset' -a 'today yesterday week month last-month quarter year'
+complete -c qwencloud -n '__fish_seen_subcommand_from logs'                                 -l period -d 'Period preset' -a 'today yesterday week'
 complete -c qwencloud -n '__fish_seen_subcommand_from payg breakdown'                       -l days   -d 'Days to look back'
 complete -c qwencloud -n '__fish_seen_subcommand_from breakdown'                            -l model       -d 'Model ID (required)'
 complete -c qwencloud -n '__fish_seen_subcommand_from breakdown'                            -l granularity -d 'Time granularity' -a 'day month quarter'

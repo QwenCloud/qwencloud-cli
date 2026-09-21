@@ -20,6 +20,7 @@ const defines: Record<string, string> = {
   __VERSION__: JSON.stringify(pkg.version),
   __BUILD_TIME__: JSON.stringify(buildTime),
   __NODE_ENV__: JSON.stringify(isProd ? 'production' : 'development'),
+  __ALLOW_PROXY__: JSON.stringify(process.env.BUILD_ALLOW_PROXY === '1'),
 };
 
 // ── Shared base options ───────────────────────────────────────────────────────
@@ -28,6 +29,13 @@ const base = {
   target: 'node18' as const,
   shims: true,
   external: ['react', 'ink'],
+  ...(process.env.BUILD_ALLOW_PROXY === '1'
+    ? {
+        banner: {
+          js: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
+        },
+      }
+    : {}),
   // Production: compress identifiers + whitespace + syntax
   // Development: no minify, inline sourcemap for debuggability
   minify: isProd,

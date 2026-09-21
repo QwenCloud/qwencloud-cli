@@ -16,7 +16,6 @@ import {
 } from '../../output/invocation-view.js';
 import { handleError, HandledError } from '../../utils/errors.js';
 import { EXIT_CODES } from '../../utils/exit-codes.js';
-import { ensureAuthenticated } from '../../auth/credentials.js';
 import { createTaskService } from '../../services/task-runtime.js';
 import { theme } from '../../ui/theme.js';
 import type { SuccessEnvelope } from '../../types/invocation-params.js';
@@ -30,7 +29,6 @@ export function taskGetAction(
     const format = resolveFormatFromCommand(this ?? cmd, config);
 
     try {
-      ensureAuthenticated();
       const runtimeOptions: { apiKey?: string } = {};
       if (typeof options.apiKey === 'string') runtimeOptions.apiKey = options.apiKey;
       const service = createTaskService(runtimeOptions);
@@ -88,7 +86,11 @@ function renderTask(envelope: SuccessEnvelope, format: ResolvedFormat): void {
       lines.push(detail(text));
       if (data.text_truncated === true) {
         const limit = readNumber(data, 'text_limit') ?? 200;
-        lines.push(detail(`Output exceeds the ${limit}-character limit; download the URL for the full content`));
+        lines.push(
+          detail(
+            `Output exceeds the ${limit}-character limit; download the URL for the full content`,
+          ),
+        );
       }
     }
     const label = type !== undefined ? (URL_FIELDS[type] ?? 'url') : 'url';
@@ -115,7 +117,9 @@ function renderTask(envelope: SuccessEnvelope, format: ResolvedFormat): void {
   } else {
     // Unmapped states surface as UNKNOWN (the task client folds CANCELED into
     // FAILED, so it never lands here).
-    lines.push(detail(hintText('Unrecognized task status; use --output json to see the raw response')));
+    lines.push(
+      detail(hintText('Unrecognized task status; use --output json to see the raw response')),
+    );
   }
 
   const requestId = envelope.meta.request_id;

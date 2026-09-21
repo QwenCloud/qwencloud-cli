@@ -1,9 +1,6 @@
 import type { DashScopeTransport } from './transport.js';
 import { TaskClient } from './task-client.js';
-import {
-  MULTIMODAL_GENERATION_PATH,
-  IMAGE_ASYNC_SYNTHESIS_PATH,
-} from './endpoints.js';
+import { MULTIMODAL_GENERATION_PATH, IMAGE_ASYNC_SYNTHESIS_PATH } from './endpoints.js';
 
 export const IMAGE_SYNTHESIS_PATH = MULTIMODAL_GENERATION_PATH;
 export { IMAGE_ASYNC_SYNTHESIS_PATH };

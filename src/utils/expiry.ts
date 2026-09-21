@@ -5,7 +5,10 @@
  * express the remaining lifetime as a rounded `"<n>h"` (or `"<n>m"` under an
  * hour) string. Returns undefined when the URL carries no parsable expiry.
  */
-export function expiresInFromUrl(url: string | undefined, now: number = Date.now()): string | undefined {
+export function expiresInFromUrl(
+  url: string | undefined,
+  now: number = Date.now(),
+): string | undefined {
   if (typeof url !== 'string' || url.length === 0) return undefined;
   const match = /[?&]Expires=(\d+)/.exec(url);
   if (match === null) return undefined;
