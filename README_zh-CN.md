@@ -6,7 +6,7 @@
 
 > [QwenCloud](https://www.qwencloud.com/) 官方命令行工具。用于在终端或 AI Agent 运行环境中发现模型、查询用量、管理认证并诊断本地配置。
 
-![Version](https://img.shields.io/badge/version-1.5.0-blue)
+![Version](https://img.shields.io/badge/version-1.6.0-blue)
 ![Node](https://img.shields.io/badge/node-%3E%3D18-green)
 ![License](https://img.shields.io/badge/license-Apache--2.0-green)
 
@@ -141,6 +141,7 @@ qwencloud auth login --complete --format json
 | 订阅 | `subscription status`, `subscription orders`, `subscription tokenplan status`, `subscription tokenplan seats` | `--format` |
 | 文档 | `docs search`, `docs view` | `--format` |
 | 工单 | `support list`, `support view`, `support create`, `support reply`, `support close`, `support rate` | `--format` |
+| 插件 | `plugin list`, `plugin install`, `plugin update`, `plugin uninstall`, `plugin init`, `plugin validate` | `--name`, `--command`, `--force`, `--format` |
 | 配置 | `config list`, `config get`, `config set`, `config unset` | `--format` |
 | 诊断 | `doctor` | `--format` |
 | Shell | `completion install`, `completion generate` | `--shell` |
@@ -261,7 +262,7 @@ qwencloud config unset output.format
 
 欢迎提交 bug 修复、文档改进和功能建议。
 
-1. 从最新的 `master` 开始。
+1. 从最新的 `main` 开始。
 2. 创建聚焦的分支，例如 `fix/auth-token-expiry` 或 `doc/install-options`。
 3. 使用 `pnpm install` 安装依赖。
 4. 完成改动；如果行为发生变化，请新增或更新测试。
@@ -275,7 +276,7 @@ pnpm run build
 ```
 
 6. 使用 [Conventional Commits](https://www.conventionalcommits.org/) 提交，例如 `feat:`、`fix:`、`doc:`、`refactor:`、`chore:`。
-7. 推送分支，并向 `master` 发起 Pull Request。
+7. 推送分支，并向 `main` 发起 Pull Request。
 8. 填写 PR 模板，关联相关 issue，说明用户可见变化；涉及 CLI 体验的改动请附上截图或终端输出。
 
 面向产品行为的变更应同步更新文档，并需要产品与工程评审。

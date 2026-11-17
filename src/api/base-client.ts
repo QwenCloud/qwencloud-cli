@@ -34,6 +34,7 @@ export interface RequestOptions {
   body?: string;
   authMode?: 'required' | 'optional' | 'none';
   context?: string;
+  signal?: AbortSignal;
 }
 
 export interface BaseClient {
@@ -95,12 +96,16 @@ export function createBaseClient(opts?: BaseClientOptions): BaseClient {
 
       // AbortController for timeout
       const controller = new AbortController();
+      const abortFromCaller = () => controller.abort(options.signal?.reason);
+      if (options.signal?.aborted) abortFromCaller();
+      else options.signal?.addEventListener('abort', abortFromCaller, { once: true });
       const timer = setTimeout(() => {
         controller.abort(new Error(`Request timeout after ${timeout}ms`));
       }, timeout);
 
       try {
         if (proxyInit) await proxyInit;
+        controller.signal.throwIfAborted();
         const response = await fetch(options.url, {
           method,
           headers,
@@ -144,6 +149,8 @@ export function createBaseClient(opts?: BaseClientOptions): BaseClient {
           endRequest(debugId, null, null, err.message, true);
         }
 
+        if (options.signal?.aborted) throw options.signal.reason ?? err;
+
         // Re-throw with normalized message for abort/timeout
         if (err instanceof Error && (err.name === 'AbortError' || controller.signal.aborted)) {
           throw new Error(`Request timeout after ${timeout / 1000}s\n  URL: ${options.url}`);
@@ -165,6 +172,9 @@ export function createBaseClient(opts?: BaseClientOptions): BaseClient {
         const enriched = new Error(parts.join('\n'));
         if (err instanceof Error) enriched.cause = err;
         throw enriched;
+      } finally {
+        clearTimeout(timer);
+        options.signal?.removeEventListener('abort', abortFromCaller);
       }
     },
   };

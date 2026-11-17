@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { existsSync, mkdtempSync, rmSync, statSync } from 'fs';
+import { existsSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { preflightOutPath } from '../../src/utils/out-path.js';
@@ -29,9 +29,13 @@ describe('preflightOutPath', () => {
   });
 
   it('throws IO_ERROR when the parent directory cannot be created', () => {
+    const base = mkdtempSync(join(tmpdir(), 'out-'));
+    created.push(base);
+    const parent = join(base, 'parent');
+    writeFileSync(parent, 'file');
     let err: unknown;
     try {
-      preflightOutPath('/dfdfef/fef/cat.png');
+      preflightOutPath(join(parent, 'nested', 'cat.png'));
     } catch (e) {
       err = e;
     }

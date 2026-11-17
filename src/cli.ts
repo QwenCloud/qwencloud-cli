@@ -1,5 +1,12 @@
+import { registerPluginManagementCommands } from './commands/plugin/index.js';
+import {
+  registerDefaultPluginCommands,
+  registerPluginCommands,
+  loadInstalledPlugins,
+} from './plugins/loader.js';
+import { getPluginsDir, getPluginsManifestPath } from './config/paths.js';
 import { Command } from 'commander';
-import { VERSION } from './index.js';
+import { VERSION } from './version.js';
 import { registerModelsCommands as registerModelsCommandsImpl } from './commands/models/index.js';
 import { registerChatCommands } from './commands/chat/index.js';
 import { registerImageCommands } from './commands/image/index.js';
@@ -32,13 +39,13 @@ import { createClient, type ClientFactory } from './api/client.js';
 // Apply custom help to every command recursively
 // ---------------------------------------------------------------------------
 
-function applyCustomHelp(cmd: Command): void {
+function applyCustomHelp(cmd: Command, force = false): void {
   cmd.configureHelp({
     formatHelp: () => formatHelp(cmd),
   });
   cmd.helpOption('-h, --help', 'Show this help');
   for (const sub of cmd.commands) {
-    applyCustomHelp(sub);
+    applyCustomHelp(sub, force);
   }
 }
 
@@ -158,7 +165,7 @@ function registerModelsCommands(program: Command, getClient: ClientFactory): voi
 // Public API
 // ---------------------------------------------------------------------------
 
-export function createProgram(): Command {
+export function createProgram(options: { loadPlugins?: boolean } = {}): Command {
   const program = new Command();
 
   // Lazy singleton client factory — shared across all commands in this process
@@ -203,6 +210,19 @@ export function createProgram(): Command {
   if (logoutAlias) setCommandHidden(logoutAlias, true);
 
   // Apply custom help formatting to all commands
+  registerPluginManagementCommands(program);
+  if (options.loadPlugins !== false) {
+    registerDefaultPluginCommands(program, {
+      onCommandsChanged(command) {
+        applyCustomHelp(command, true);
+        applyExitOverride(command);
+      },
+    });
+    registerPluginCommands(
+      program,
+      loadInstalledPlugins(getPluginsManifestPath(), getPluginsDir()),
+    );
+  }
   applyCustomHelp(program);
   applyExitOverride(program);
   applyHelpFlagGuard(program);

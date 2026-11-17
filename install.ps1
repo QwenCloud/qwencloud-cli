@@ -1,10 +1,10 @@
 ﻿# QwenCloud CLI Installer for Windows
 # Usage:
 #   irm https://raw.githubusercontent.com/QwenCloud/qwencloud-cli/main/install.ps1 | iex
-#   .\install.ps1 -Version v1.5.0
+#   .\install.ps1 -Version v1.6.0
 #
 # Parameters:
-#   -Version           - version to install (e.g. v1.5.0, default: v1.5.0)
+#   -Version           - version to install (e.g. v1.6.0, default: v1.6.0)
 #
 # Behavior:
 #   - If a previous installation exists in the install directory, the existing
@@ -21,6 +21,51 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Initialize-DefaultPlugins {
+    param([string]$CliPath)
+    $previousExitCode = $global:LASTEXITCODE
+    $previousDeadline = $env:QWENCLOUD_PLUGIN_PREPARE_DEADLINE
+    $previousReport = $env:QWENCLOUD_PLUGIN_PREPARE_REPORT
+    $prepared = $false
+    $upgradeRequired = $false
+    $report = $null
+    $prepareProcess = $null
+    try {
+        $report = New-TemporaryFile
+        $env:QWENCLOUD_PLUGIN_PREPARE_REPORT = $report.FullName
+        $env:QWENCLOUD_PLUGIN_PREPARE_DEADLINE = ''
+        # A hidden console suppresses raw diagnostics without accumulating log files.
+        $prepareProcess = Start-Process -FilePath $CliPath -ArgumentList '--internal-prepare-default-plugins' -PassThru -WindowStyle Hidden
+        $null = $prepareProcess.Handle
+        Wait-Process -InputObject $prepareProcess -Timeout 50 -ErrorAction Stop
+        $prepared = $prepareProcess.ExitCode -eq 0
+    } catch {
+        $prepared = $false
+    } finally {
+        if ($null -ne $prepareProcess -and -not $prepareProcess.HasExited) {
+            Stop-Process -InputObject $prepareProcess -Force -ErrorAction SilentlyContinue
+        }
+        if ($null -ne $report) {
+            try {
+                if ((Get-Item -LiteralPath $report.FullName).Length -le 32) {
+                    $upgradeRequired = (Get-Content -LiteralPath $report.FullName -TotalCount 1) -eq 'upgrade-required'
+                }
+            } catch { $upgradeRequired = $false }
+            Remove-Item -LiteralPath $report.FullName -Force -ErrorAction SilentlyContinue
+        }
+        $env:QWENCLOUD_PLUGIN_PREPARE_DEADLINE = $previousDeadline
+        $env:QWENCLOUD_PLUGIN_PREPARE_REPORT = $previousReport
+        $global:LASTEXITCODE = $previousExitCode
+    }
+    if (-not $prepared) {
+        if ($upgradeRequired) {
+            Write-Error 'QwenCloud CLI is installed. A default plugin requires a newer CLI. Upgrade QwenCloud CLI, then run the plugin command again.' -ErrorAction Continue
+        } else {
+            Write-Error 'QwenCloud CLI is installed. Default plugins are temporarily unavailable; they will be retried automatically when you run a corresponding plugin command.' -ErrorAction Continue
+        }
+    }
+}
+
 # ─── Constrained Language Mode (CLM) Detection ──────────────────────────────
 # CLM (enforced by AppLocker / WDAC) blocks the .NET method calls used by the
 # rich install path (HttpWebRequest, Environment, IO.Path, IO.File, Add-Type
@@ -30,7 +75,7 @@ $script:IsCLM = ($ExecutionContext.SessionState.LanguageMode -eq 'ConstrainedLan
 
 # ─── Default Version ────────────────────────────────────────────────────────
 # Update this value when releasing a new version.
-$DefaultVersion = "v1.5.0"
+$DefaultVersion = "v1.6.0"
 
 # ─── Brand Colors ────────────────────────────────────────────────────────────
 # #987BFE via ANSI 24-bit true color escape sequences (matching install.sh)
@@ -379,6 +424,7 @@ function Install-QwenCloudCLI {
     Write-Host ""
     if (Test-Path $exePath) {
         Write-Success "${BRAND_BOLD}QwenCloud CLI${RESET} ${ver} installed successfully!"
+        Initialize-DefaultPlugins -CliPath $exePath
     } else {
         Write-Success "Installation complete (${ver})"
     }

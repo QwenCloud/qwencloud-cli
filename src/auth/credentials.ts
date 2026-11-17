@@ -372,9 +372,9 @@ export function tryExtractUserFromToken(accessToken: string): UserInfo | null {
  * Ensure user has valid (non-expired) credentials.
  * If token is expired, throw auth error (no refresh mechanism).
  */
-export function ensureAuthenticated(): Credentials {
-  const resolved = resolveCredentials();
-
+export function ensureAuthenticated(
+  resolved: ResolvedCredential | null = resolveCredentials(),
+): Credentials {
   if (!resolved) {
     throw authRequiredError();
   }

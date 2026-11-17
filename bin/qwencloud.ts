@@ -4,24 +4,24 @@ export {};
 import { resetGlobalCache } from '../src/utils/cache.js';
 
 const args = process.argv.slice(2);
+const initializePlugins = args.length === 1 && args[0] === '--internal-prepare-default-plugins';
 
 if (args.length === 0) {
   // REPL mode — dynamic import to avoid loading cost in one-shot mode
-  const { startRepl } = await import('../src/repl.js');
+  const { CliError } = await import('../src/utils/errors.js');
   try {
+    const { startRepl } = await import('../src/repl.js');
     await startRepl();
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     process.stderr.write(`REPL error: ${message}\n`);
     resetGlobalCache();
-    process.exitCode = 1;
+    process.exitCode = err instanceof CliError ? err.exitCode : 1;
   }
 } else {
   // One-shot mode
-  const { createProgram } = await import('../src/cli.js');
   const { CliError, HandledError, friendlyFsMessage } = await import('../src/utils/errors.js');
   const { flushDebugReport } = await import('../src/api/debug-buffer.js');
-  const program = createProgram();
 
   // Detect --format from argv before parsing — Commander may throw on an
   // unknown command before populating program.opts(), so we need our own scan.
@@ -67,7 +67,14 @@ if (args.length === 0) {
   // the race entirely.
 
   try {
-    await program.parseAsync(process.argv);
+    const { createProgram } = await import('../src/cli.js');
+    const program = createProgram({ loadPlugins: !initializePlugins });
+    if (initializePlugins) {
+      const { initializeDefaultPlugins } = await import('../src/plugins/initialize.js');
+      await initializeDefaultPlugins(program);
+    } else {
+      await program.parseAsync(process.argv);
+    }
     flushDebugReport();
     resetGlobalCache();
   } catch (err: unknown) {
