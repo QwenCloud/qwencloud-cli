@@ -6,6 +6,7 @@ import { getEffectiveConfig } from './config/manager.js';
 import { VERSION } from './index.js';
 import { flushDebugReport, clearDebugBuffer } from './api/debug-buffer.js';
 import { SUBCOMMANDS, tabCompleter, getGhostSuffix, unknownCommandMsg } from './repl/completer.js';
+import { interruptActiveCommand } from './utils/command-interrupt.js';
 import {
   surfaceCommanderError,
   shouldSwallowReplError,
@@ -132,6 +133,7 @@ export async function startRepl(): Promise<void> {
   let ctrlCTimer: NodeJS.Timeout | null = null;
 
   rl.on('SIGINT', () => {
+    if (interruptActiveCommand()) return;
     if (ctrlCCount === 0) {
       ctrlCCount = 1;
       console.log('\n  Press Ctrl+C again to exit.');

@@ -22,3 +22,5 @@ export const API_ACTION_SEARCH_ALL = 'SearchAll';
 
 // Products with optional authentication (public search API, etc.)
 export const AUTH_OPTIONAL_PRODUCTS: ReadonlySet<string> = new Set([API_PRODUCT_SEARCH]);
+
+export const PUBLIC_ANONYMOUS_CAPABILITIES: ReadonlyMap<string, ReadonlySet<string>> = new Map();

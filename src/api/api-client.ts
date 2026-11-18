@@ -26,6 +26,7 @@ export interface CallFlatApiOptions {
   params?: Record<string, unknown>;
   /** Attach a Bearer token when logged in, omit silently otherwise. */
   authOptional?: boolean;
+  signal?: AbortSignal;
 }
 
 export interface CallEnvelopeApiOptions {
@@ -78,6 +79,7 @@ export function createApiClient(opts?: CreateApiClientOptions): ApiClient {
         body: adapted.body,
         authMode: adapted.authMode,
         context: 'api',
+        signal: input.signal,
       });
       const { data } = unwrapResponse<T>('A', raw);
       return data;

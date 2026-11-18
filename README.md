@@ -6,7 +6,7 @@
 
 > Official command-line tool for [QwenCloud](https://www.qwencloud.com/). Discover models, check usage, manage authentication, and diagnose local setup from a terminal or an AI agent runtime.
 
-![Version](https://img.shields.io/badge/version-1.5.0-blue)
+![Version](https://img.shields.io/badge/version-1.6.0-blue)
 ![Node](https://img.shields.io/badge/node-%3E%3D18-green)
 ![License](https://img.shields.io/badge/license-Apache--2.0-green)
 
@@ -142,6 +142,7 @@ Run diagnostics to verify authentication, network access, configuration, and she
 | Subscription | `subscription status`, `subscription orders`, `subscription tokenplan status`, `subscription tokenplan seats` | `--format` |
 | Docs | `docs search`, `docs view` | `--format` |
 | Support | `support list`, `support view`, `support create`, `support reply`, `support close`, `support rate` | `--format` |
+| Plugins | `plugin list`, `plugin install`, `plugin update`, `plugin uninstall`, `plugin init`, `plugin validate` | `--name`, `--command`, `--force`, `--format` |
 | Config | `config list`, `config get`, `config set`, `config unset` | `--format` |
 | Diagnostics | `doctor` | `--format` |
 | Shell | `completion install`, `completion generate` | `--shell` |
@@ -262,7 +263,7 @@ qwencloud config unset output.format
 
 We welcome fixes, documentation improvements, and feature proposals.
 
-1. Start from the latest `master`.
+1. Start from the latest `main`.
 2. Create a focused branch, for example `fix/auth-token-expiry` or `doc/install-options`.
 3. Install dependencies with `pnpm install`.
 4. Make the change and add or update tests when behavior changes.
@@ -276,7 +277,7 @@ pnpm run build
 ```
 
 6. Commit with [Conventional Commits](https://www.conventionalcommits.org/), such as `feat:`, `fix:`, `doc:`, `refactor:`, and `chore:`.
-7. Push your branch and open a pull request against `master`.
+7. Push your branch and open a pull request against `main`.
 8. Fill in the PR template, link related issues, describe user-visible changes, and include screenshots or terminal output for CLI UX changes.
 
 Product-facing changes should include documentation updates and need product and engineering review.

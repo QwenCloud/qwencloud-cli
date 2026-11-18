@@ -13,7 +13,8 @@ const CACHE_DIR_NAME = 'cache';
  * Get the global config directory path (~/.qwencloud).
  */
 export function getConfigDir(): string {
-  return join(homedir(), CONFIG_DIR_NAME);
+  const override = process.env.QWENCLOUD_CONFIG_DIR?.trim();
+  return override ? resolve(override) : join(homedir(), CONFIG_DIR_NAME);
 }
 
 /**
@@ -70,4 +71,12 @@ export function getCacheDir(): string {
  */
 export function getCacheFilePath(fileName: string): string {
   return join(getCacheDir(), fileName);
+}
+
+export function getPluginsDir(): string {
+  return join(getConfigDir(), 'plugins');
+}
+
+export function getPluginsManifestPath(): string {
+  return join(getConfigDir(), 'plugins.json');
 }

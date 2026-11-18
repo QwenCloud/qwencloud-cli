@@ -1,6 +1,6 @@
 {
   "name": "@qwencloud/qwencloud-cli",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "publishConfig": {
     "access": "public"
   },
@@ -10,7 +10,8 @@
     "qwencloud": "dist/bin/qwencloud.js"
   },
   "files": [
-    "dist/bin/qwencloud.js"
+    "dist/bin/qwencloud.js",
+    "scripts/postinstall.js"
   ],
   "license": "SEE LICENSE IN README.md",
   "repository": {
@@ -40,7 +41,8 @@
     "lint:fix": "eslint \"{src,bin,scripts}/**/*.{ts,tsx}\" --fix",
     "format": "prettier --write \"{src,bin,scripts}/**/*.{ts,tsx,js,json,md}\"",
     "format:check": "prettier --check \"{src,bin,scripts}/**/*.{ts,tsx,js,json,md}\"",
-    "prepare": "tsx scripts/build.ts --mode prod"
+    "prepare": "tsx scripts/build.ts --mode prod",
+    "postinstall": "node scripts/postinstall.js"
   },
   "engines": {
     "node": ">=18"
