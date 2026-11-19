@@ -9,9 +9,7 @@ const { mockQuestion, mockClose, mockCreateInterface, rlHolder } = vi.hoisted(()
   const mockQuestion = vi.fn();
   const mockClose = vi.fn();
   const mockCreateInterface = vi.fn(() => {
-    const rl = new EE();
-    (rl as Record<string, unknown>).close = mockClose;
-    (rl as Record<string, unknown>).question = mockQuestion;
+    const rl = Object.assign(new EE(), { close: mockClose, question: mockQuestion });
     rlHolder.instance = rl;
     return rl;
   });

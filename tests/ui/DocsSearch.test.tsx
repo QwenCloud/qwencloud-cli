@@ -24,6 +24,7 @@ function frame(el: React.ReactElement): string {
 
 function item(overrides: Partial<DocsSearchItemViewModel> = {}): DocsSearchItemViewModel {
   return {
+    index: 1,
     title: 'Model releases',
     highlightedTitle: 'Model releases — <em>qwen3</em>',
     subBizType: 'Changelog',

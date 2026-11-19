@@ -114,7 +114,7 @@ describe('AuthService.loginInit', () => {
   // LI-02
   it('honours forcedMode=device-flow: invokes authorizeDeviceFlow', async () => {
     authClient.authorizeDeviceFlow.mockResolvedValue(DF_INIT);
-    const ctx: AuthModeContext = { forcedMode: 'device-flow' };
+    const ctx: AuthModeContext = { isInteractiveTty: false, forcedMode: 'device-flow' };
 
     const result = await service.loginInit(ctx);
 
@@ -238,7 +238,10 @@ describe('AuthService.loginPoll', () => {
   // LP-02
   it('loginInit returns auth_mode="device-flow" with no verifier on Device Flow branch', async () => {
     authClient.authorizeDeviceFlow.mockResolvedValue(DF_INIT);
-    const initResult = await service.loginInit({ forcedMode: 'device-flow' });
+    const initResult = await service.loginInit({
+      isInteractiveTty: false,
+      forcedMode: 'device-flow',
+    });
     expect(initResult.auth_mode).toBe('device-flow');
     expect(initResult.code_verifier).toBeUndefined();
   });

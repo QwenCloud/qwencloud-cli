@@ -407,7 +407,7 @@ describe('<InteractiveTable /> keyboard interactions (via mocked useInput)', () 
 });
 
 describe('<InteractiveTable /> viewport windowing (row-level scroll)', () => {
-  // ── Viewport slice (二.4 core) ────────────────────────────────────────────
+  // ── Viewport slice ────────────────────────────────────────────────────────
   // termRows small (12) + single page with 40 rows. The visible window
   // (≈ termRows - RESERVED) is far smaller than 40, so only the head rows are
   // rendered and the tail row (row-40) must NOT appear in the frame.
@@ -430,7 +430,7 @@ describe('<InteractiveTable /> viewport windowing (row-level scroll)', () => {
     expect(out).not.toContain('row-40');
   });
 
-  // ── Scroll down (二.4 core) ───────────────────────────────────────────────
+  // ── Scroll down ───────────────────────────────────────────────────────────
   // Triggering ↓ (down arrow) repeatedly advances the window so a previously
   // hidden row (row-20) becomes visible while the original first row (row-01)
   // scrolls out. Pre-fix there is no scroll handler → frame never changes →
@@ -639,7 +639,7 @@ describe('<InteractiveTable /> viewport windowing (row-level scroll)', () => {
 });
 
 describe('<InteractiveTable /> natural height (no padding inflation)', () => {
-  // ── No padding (二.1 core) ────────────────────────────────────────────────
+  // ── No padding ────────────────────────────────────────────────────────────
   // termRows large (40), content tiny (3 rows). The pre-fix component pads the
   // output with ~ (termRows - contentLines) trailing blank lines to force Ink's
   // clearTerminal full-screen path — which causes the exit blank-screen defect.

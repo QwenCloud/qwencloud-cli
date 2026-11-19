@@ -6,6 +6,8 @@ import type { Column } from './Table.js';
 import { renderWithInk } from './render.js';
 import { colors, theme } from './theme.js';
 import { useTerminalSize } from './useTerminalSize.js';
+import { TokenPlanDetailTables } from './TokenPlanDetailTables.js';
+import { visibleWidth } from './textWrap.js';
 import type {
   CodingPlanSectionViewModel,
   CreditPackSectionViewModel,
@@ -19,7 +21,7 @@ export interface SubscriptionStatusInkProps {
   vm: SubscriptionStatusViewModel;
 }
 
-const DIVIDER_CHAR = '═';
+const DIVIDER_CHAR = '─';
 const MIN_DIVIDER_WIDTH = 40;
 
 function sectionDivider(title: string, width: number): string {
@@ -36,7 +38,7 @@ function statusColor(value: string): string | undefined {
   return undefined;
 }
 
-function TokenPlanSection({
+function LegacyTokenPlanSection({
   section,
   width,
 }: {
@@ -51,17 +53,29 @@ function TokenPlanSection({
         <Text color={statusColor(section.status)}>{section.status}</Text>
         <Text>
           {'    '}Auto-Renew: {section.autoRenew}
-        </Text>
-        <Text>
           {'    '}Expires: {section.expires}
         </Text>
       </Box>
       <Text> </Text>
-      {section.tiers.map((tier, idx) => (
-        <Box flexDirection="column" key={`${tier.label}-${idx}`}>
-          <Text>{tier.label}:</Text>
+      {section.tiers.map((tier) => (
+        <Box flexDirection="column" key={tier.label}>
+          <Text>{tier.label}</Text>
           <Text> {tier.bar}</Text>
-          {idx < section.tiers.length - 1 && <Text> </Text>}
+        </Box>
+      ))}
+    </Box>
+  );
+}
+
+function TeamSeatUsage({ section }: { section: TokenPlanSectionViewModel }) {
+  if (section.tiers.length === 0) return null;
+  return (
+    <Box flexDirection="column" paddingLeft={2}>
+      <Text bold>Seat Usage</Text>
+      {section.tiers.map((tier) => (
+        <Box flexDirection="column" paddingLeft={2} key={tier.label}>
+          <Text>{tier.label}</Text>
+          <Text>Remaining {tier.bar}</Text>
         </Box>
       ))}
     </Box>
@@ -78,7 +92,7 @@ function CreditPackSection({
   return (
     <Box flexDirection="column">
       <Text> </Text>
-      <Text color={colors.brand}>{sectionDivider('Credit Pack', width)}</Text>
+      <Text color={colors.brand}>{sectionDivider('Add-on Credit Packs', width)}</Text>
       <Text>
         {section.count} pack{section.count === 1 ? '' : 's'} Total Remaining:{' '}
         {section.totalRemaining}
@@ -147,20 +161,47 @@ const RECENT_ORDERS_COLUMNS: Column[] = [
 function RecentOrdersSection({
   section,
   width,
+  includeCoding,
 }: {
   section: RecentOrdersSectionViewModel;
   width: number;
+  includeCoding: boolean;
 }) {
-  const title = `Recent Orders (latest ${section.orders.length})`;
-  const data = section.orders.map((o) => ({
+  const title = `${includeCoding ? 'Recent Orders' : 'Recent Token Plan Orders'} (latest ${section.orders.length})`;
+  const data: Record<string, string>[] = section.orders.map((o) => ({
     ...o,
     status: colorizeOrderStatus(o.statusLabel, o.statusColor),
   }));
+  // Include Table's dividers and trailing header space when choosing the layout.
+  const tableWidth =
+    RECENT_ORDERS_COLUMNS.reduce(
+      (total, column) =>
+        total +
+        Math.max(
+          visibleWidth(column.header),
+          ...data.map((order) => visibleWidth(order[column.key] ?? '')),
+        ),
+      0,
+    ) +
+    (RECENT_ORDERS_COLUMNS.length - 1) * 3 +
+    1;
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" width={width}>
       <Text> </Text>
       <Text color={colors.brand}>{sectionDivider(title, width)}</Text>
-      <Table columns={RECENT_ORDERS_COLUMNS} data={data} paddingLeft={0} />
+      {tableWidth > width ? (
+        data.map((order, index) => (
+          <Box key={index} flexDirection="column" marginTop={index === 0 ? 0 : 1}>
+            {RECENT_ORDERS_COLUMNS.map((column) => (
+              <Text key={column.key} bold={column.key === 'id'}>
+                {column.header}: {order[column.key]}
+              </Text>
+            ))}
+          </Box>
+        ))
+      ) : (
+        <Table columns={RECENT_ORDERS_COLUMNS} data={data} paddingLeft={0} maxTotalWidth={width} />
+      )}
     </Box>
   );
 }
@@ -193,16 +234,16 @@ function FlatFallback({ vm }: { vm: SubscriptionStatusViewModel }) {
 
 export function SubscriptionStatusInk({ vm }: SubscriptionStatusInkProps) {
   const { columns } = useTerminalSize();
-  const width = Math.max(MIN_DIVIDER_WIDTH, (columns ?? 80) - 4);
+  const width = Math.max(1, columns - 4);
 
   if (vm.banner) {
     return (
-      <Section title="Subscription Status">
+      <Section title="Subscription Status" borderStyle="double" maxWidth={columns}>
         <Box flexDirection="column" paddingLeft={2}>
           <Text color={colors.error}>{vm.banner}</Text>
-          {vm.diagnostics.map((d) => (
-            <Text key={d.api} color={colors.muted}>
-              · {d.api}: {d.errorCode} {d.errorMessage}
+          {vm.diagnostics.map((diagnostic, index) => (
+            <Text key={`${diagnostic.api}-${index}`} color={colors.muted}>
+              · {diagnostic.errorMessage}
             </Text>
           ))}
         </Box>
@@ -210,32 +251,61 @@ export function SubscriptionStatusInk({ vm }: SubscriptionStatusInkProps) {
     );
   }
 
-  const hasNewSections =
-    vm.tokenPlanSection !== null ||
-    vm.creditPackSection !== null ||
-    vm.codingPlanSection !== null ||
-    vm.recentOrdersSection !== null;
+  const editionSections = vm.sections.filter((section) => section.id.startsWith('tokenplan-'));
+  const hasEditionSections = editionSections.length > 0;
 
   return (
-    <Section title="Subscription Status" footer={vm.footnote ?? undefined}>
+    <Section
+      title="Subscription Status"
+      borderStyle="double"
+      footer={vm.footnote ?? undefined}
+      maxWidth={columns}
+    >
       <Box flexDirection="column" paddingLeft={2}>
-        {hasNewSections ? (
+        {hasEditionSections ? (
           <>
-            {vm.tokenPlanSection && (
-              <TokenPlanSection section={vm.tokenPlanSection} width={width} />
-            )}
-            {vm.creditPackSection && (
-              <CreditPackSection section={vm.creditPackSection} width={width} />
-            )}
-            {vm.codingPlanSection && (
-              <CodingPlanSection section={vm.codingPlanSection} width={width} />
-            )}
-            {vm.recentOrdersSection && (
-              <RecentOrdersSection section={vm.recentOrdersSection} width={width} />
-            )}
+            <Text color={colors.brand}>{sectionDivider('Token Plans', width)}</Text>
+            {editionSections.map((section, index) => (
+              <Box
+                key={section.id}
+                flexDirection="column"
+                paddingLeft={2}
+                marginTop={index === 0 ? 0 : 1}
+              >
+                <Text bold>{section.title}</Text>
+                <Box flexDirection="column" paddingLeft={2}>
+                  {section.fields.map((field) => (
+                    <Text key={field.label}>
+                      {field.label.padEnd(18)}
+                      {field.value}
+                    </Text>
+                  ))}
+                  <TokenPlanDetailTables
+                    tables={section.detailTables ?? []}
+                    paddingLeft={0}
+                    maxTotalWidth={Math.max(1, columns - 8)}
+                    recordTitleGap={section.id === 'tokenplan-individual' ? 0 : 1}
+                  />
+                </Box>
+                {section.id === 'tokenplan-team' &&
+                  vm.tokenPlanSection &&
+                  !section.detailTables?.length && <TeamSeatUsage section={vm.tokenPlanSection} />}
+              </Box>
+            ))}
           </>
-        ) : (
+        ) : vm.tokenPlanSection ? (
+          <LegacyTokenPlanSection section={vm.tokenPlanSection} width={width} />
+        ) : vm.codingPlanSection ? null : (
           <FlatFallback vm={vm} />
+        )}
+        {vm.creditPackSection && <CreditPackSection section={vm.creditPackSection} width={width} />}
+        {vm.codingPlanSection && <CodingPlanSection section={vm.codingPlanSection} width={width} />}
+        {vm.recentOrdersSection && (
+          <RecentOrdersSection
+            section={vm.recentOrdersSection}
+            width={width}
+            includeCoding={vm.codingPlanSection !== null}
+          />
         )}
       </Box>
     </Section>

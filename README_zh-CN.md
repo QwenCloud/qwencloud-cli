@@ -6,7 +6,7 @@
 
 > [QwenCloud](https://www.qwencloud.com/) 官方命令行工具。用于在终端或 AI Agent 运行环境中发现模型、查询用量、管理认证并诊断本地配置。
 
-![Version](https://img.shields.io/badge/version-1.6.0-blue)
+![Version](https://img.shields.io/badge/version-1.7.0-blue)
 ![Node](https://img.shields.io/badge/node-%3E%3D18-green)
 ![License](https://img.shields.io/badge/license-Apache--2.0-green)
 
@@ -24,6 +24,7 @@ QwenCloud 是面向模型、工具和应用的 AI-native cloud，提供文本、
 - **模型调用命令族**：通过 `chat`、`image`、`video`、`audio` 与 `task` 直接调用对话、图像、视频与语音模型，支持流式输出、文件落盘和异步任务查询。
 - **Agent 友好契约**：命令支持 `--format json`、标准化退出码、可解析的 JSON 错误，以及 `--quiet` 仅返回退出码。
 - **模型与用量工作流**：浏览模型、查看模型元数据、按关键词搜索，并查阅 Free Tier、Coding Plan 和 PAYG 用量。
+- **Token Plan 订阅**：查询个人版、团队版价格、额度窗口及支持模型，查看当前订阅、剩余额度、团队席位汇总与详情。
 - **原生凭证存储**：凭证优先存储于操作系统密钥链，不可用时回退到加密文件。无需 `keytar` 或原生 Node 绑定。
 - **自文档化命令树**：所有命令均支持 `--help`；生成的帮助信息即为权威语法参考。
 
@@ -130,22 +131,23 @@ qwencloud auth login --complete --format json
 
 ## 命令
 
-| 领域 | 命令 | 常用标志 |
-|---|---|---|
-| 模型调用 | `chat create`, `image generate`, `video generate`, `audio transcribe`, `audio speech`, `task get` | `--model`, `--stream`, `--size`, `--image`, `--voice`, `--out`, `--no-wait`, `--timeout`, `--request`, `--api-key`, `--format` |
-| 认证 | `auth login`, `auth logout`, `auth status` | `--init-only`, `--complete`, `--timeout`, `--format` |
-| 模型 | `models list`, `models info`, `models search` | `--input`, `--output`, `--all`, `--verbose`, `--page`, `--per-page`, `--format` |
-| 用量 | `usage summary`, `usage breakdown`, `usage free-tier`, `usage payg`, `usage logs` | `--period`, `--from`, `--to`, `--days`, `--model`, `--granularity`, `--format` |
-| 账单 | `billing summary`, `billing breakdown`, `billing limit`, `billing payment-method list`, `billing payment-method bind` | `--from`, `--to`, `--period`, `--group-by`, `--granularity`, `--format` |
-| 业务空间 | `workspace list`, `workspace limit` | `--format` |
-| 订阅 | `subscription status`, `subscription orders`, `subscription tokenplan status`, `subscription tokenplan seats` | `--format` |
-| 文档 | `docs search`, `docs view` | `--format` |
-| 工单 | `support list`, `support view`, `support create`, `support reply`, `support close`, `support rate` | `--format` |
-| 插件 | `plugin list`, `plugin install`, `plugin update`, `plugin uninstall`, `plugin init`, `plugin validate` | `--name`, `--command`, `--force`, `--format` |
-| 配置 | `config list`, `config get`, `config set`, `config unset` | `--format` |
-| 诊断 | `doctor` | `--format` |
-| Shell | `completion install`, `completion generate` | `--shell` |
-| 版本 | `version` | `--check` |
+| 领域       | 命令                                                                                                                  | 常用标志                                                                                                                       |
+| ---------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| 模型调用   | `chat create`, `image generate`, `video generate`, `audio transcribe`, `audio speech`, `task get`                     | `--model`, `--stream`, `--size`, `--image`, `--voice`, `--out`, `--no-wait`, `--timeout`, `--request`, `--api-key`, `--format` |
+| 认证       | `auth login`, `auth logout`, `auth status`                                                                            | `--init-only`, `--complete`, `--timeout`, `--format`                                                                           |
+| 模型       | `models list`, `models info`, `models search`                                                                         | `--input`, `--output`, `--all`, `--verbose`, `--page`, `--per-page`, `--format`                                                |
+| 用量       | `usage summary`, `usage breakdown`, `usage free-tier`, `usage payg`, `usage logs`                                     | `--period`, `--from`, `--to`, `--days`, `--model`, `--granularity`, `--format`                                                 |
+| 账单       | `billing summary`, `billing breakdown`, `billing limit`, `billing payment-method list`, `billing payment-method bind` | `--from`, `--to`, `--period`, `--group-by`, `--granularity`, `--format`                                                        |
+| 业务空间   | `workspace list`, `workspace limit`                                                                                   | `--format`                                                                                                                     |
+| 订阅       | `subscription status`, `subscription orders`                                                                          | `--plan`, `--type`, `--page`, `--page-size`, `--format`                                                                        |
+| Token Plan | `subscription tokenplan list`, `subscription tokenplan status`, `subscription tokenplan seats`                        | `--edition`, `--billing-cycle`, `--include-models`, `--spec-type`, `--page`, `--page-size`, `--format`                         |
+| 文档       | `docs search`, `docs view`                                                                                            | `--format`                                                                                                                     |
+| 工单       | `support list`, `support view`, `support create`, `support reply`, `support close`, `support rate`                    | `--format`                                                                                                                     |
+| 插件       | `plugin list`, `plugin install`, `plugin update`, `plugin uninstall`, `plugin init`, `plugin validate`                | `--name`, `--command`, `--force`, `--format`                                                                                   |
+| 配置       | `config list`, `config get`, `config set`, `config unset`                                                             | `--format`                                                                                                                     |
+| 诊断       | `doctor`                                                                                                              | `--format`                                                                                                                     |
+| Shell      | `completion install`, `completion generate`                                                                           | `--shell`                                                                                                                      |
+| 版本       | `version`                                                                                                             | `--check`                                                                                                                      |
 
 使用 help 查看精确语法：
 
@@ -153,6 +155,7 @@ qwencloud auth login --complete --format json
 qwencloud --help
 qwencloud models --help
 qwencloud usage breakdown --help
+qwencloud subscription tokenplan --help
 ```
 
 ---
@@ -174,14 +177,14 @@ qwencloud --quiet doctor
 
 退出码：
 
-| 代码 | 含义 |
-|---:|---|
-| `0` | 成功 |
-| `1` | 一般错误或用法错误 |
-| `2` | 认证错误 |
-| `3` | 网络错误 |
-| `4` | 配置错误 |
-| `130` | 中断 |
+|  代码 | 含义               |
+| ----: | ------------------ |
+|   `0` | 成功               |
+|   `1` | 一般错误或用法错误 |
+|   `2` | 认证错误           |
+|   `3` | 网络错误           |
+|   `4` | 配置错误           |
+| `130` | 中断               |
 
 JSON 错误遵循固定结构：
 
@@ -245,8 +248,8 @@ QwenCloud CLI 使用一个全局配置文件：
 
 公开配置项：
 
-| 键 | 可选值 | 默认值 |
-|---|---|---|
+| 键              | 可选值                          | 默认值 |
+| --------------- | ------------------------------- | ------ |
 | `output.format` | `auto`, `table`, `json`, `text` | `auto` |
 
 ```bash

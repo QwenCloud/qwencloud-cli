@@ -38,6 +38,14 @@ export function clearCredentialsCache(): void {
   clearKeychainAvailableCache();
 }
 
+function clearCsDataCredentialCache(): void {
+  try {
+    unlinkSync(`${getCredentialsPath()}.console`);
+  } catch {
+    // Derived cache cleanup must not block root credential changes.
+  }
+}
+
 export interface ResolvedCredential {
   source: 'keychain' | 'encrypted_file';
   auth_mode: 'device_flow';
@@ -226,6 +234,7 @@ export function readCredentials(): Credentials | null {
  * Write credentials to the appropriate storage tier with automatic fallback.
  */
 export function writeCredentials(credentials: Credentials): void {
+  clearCsDataCredentialCache();
   // Clear cache to ensure subsequent reads reflect the new credentials
   clearCredentialsCache();
 
@@ -271,6 +280,7 @@ function tryWriteToKeychainVerified(payload: string): boolean {
  * Delete credentials from keychain and file (logout).
  */
 export function deleteCredentials(): boolean {
+  clearCsDataCredentialCache();
   // Clear cache to ensure subsequent reads reflect credential deletion
   clearCredentialsCache();
 

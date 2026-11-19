@@ -69,7 +69,7 @@ describe('renderTextBillingBreakdown', () => {
     return {
       groupBy: 'model',
       period: '2025-03-01 → 2025-03-31',
-      chargeType: 'postpay',
+      chargeType: 'postpaid',
       columns,
       items: rows,
       total: { amount: '12.50', raw: '12.50', display: '$12.50' },
@@ -85,7 +85,7 @@ describe('renderTextBillingBreakdown', () => {
     renderTextBillingBreakdown(makeVm());
     const calls = (console.log as ReturnType<typeof vi.fn>).mock.calls.flat();
     expect(calls.some((c: string) => c.includes('Period') && c.includes('2025-03-01'))).toBe(true);
-    expect(calls.some((c: string) => c.includes('Charge Type') && c.includes('postpay'))).toBe(true);
+    expect(calls.some((c: string) => c.includes('Charge Type') && c.includes('postpaid'))).toBe(true);
   });
 
   it('renders table with row data', () => {
@@ -123,7 +123,7 @@ describe('renderTextBillingSummary', () => {
     ];
     return {
       cycle: '2025-03',
-      chargeType: 'postpay',
+      chargeType: 'postpaid',
       currency: 'USD',
       cycles: [],
       totals: {
@@ -146,7 +146,7 @@ describe('renderTextBillingSummary', () => {
   it('renders charge type when defined', () => {
     renderTextBillingSummary(makeVm());
     const calls = (console.log as ReturnType<typeof vi.fn>).mock.calls.flat();
-    expect(calls.some((c: string) => c.includes('Charge Type') && c.includes('postpay'))).toBe(true);
+    expect(calls.some((c: string) => c.includes('Charge Type') && c.includes('postpaid'))).toBe(true);
   });
 
   it('does not render charge type when undefined', () => {

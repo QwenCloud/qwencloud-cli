@@ -16,7 +16,7 @@ import { CliError } from '../../src/utils/errors.js';
 import { EXIT_CODES } from '../../src/utils/exit-codes.js';
 import type { NormalizedError, TokenUsage } from '../../src/types/model-invocation.js';
 
-const USAGE: TokenUsage = { input: 10, output: 20, total: 30 };
+const USAGE = { input: 10, output: 20, total: 30 } satisfies TokenUsage;
 
 describe('InvocationEnvelope', () => {
   describe('success', () => {

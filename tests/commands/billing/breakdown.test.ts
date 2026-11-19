@@ -1,5 +1,5 @@
 /** Command-level tests for `billing breakdown`. */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { runCommand } from '../../helpers/run-command.js';
 import { renderInkForTest, clearRenderedFrames } from '../../helpers/ink-render-mock.js';
 import type { ConsumeBreakdown, ConsumeBreakdownByPeriods } from '../../../src/types/billing-extra.js';
@@ -81,6 +81,10 @@ beforeEach(() => {
   renderInteractiveSpy.mockReset();
   renderInteractiveSpy.mockImplementation(renderInkForTest as any);
   clearRenderedFrames();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 function buildBreakdown(program: import('commander').Command) {
@@ -340,6 +344,8 @@ describe('billing breakdown command', () => {
   });
 
   it('--period quarter (>= 31 days) without --granularity → stays month', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 4, 15, 12));
     holder.billingService.getConsumeBreakdownByPeriods.mockResolvedValue(makeBreakdownByPeriods());
     await runCommand(buildBreakdown, [
       'billing', 'breakdown', '--period', 'quarter', '--format', 'json',
@@ -350,12 +356,60 @@ describe('billing breakdown command', () => {
   });
 
   it('--period quarter + --granularity day → conflict error', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 4, 15, 12));
     const r = await runCommand(buildBreakdown, [
       'billing', 'breakdown', '--period', 'quarter', '--granularity', 'day', '--format', 'json',
     ]);
     expect(r.exitCode).toBe(4);
     expect(r.stderr).toContain('Parameter conflict');
     expect(holder.billingService.getConsumeBreakdown).not.toHaveBeenCalled();
+  });
+
+  it('--period quarter in its first month without --granularity → auto day', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 3, 15, 12));
+    holder.billingService.getConsumeBreakdownByPeriods.mockResolvedValue(makeBreakdownByPeriods({ granularity: 'day' }));
+    const r = await runCommand(buildBreakdown, [
+      'billing', 'breakdown', '--period', 'quarter', '--format', 'json',
+    ]);
+    expect(r.exitCode).toBeUndefined();
+    expect(holder.billingService.getConsumeBreakdownByPeriods).toHaveBeenCalledTimes(1);
+    expect(holder.billingService.getConsumeBreakdownByPeriods).toHaveBeenCalledWith(expect.objectContaining({
+      granularity: 'day',
+      from: '2026-04-01',
+      to: '2026-04-15',
+    }));
+    expect(holder.billingService.getConsumeBreakdown).not.toHaveBeenCalled();
+  });
+
+  it('--period quarter in its first month + --granularity day → no conflict', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 3, 15, 12));
+    holder.billingService.getConsumeBreakdownByPeriods.mockResolvedValue(makeBreakdownByPeriods({ granularity: 'day' }));
+    const r = await runCommand(buildBreakdown, [
+      'billing', 'breakdown', '--period', 'quarter', '--granularity', 'day', '--format', 'json',
+    ]);
+    expect(r.exitCode).toBeUndefined();
+    expect(holder.billingService.getConsumeBreakdownByPeriods).toHaveBeenCalledTimes(1);
+    expect(holder.billingService.getConsumeBreakdownByPeriods).toHaveBeenCalledWith(expect.objectContaining({
+      granularity: 'day',
+      from: '2026-04-01',
+      to: '2026-04-15',
+    }));
+    expect(holder.billingService.getConsumeBreakdown).not.toHaveBeenCalled();
+  });
+
+  it('--period quarter in its first month + --granularity month → conflict error', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 3, 15, 12));
+    const r = await runCommand(buildBreakdown, [
+      'billing', 'breakdown', '--period', 'quarter', '--granularity', 'month', '--format', 'json',
+    ]);
+    expect(r.exitCode).toBe(4);
+    expect(r.stderr).toContain('Parameter conflict');
+    expect(holder.billingService.getConsumeBreakdown).not.toHaveBeenCalled();
+    expect(holder.billingService.getConsumeBreakdownByPeriods).not.toHaveBeenCalled();
   });
 
   it('--period today + --granularity month → conflict error', async () => {

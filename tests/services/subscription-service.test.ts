@@ -6,6 +6,8 @@ import { SubscriptionService } from '../../src/services/subscription-service.js'
 import type { SubscriptionAdapter } from '../../src/services/subscription-service.js';
 import type { TokenplanService } from '../../src/services/tokenplan-service.js';
 import type { TokenPlan } from '../../src/types/usage.js';
+import type { TokenPlanEditionStatus } from '../../src/types/tokenplan-subscription.js';
+import { transformInstancesRenewable } from '../../src/api/adapters/subscription-adapter.js';
 
 // Mocks
 
@@ -20,19 +22,61 @@ function makeMockApiClient(): MockApiClient {
 
 function makeCachedFetcher(): CachedFetcher {
   return {
-    getOrFetch: vi.fn(async <T>(_k: string, _t: number, fetcher: () => Promise<T>) => fetcher()),
+    getOrFetch: async <T>(_k: string, _t: number, fetcher: () => Promise<T>) => fetcher(),
     invalidate: vi.fn(),
   };
 }
 
 interface MockTokenplanService {
   fetchTokenPlan: ReturnType<typeof vi.fn>;
+  fetchIndividualTokenPlan: ReturnType<typeof vi.fn>;
+  fetchTeamTokenPlan: ReturnType<typeof vi.fn>;
 }
 
-function makeMockTokenplanService(
-  result: TokenPlan = { subscribed: false },
-): MockTokenplanService {
-  return { fetchTokenPlan: vi.fn(async () => result) };
+function makeMockTokenplanService(result: TokenPlan = { subscribed: false }): MockTokenplanService {
+  const fetchTokenPlan = vi.fn(async () => result);
+  const individual: TokenPlanEditionStatus = {
+    edition: 'individual',
+    commodityCode: 'sfm_tokenplansolo_public_intl',
+    status: 'not_subscribed',
+    type: null,
+    name: null,
+    specCode: null,
+    period: null,
+    remainingDays: null,
+    autoRenew: null,
+    seatSummary: null,
+    completeness: 'complete',
+    diagnostics: [],
+  };
+  return {
+    fetchTokenPlan,
+    fetchTeamTokenPlan: vi.fn(async () => {
+      const summary = await fetchTokenPlan();
+      return {
+        team: {
+          ...individual,
+          edition: 'team',
+          status: summary.subscribed ? 'active' : 'not_subscribed',
+        },
+        instanceId: null,
+        legacy: summary,
+        legacyInstances: summary.subscribed
+          ? [
+              {
+                InstanceId: 'mock-team-instance',
+                CommodityCode: 'sfm_tokenplanteams_dp_intl',
+                Status: 'valid',
+                TemplateName: summary.planName,
+                InitCapacityBaseValue: String(summary.totalCredits),
+                CurrCapacityBaseValue: String(summary.remainingCredits),
+              },
+            ]
+          : [],
+      };
+    }),
+    fetchIndividualTokenPlan: vi.fn(async () => individual),
+  };
 }
 
 function makeSubscriptionAdapter(): SubscriptionAdapter {
@@ -91,12 +135,10 @@ function defaultSuccess(action: string): Record<string, unknown> {
       return { IsGray: false };
     case 'DescribeFrInstances':
       return {
-        Data: [
-          { InstanceId: 'fr-001', CurrCapacityBaseValue: '1000', StatusCode: 'valid' },
-        ],
+        Data: [{ InstanceId: 'fr-001', CurrCapacityBaseValue: '1000', StatusCode: 'valid' }],
       };
     case 'GetSeatSubscriptionSummary':
-      return { PlanName: 'Token Plan Team' };
+      return { PlanName: 'Token Plan Team', SubscriptionGroupList: [] };
     case 'GetSubscriptionDetail':
       return {
         Data: [
@@ -111,7 +153,7 @@ function defaultSuccess(action: string): Record<string, unknown> {
         CurrentPage: 1,
       };
     case 'CheckTokenPlanAutoRenewal':
-      return { EnableRenew: true };
+      return { EnableRenew: true, Data: { AutoRenewal: 1 } };
     case 'CheckInstancesRenewable':
       return { Data: [{ InstanceId: 'subs-001', CanRenew: true }] };
     default:
@@ -205,23 +247,56 @@ describe('SubscriptionService.getStatus — multi-API orchestration', () => {
       GetSubscriptionDetail: e,
       CheckTokenPlanAutoRenewal: e,
     });
-    tokenplanService.fetchTokenPlan.mockRejectedValueOnce(e);
+    tokenplanService.fetchIndividualTokenPlan.mockRejectedValueOnce(e);
+    tokenplanService.fetchTeamTokenPlan.mockRejectedValueOnce(e);
     const result = await service.getStatus();
     expect(result.data).toBeNull();
-    // Six phase-1 sub-calls: gray + seat-summary + TokenPlan + addon-fr +
-    // auto-renew + subscription-detail.
-    expect(result.diagnostics).toHaveLength(6);
+    expect(result.diagnostics.map((diagnostic) => diagnostic.api)).toEqual([
+      'QuerySubscriptionGray',
+      'DescribeFrInstances-addon',
+      'GetSubscriptionDetail',
+      'TokenPlanIndividual',
+      'DescribeFrInstances',
+      'GetSeatSubscriptionSummary',
+      'CheckTokenPlanAutoRenewal',
+      'TokenPlan',
+    ]);
+    expect(apiClient.callFlatApi).not.toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'CheckInstancesRenewable' }),
+    );
   });
 
   it('classifies a hung call as a timeout diagnostic via the overall sentinel', async () => {
     vi.useFakeTimers();
     apiClient.callFlatApi = buildSelectiveMock({}, new Set(['CheckTokenPlanAutoRenewal']));
+    service = new SubscriptionService(
+      apiClient as unknown as ApiClient,
+      { ...makeSubscriptionAdapter(), transformInstancesRenewable },
+      makeCachedFetcher(),
+      tokenplanService as unknown as TokenplanService,
+    );
     const promise = service.getStatus();
     await vi.advanceTimersByTimeAsync(35_000);
     const result = await promise;
     vi.useRealTimers();
     expect(result.diagnostics).toHaveLength(1);
-    expect(result.diagnostics[0].errorMessage).toMatch(/timeout/i);
+    expect(result.diagnostics[0].errorMessage).toBe(
+      'The service did not respond in time. Try again later.',
+    );
+    expect(result.diagnostics.map((diagnostic) => diagnostic.api)).toEqual([
+      'CheckTokenPlanAutoRenewal',
+    ]);
+    expect(apiClient.callFlatApi).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'CheckInstancesRenewable',
+        params: {
+          'instanceIdentities.1.InstanceId': 'subs-001',
+          'instanceIdentities.1.CommodityCode': 'sfm_codingplan_public_intl',
+          'instanceIdentities.1.ResourceType': 'subscription',
+        },
+      }),
+    );
+    expect(result.data?.renewable).toBe(true);
     expect(result.data).not.toBeNull();
   });
 
@@ -237,18 +312,38 @@ describe('SubscriptionService.getStatus — multi-API orchestration', () => {
         'CheckTokenPlanAutoRenewal',
       ]),
     );
-    tokenplanService.fetchTokenPlan.mockImplementationOnce(
-      () => new Promise<TokenPlan>(() => {}),
+    tokenplanService.fetchIndividualTokenPlan.mockImplementationOnce(
+      () => new Promise<TokenPlanEditionStatus>(() => {}),
     );
+    tokenplanService.fetchTeamTokenPlan.mockImplementationOnce(() => new Promise(() => {}));
     const promise = service.getStatus();
     await vi.advanceTimersByTimeAsync(35_000);
     const result = await promise;
     vi.useRealTimers();
     expect(result.data).toBeNull();
-    // Six phase-1 sub-calls all stall: gray + seat-summary + TokenPlan +
-    // addon-fr + auto-renew + subscription-detail.
-    expect(result.diagnostics).toHaveLength(6);
-    expect(result.diagnostics.every((d) => /timeout/i.test(d.errorMessage ?? ''))).toBe(true);
+    expect(result.diagnostics).toEqual([
+      ...[
+        'QuerySubscriptionGray',
+        'DescribeFrInstances-addon',
+        'GetSubscriptionDetail',
+        'TokenPlanIndividual',
+        'DescribeFrInstances',
+        'GetSeatSubscriptionSummary',
+        'CheckTokenPlanAutoRenewal',
+      ].map((api) => ({
+        api,
+        errorCode: 'Timeout',
+        errorMessage: 'The service did not respond in time. Try again later.',
+      })),
+      {
+        api: 'TokenPlan',
+        errorCode: 'NETWORK_ERROR',
+        errorMessage: 'The service could not be reached. Check your network connection.',
+      },
+    ]);
+    expect(apiClient.callFlatApi).not.toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'CheckInstancesRenewable' }),
+    );
   });
 
   it('mixes timeout and error diagnostics correctly', async () => {
@@ -402,14 +497,17 @@ describe('SubscriptionService.getStatus — multi-API orchestration', () => {
               {
                 SpecType: 'pro',
                 SubscriptionTotalNumber: 3,
-                EquityList: [{ TotalValue: '1000000', SurplusValue: '600000' }],
+                EquityList: [
+                  { EquityCode: 'CREDITS', TotalValue: '1000000', SurplusValue: '600000' },
+                ],
                 NextCycleFlushTime: 1735689600000,
               },
               {
                 SpecType: 'standard',
                 SubscriptionTotalNumber: 1,
-                TotalValue: '500000',
-                SurplusValue: '500000',
+                EquityList: [
+                  { EquityCode: 'CREDITS', TotalValue: '500000', SurplusValue: '500000' },
+                ],
               },
             ],
           },
@@ -717,7 +815,7 @@ describe('SubscriptionService.getStatus — multi-API orchestration', () => {
     );
     await service.getStatus();
     expect(orderListParams?.CommodityCodeList).toBe(
-      'sfm_tokenplanteams_dp_intl,sfm_tokenplanteamsaddon_dp_intl',
+      'sfm_tokenplanteams_dp_intl,sfm_tokenplanteamsaddon_dp_intl,sfm_tokenplansolo_public_intl',
     );
   });
 });
@@ -742,9 +840,7 @@ describe('SubscriptionService.listOrders', () => {
   });
 
   it('returns the order list without expanding details by default', async () => {
-    apiClient.callFlatApi
-      .mockResolvedValueOnce(NBID_RESPONSE)
-      .mockResolvedValueOnce({
+    apiClient.callFlatApi.mockResolvedValueOnce(NBID_RESPONSE).mockResolvedValueOnce({
       Data: [
         {
           OrderId: 'ord-001',
@@ -809,9 +905,7 @@ describe('SubscriptionService.listOrders', () => {
   });
 
   it('returns an empty list when the backend has no orders', async () => {
-    apiClient.callFlatApi
-      .mockResolvedValueOnce(NBID_RESPONSE)
-      .mockResolvedValueOnce({
+    apiClient.callFlatApi.mockResolvedValueOnce(NBID_RESPONSE).mockResolvedValueOnce({
       Data: [],
       TotalCount: 0,
       PageSize: 20,
@@ -919,9 +1013,7 @@ describe('SubscriptionService.listOrders', () => {
   // instead of silently treating the missing Data as an empty list.
   it('list: surfaces FEATURE_UNAVAILABLE when upstream returns error payload', async () => {
     const { CliError } = await import('../../src/utils/errors.js');
-    apiClient.callFlatApi
-      .mockResolvedValueOnce(NBID_RESPONSE)
-      .mockResolvedValueOnce({
+    apiClient.callFlatApi.mockResolvedValueOnce(NBID_RESPONSE).mockResolvedValueOnce({
       RequestId: 'rid',
       Code: 'PARAM_INVALID',
       Message: 'param error',
@@ -937,9 +1029,7 @@ describe('SubscriptionService.listOrders', () => {
 
   it('list: surfaces FEATURE_UNAVAILABLE for any inner business code without Data', async () => {
     const { CliError } = await import('../../src/utils/errors.js');
-    apiClient.callFlatApi
-      .mockResolvedValueOnce(NBID_RESPONSE)
-      .mockResolvedValueOnce({
+    apiClient.callFlatApi.mockResolvedValueOnce(NBID_RESPONSE).mockResolvedValueOnce({
       RequestId: 'rid',
       Code: '1005',
       Message: 'Unknown error. : 1005',
@@ -970,9 +1060,7 @@ describe('SubscriptionService.listOrders', () => {
   });
 
   it('list: a successful response (Data array, no Code) is unaffected', async () => {
-    apiClient.callFlatApi
-      .mockResolvedValueOnce(NBID_RESPONSE)
-      .mockResolvedValueOnce({
+    apiClient.callFlatApi.mockResolvedValueOnce(NBID_RESPONSE).mockResolvedValueOnce({
       Data: [
         {
           OrderId: 'ord-ok',

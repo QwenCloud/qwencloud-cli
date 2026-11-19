@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import { theme, colors } from './theme.js';
-import { visibleWidth } from './textWrap.js';
+import { visibleWidth, truncateByDisplayWidth } from './textWrap.js';
 import { useTerminalSize } from './useTerminalSize.js';
 
 export interface SectionProps {
@@ -10,11 +10,18 @@ export interface SectionProps {
   children: React.ReactNode;
   footer?: string; // e.g., "5 models with free tier"
   paddingLeft?: number;
+  borderStyle?: 'single' | 'double';
+  /**
+   * Cap the section's display width and truncate title/footer to fit.
+   * Only interactive full-screen consumers pass this (wrapped lines break
+   * Ink's frame erasure there); one-shot static rendering stays untouched.
+   */
+  maxWidth?: number;
 }
 
 /**
  * Section component for grouping related content with a title bar.
- * Used by usage summary (Free Tier, Coding Plan, Pay-as-you-go sections).
+ * Used by usage summary (Free Tier, Token Plan, Pay-as-you-go sections).
  *
  * Renders:
  *   ── Title ─────────────────────────────────────────────────────
@@ -22,35 +29,53 @@ export interface SectionProps {
  *   ──────────────────────────────────────────────────────────────
  *   footer
  */
-export function Section({ title, subtitle, children, footer, paddingLeft = 2 }: SectionProps) {
-  // Calculate total width from terminal or use default
-  const { columns: terminalWidth } = useTerminalSize();
-  const sectionWidth = terminalWidth - paddingLeft;
+export function Section({
+  title,
+  subtitle,
+  children,
+  footer,
+  paddingLeft = 2,
+  borderStyle = 'single',
+  maxWidth,
+}: SectionProps) {
+  const { columns } = useTerminalSize();
+  const effectiveColumns = maxWidth != null ? Math.min(columns, maxWidth) : columns;
+  const sectionWidth = Math.max(1, effectiveColumns - paddingLeft);
+  const border = borderStyle === 'double' ? '═' : '─';
 
-  const titlePart = subtitle ? `${title}  ${theme.symbols.dot}  ${subtitle}` : title;
+  const rawTitle = subtitle ? `${title}  ${theme.symbols.dot}  ${subtitle}` : title;
+  // Reserve one column for the mandatory trailing dash so the line never wraps.
+  const titlePart =
+    maxWidth != null ? truncateByDisplayWidth(rawTitle, Math.max(1, sectionWidth - 1)) : rawTitle;
   const titleLen = visibleWidth(titlePart);
   const dashesAfter = Math.max(0, sectionWidth - titleLen);
+  const footerText =
+    footer != null && maxWidth != null
+      ? truncateByDisplayWidth(footer, Math.max(1, sectionWidth))
+      : footer;
 
   return (
     <Box flexDirection="column" paddingLeft={paddingLeft}>
-      <Box>
+      {/* Nested spans prevent a stale resize frame from wrapping the title. */}
+      <Text wrap="truncate-end">
         <Text bold color={colors.brand}>
           {titlePart}
         </Text>
-        <Text color={colors.darkPurple}>{'─'.repeat(Math.max(1, dashesAfter))}</Text>
-      </Box>
+        <Text color={colors.darkPurple}>{border.repeat(Math.max(1, dashesAfter))}</Text>
+      </Text>
 
-      {/* Content */}
       <Box flexDirection="column">{children}</Box>
 
-      {/* Footer separator */}
-      {footer && <Text color={colors.darkPurple}>{'─'.repeat(Math.max(0, sectionWidth))}</Text>}
+      {footer && (
+        <Text color={colors.darkPurple} wrap="truncate-end">
+          {border.repeat(Math.max(0, sectionWidth))}
+        </Text>
+      )}
 
-      {/* Footer text */}
       {footer && (
         <Box>
           <Text color={colors.muted} wrap="truncate-end">
-            {footer}
+            {footerText}
           </Text>
         </Box>
       )}

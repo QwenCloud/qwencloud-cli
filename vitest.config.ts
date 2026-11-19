@@ -8,6 +8,7 @@ export default defineConfig({
     include: ['tests/**/*.test.{ts,tsx}'],
     restoreMocks: true,
     clearMocks: true,
+    maxWorkers: 4,
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts', 'src/**/*.tsx'],

@@ -85,10 +85,13 @@ function makeWireConfig(inner: Record<string, unknown>): string {
 }
 
 interface RawEquity {
+  EquityType?: string;
   CycleStartTime?: string;
   CycleEndTime?: string;
   CycleTotalValue?: string;
   CycleSurplusValue?: string;
+  TotalValue?: string;
+  SurplusValue?: string;
   Unit?: string;
 }
 
@@ -115,6 +118,7 @@ function makeRawSeat(overrides: Partial<RawSeat> = {}): RawSeat {
     ProductType: 'TokenPlan',
     EquityList: [
       {
+        EquityType: 'CREDITS',
         CycleStartTime: '2026-06-14T00:00:00+08:00',
         CycleEndTime: '2026-07-14T00:00:00+08:00',
         CycleTotalValue: '100000.00000000',
@@ -373,7 +377,7 @@ describe('SubscriptionTokenPlanService.listTokenPlanSeats — orchestration', ()
 
   // ──────── EquityList handling ────────
 
-  it('maps EquityList[0] to cycle when present', async () => {
+  it('maps the Credits equity to cycle when present', async () => {
     const result = await service.listTokenPlanSeats();
     expect(result.items[0].cycle).toEqual({
       startTime: '2026-06-14T00:00:00+08:00',
@@ -383,6 +387,107 @@ describe('SubscriptionTokenPlanService.listTokenPlanSeats — orchestration', ()
       unit: 'Credits',
     });
   });
+
+  it('selects Credits when another equity appears first', async () => {
+    const credits: RawEquity = {
+      EquityType: 'CREDITS',
+      CycleStartTime: '2026-06-14T00:00:00+08:00',
+      CycleEndTime: '2026-07-14T00:00:00+08:00',
+      CycleTotalValue: '1000.00000000',
+      CycleSurplusValue: '100.00000000',
+      Unit: 'Credits',
+    };
+    apiClient.callFlatApi = vi.fn(async () =>
+      makeRawResponse([
+        makeRawSeat({
+          EquityList: [
+            {
+              EquityType: 'REQUESTS',
+              CycleStartTime: '2026-05-14T00:00:00+08:00',
+              CycleEndTime: '2026-06-14T00:00:00+08:00',
+              CycleTotalValue: '999',
+              CycleSurplusValue: '888',
+            },
+            credits,
+          ],
+        }),
+      ]),
+    );
+    const result = await service.listTokenPlanSeats();
+    expect(result.items[0].cycle).toEqual({
+      startTime: '2026-06-14T00:00:00+08:00',
+      endTime: '2026-07-14T00:00:00+08:00',
+      totalValue: '1000.00000000',
+      surplusValue: '100.00000000',
+      unit: 'Credits',
+    });
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it.each(['REQUESTS', undefined])(
+    'returns an unknown cycle when the equity type is %s',
+    async (equityType) => {
+      apiClient.callFlatApi = vi.fn(async () =>
+        makeRawResponse([
+          makeRawSeat({
+            InstanceCode: 'subs-other-equity',
+            EquityList: [
+              {
+                EquityType: equityType,
+                CycleTotalValue: '999',
+                CycleSurplusValue: '888',
+              },
+            ],
+          }),
+        ]),
+      );
+      const result = await service.listTokenPlanSeats();
+      expect(result.items[0].cycle).toBeNull();
+      expect(result.diagnostics).toEqual([
+        {
+          api: 'GetSubscriptionDetail',
+          errorCode: 'CreditsEquityMissing',
+          errorMessage: 'Credits equity missing for instance subs-other-equity',
+        },
+      ]);
+    },
+  );
+
+  it.each([
+    { total: '1000', surplus: '100', expectedTotal: '1000', expectedSurplus: '100' },
+    { total: '1000', surplus: undefined, expectedTotal: '1000', expectedSurplus: '0' },
+    { total: undefined, surplus: '100', expectedTotal: '0', expectedSurplus: '100' },
+    { total: undefined, surplus: undefined, expectedTotal: '0', expectedSurplus: '0' },
+    { total: '0', surplus: '0', expectedTotal: '0', expectedSurplus: '0' },
+  ])(
+    'uses only cycle amounts when total=$total and surplus=$surplus',
+    async ({ total, surplus, expectedTotal, expectedSurplus }) => {
+      apiClient.callFlatApi = vi.fn(async () =>
+        makeRawResponse([
+          makeRawSeat({
+            EquityList: [
+              {
+                EquityType: 'CREDITS',
+                CycleTotalValue: total,
+                CycleSurplusValue: surplus,
+                TotalValue: '10000',
+                SurplusValue: '8000',
+              },
+            ],
+          }),
+        ]),
+      );
+      const result = await service.listTokenPlanSeats();
+      expect(result.items[0].cycle).toEqual({
+        startTime: null,
+        endTime: null,
+        totalValue: expectedTotal,
+        surplusValue: expectedSurplus,
+        unit: 'Credits',
+      });
+      expect(result.diagnostics).toEqual([]);
+    },
+  );
 
   it('returns cycle=null + diagnostic when EquityList is empty array', async () => {
     apiClient.callFlatApi = vi.fn(async () =>
@@ -404,7 +509,7 @@ describe('SubscriptionTokenPlanService.listTokenPlanSeats — orchestration', ()
     expect(result.items[0].cycle).toBeNull();
   });
 
-  it('tolerates partial EquityList[0] fields by emitting empty strings or nulls', async () => {
+  it('preserves historical Credits with missing cycle amounts as zero', async () => {
     apiClient.callFlatApi = vi.fn(async () =>
       makeRawResponse(
         [
@@ -412,6 +517,7 @@ describe('SubscriptionTokenPlanService.listTokenPlanSeats — orchestration', ()
             InstanceCode: 'subs-partial',
             EquityList: [
               {
+                EquityType: 'CREDITS',
                 CycleStartTime: '2026-06-14T00:00:00+08:00',
                 // CycleEndTime / CycleTotalValue / CycleSurplusValue absent
                 Unit: 'Credits',
@@ -423,13 +529,14 @@ describe('SubscriptionTokenPlanService.listTokenPlanSeats — orchestration', ()
       ),
     );
     const result = await service.listTokenPlanSeats();
-    const cycle = result.items[0].cycle;
-    expect(cycle).not.toBeNull();
-    expect(cycle!.startTime).toBe('2026-06-14T00:00:00+08:00');
-    // Missing fields fall back to null/empty — implementation choice but must be
-    // serializable (no `undefined`).
-    expect(cycle!.endTime === null || typeof cycle!.endTime === 'string').toBe(true);
-    expect(cycle!.totalValue === null || typeof cycle!.totalValue === 'string').toBe(true);
+    expect(result.items[0].cycle).toEqual({
+      startTime: '2026-06-14T00:00:00+08:00',
+      endTime: null,
+      totalValue: '0',
+      surplusValue: '0',
+      unit: 'Credits',
+    });
+    expect(result.diagnostics).toEqual([]);
   });
 
   // ──────── Amount precision ────────
@@ -441,6 +548,7 @@ describe('SubscriptionTokenPlanService.listTokenPlanSeats — orchestration', ()
           makeRawSeat({
             EquityList: [
               {
+                EquityType: 'CREDITS',
                 CycleStartTime: '2026-06-14T00:00:00+08:00',
                 CycleEndTime: '2026-07-14T00:00:00+08:00',
                 CycleTotalValue: '100000.00000000',

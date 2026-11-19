@@ -14,6 +14,8 @@ import type {
   RecentOrdersSectionViewModel,
 } from '../../../src/view-models/subscription/index.js';
 import type { SubscriptionDiagnostic } from '../../../src/types/subscription.js';
+import { buildTokenPlanStatusDetails } from '../../../src/view-models/subscription/tokenplan-details.js';
+import { unknownTokenPlanEdition } from '../../../src/services/tokenplan-team.js';
 
 beforeEach(() => {
   vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -45,6 +47,46 @@ function makeBaseStatusVm(
 }
 
 describe('renderTextSubscriptionStatus', () => {
+  it('prints team Credit guidance after the summary rows', () => {
+    const team = {
+      ...unknownTokenPlanEdition('team'),
+      seatSummaries: [
+        {
+          seatType: 'pro',
+          seatCount: 1,
+          assignedCount: 0,
+          totalCredits: '100',
+          remainingCredits: '50',
+          remainingPct: 50,
+          resetAt: null,
+        },
+      ],
+    };
+    const vm = makeBaseStatusVm({
+      sections: [
+        {
+          id: 'tokenplan-team',
+          title: 'Team',
+          fields: [],
+          detailTables: buildTokenPlanStatusDetails({ team }),
+        },
+      ],
+    });
+    renderTextSubscriptionStatus(vm);
+    const output = vi
+      .mocked(console.log)
+      .mock.calls.map(([line]) => String(line))
+      .join('\n');
+    expect(output).toContain(
+      'The total credits is the sum of the credits of all seats of the same seat type.',
+    );
+    expect(output).toContain('Only active seats are shown.');
+    expect(output).toContain(
+      'Run qwencloud subscription tokenplan seats for per-seat member and quota details.',
+    );
+    expect(output.indexOf('pro')).toBeLessThan(output.indexOf('The total credits is the sum'));
+  });
+
   it('prints banner and returns early when banner is set', () => {
     const vm = makeBaseStatusVm({ banner: 'Service unavailable' });
     renderTextSubscriptionStatus(vm);
@@ -59,8 +101,10 @@ describe('renderTextSubscriptionStatus', () => {
     const vm = makeBaseStatusVm({ banner: 'Error occurred', diagnostics: diag });
     renderTextSubscriptionStatus(vm);
     const calls = (console.log as ReturnType<typeof vi.fn>).mock.calls.flat();
-    expect(calls.some((c: string) => c.includes('/status'))).toBe(true);
-    expect(calls.some((c: string) => c.includes('Internal error'))).toBe(true);
+    expect(calls).toEqual(['  Error occurred', '', '  Details:', '    - Internal error']);
+    expect(vm.diagnostics).toEqual([
+      { api: '/status', errorCode: '500', errorMessage: 'Internal error' },
+    ]);
   });
 
   it('prints fields in legacy format when no new sections exist', () => {
@@ -73,7 +117,13 @@ describe('renderTextSubscriptionStatus', () => {
 
   it('prints quota bar when quota is present in legacy mode', () => {
     const vm = makeBaseStatusVm({
-      quota: { total: 1000, remaining: 500, usedPct: 50, bar: '████░░░░', display: '500 / 1,000 (50%)' },
+      quota: {
+        total: 1000,
+        remaining: 500,
+        usedPct: 50,
+        bar: '████░░░░',
+        display: '500 / 1,000 (50%)',
+      },
     });
     renderTextSubscriptionStatus(vm);
     const calls = (console.log as ReturnType<typeof vi.fn>).mock.calls.flat();
@@ -94,7 +144,13 @@ describe('renderTextSubscriptionStatus', () => {
       autoRenew: 'On',
       expires: '2025-12-31 (180d)',
       tiers: [
-        { label: 'Standard (2 seats)', bar: '████ 5,000 / 10,000', remaining: 5000, total: 10000, usedPct: 50 },
+        {
+          label: 'Standard (2 seats)',
+          bar: '████ 5,000 / 10,000',
+          remaining: 5000,
+          total: 10000,
+          usedPct: 50,
+        },
       ],
     };
     const vm = makeBaseStatusVm({ tokenPlanSection: tokenPlan });
@@ -142,19 +198,40 @@ describe('renderTextSubscriptionStatus', () => {
     const calls = (console.log as ReturnType<typeof vi.fn>).mock.calls.flat();
     expect(calls.some((c: string) => c.includes('Coding Plan'))).toBe(true);
     expect(calls.some((c: string) => c.includes('800 / 1,000'))).toBe(true);
+    expect(calls).toEqual([
+      '',
+      '  === Coding Plan ===',
+      '  Status: Active    Credits: 800 / 1,000',
+    ]);
   });
 
   it('renders recent orders section', () => {
     const orders: RecentOrdersSectionViewModel = {
       orders: [
-        { id: 'ORD-001', type: 'BUY', typeLabel: 'Purchase', date: '2025-03-01', amount: '¥100.00', statusLabel: 'Paid', statusColor: 'green' },
-        { id: 'ORD-002', type: 'RENEW', typeLabel: 'Renew', date: '2025-04-01', amount: '¥50.00', statusLabel: 'Paid', statusColor: 'green' },
+        {
+          id: 'ORD-001',
+          type: 'BUY',
+          typeLabel: 'Purchase',
+          date: '2025-03-01',
+          amount: '¥100.00',
+          statusLabel: 'Paid',
+          statusColor: 'green',
+        },
+        {
+          id: 'ORD-002',
+          type: 'RENEW',
+          typeLabel: 'Renew',
+          date: '2025-04-01',
+          amount: '¥50.00',
+          statusLabel: 'Paid',
+          statusColor: 'green',
+        },
       ],
     };
     const vm = makeBaseStatusVm({ recentOrdersSection: orders });
     renderTextSubscriptionStatus(vm);
     const calls = (console.log as ReturnType<typeof vi.fn>).mock.calls.flat();
-    expect(calls.some((c: string) => c.includes('Recent Orders'))).toBe(true);
+    expect(calls).toContain('  Recent Token Plan Orders (latest 2)');
     expect(calls.some((c: string) => c.includes('ORD-001'))).toBe(true);
   });
 
@@ -173,7 +250,9 @@ describe('renderTextSubscriptionStatus', () => {
 });
 
 describe('renderTextSubscriptionOrders', () => {
-  function makeOrdersVm(overrides: Partial<SubscriptionOrdersViewModel> = {}): SubscriptionOrdersViewModel {
+  function makeOrdersVm(
+    overrides: Partial<SubscriptionOrdersViewModel> = {},
+  ): SubscriptionOrdersViewModel {
     const columns: SubscriptionOrdersColumn[] = [
       { key: 'orderId', header: 'Order ID' },
       { key: 'orderTypeLabel', header: 'Type' },

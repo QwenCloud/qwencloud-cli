@@ -11,7 +11,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { NdjsonWriter, type NdjsonWriterDeps } from '../../src/output/ndjson.js';
 import type { TokenUsage } from '../../src/types/model-invocation.js';
 
-const USAGE: TokenUsage = { input: 11, output: 22, total: 33 };
+const USAGE = { input: 11, output: 22, total: 33 } satisfies TokenUsage;
 
 /** Collect every string handed to the writer's sink. */
 function makeSink(): { deps: NdjsonWriterDeps; lines: string[]; write: ReturnType<typeof vi.fn> } {
@@ -162,7 +162,7 @@ describe('NdjsonWriter', () => {
 
     it('preserves a zeroed usage block rather than dropping falsy counters', () => {
       const { deps, lines } = makeSink();
-      const zero: TokenUsage = { input: 0, output: 0, total: 0 };
+      const zero = { input: 0, output: 0, total: 0 } satisfies TokenUsage;
 
       new NdjsonWriter(deps).writeTrailer({ usage: zero });
 

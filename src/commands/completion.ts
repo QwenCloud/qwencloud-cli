@@ -64,6 +64,8 @@ _qwencloud() {
 
   # ── Option value completions (global, position-independent) ──────────────
   case "$prev" in
+    --edition)     compadd individual team all; return ;;
+    --billing-cycle) compadd monthly quarterly yearly; return ;;
     --format)      compadd table json text; return ;;
     --granularity) compadd day month; return ;;
     --period)      compadd today yesterday week month last-month quarter year; return ;;
@@ -389,12 +391,20 @@ _qwencloud() {
           tokenplan)
             if (( CURRENT == 4 )); then
               local -a tpsubs
-              tpsubs=('status:Token plan status' 'seats:Token plan seats')
+              tpsubs=('list:Token plan catalog' 'status:Token plan status' 'seats:Token plan seats')
               _describe -t commands 'tokenplan subcommand' tpsubs
             else
               case "\${words[4]}" in
+                list)
+                  _arguments \\
+                    '--edition[Edition]:edition:(individual team all)' \\
+                    '--billing-cycle[Billing cycle]:cycle:(monthly quarterly yearly)' \\
+                    '--include-models[Include supported models]' \\
+                    '--format[Output format]:format:(table json text)' \\
+                    '(-h --help)'{-h,--help}'[Show help]'
+                  ;;
                 status)
-                  _arguments '--format[Output format]:format:(table json text)' '(-h --help)'{-h,--help}'[Show help]'
+                  _arguments '--edition[Edition]:edition:(individual team all)' '--format[Output format]:format:(table json text)' '(-h --help)'{-h,--help}'[Show help]'
                   ;;
                 seats)
                   _arguments \\
@@ -563,6 +573,10 @@ function generateBashCompletion(): string {
 
   # ── Option value completions ──────────────────────────────────────────────
   case "$prev" in
+    --edition)
+      COMPREPLY=( $(compgen -W "individual team all" -- "$cur") ); return 0 ;;
+    --billing-cycle)
+      COMPREPLY=( $(compgen -W "monthly quarterly yearly" -- "$cur") ); return 0 ;;
     --format)
       COMPREPLY=( $(compgen -W "table json text" -- "$cur") ); return 0 ;;
     --granularity)
@@ -631,9 +645,10 @@ function generateBashCompletion(): string {
           orders)    COMPREPLY=( $(compgen -W "--from --to --type --page --page-size --format -h --help" -- "$cur") ); return 0 ;;
           tokenplan)
             case "$sub3" in
-              status) COMPREPLY=( $(compgen -W "--format -h --help" -- "$cur") ); return 0 ;;
+              list)   COMPREPLY=( $(compgen -W "--edition --billing-cycle --include-models --format -h --help" -- "$cur") ); return 0 ;;
+              status) COMPREPLY=( $(compgen -W "--edition --format -h --help" -- "$cur") ); return 0 ;;
               seats)  COMPREPLY=( $(compgen -W "--spec-type --page --page-size --format -h --help" -- "$cur") ); return 0 ;;
-              *)      COMPREPLY=( $(compgen -W "status seats -h --help" -- "$cur") ); return 0 ;;
+              *)      COMPREPLY=( $(compgen -W "list status seats -h --help" -- "$cur") ); return 0 ;;
             esac ;;
         esac ;;
       support)
@@ -935,7 +950,11 @@ complete -c qwencloud -n '__fish_seen_subcommand_from subscription; and __fish_s
 complete -c qwencloud -n '__fish_seen_subcommand_from subscription; and __fish_seen_subcommand_from orders' -l page          -d 'Page number'
 complete -c qwencloud -n '__fish_seen_subcommand_from subscription; and __fish_seen_subcommand_from orders' -l page-size     -d 'Page size'
 complete -c qwencloud -n '__fish_seen_subcommand_from subscription; and __fish_seen_subcommand_from orders' -l format        -d 'Output format' -a 'table json text'
-complete -c qwencloud -n '__fish_seen_subcommand_from subscription; and __fish_seen_subcommand_from tokenplan' -a 'status seats'
+complete -c qwencloud -n '__fish_seen_subcommand_from subscription; and __fish_seen_subcommand_from tokenplan; and not __fish_seen_subcommand_from list status seats' -a 'list status seats'
+complete -c qwencloud -n '__fish_seen_subcommand_from subscription; and __fish_seen_subcommand_from tokenplan; and __fish_seen_subcommand_from list status' -l edition -d 'Edition' -a 'individual team all'
+complete -c qwencloud -n '__fish_seen_subcommand_from subscription; and __fish_seen_subcommand_from tokenplan; and __fish_seen_subcommand_from list' -l billing-cycle -d 'Billing cycle' -a 'monthly quarterly yearly'
+complete -c qwencloud -n '__fish_seen_subcommand_from subscription; and __fish_seen_subcommand_from tokenplan; and __fish_seen_subcommand_from list' -l include-models -d 'Include supported models'
+complete -c qwencloud -n '__fish_seen_subcommand_from subscription; and __fish_seen_subcommand_from tokenplan; and __fish_seen_subcommand_from list' -l format -d 'Output format' -a 'table json text'
 complete -c qwencloud -n '__fish_seen_subcommand_from subscription; and __fish_seen_subcommand_from tokenplan; and __fish_seen_subcommand_from status' -l format    -d 'Output format' -a 'table json text'
 complete -c qwencloud -n '__fish_seen_subcommand_from subscription; and __fish_seen_subcommand_from tokenplan; and __fish_seen_subcommand_from seats' -l spec-type -d 'Spec type' -a 'pro standard'
 complete -c qwencloud -n '__fish_seen_subcommand_from subscription; and __fish_seen_subcommand_from tokenplan; and __fish_seen_subcommand_from seats' -l page      -d 'Page number'

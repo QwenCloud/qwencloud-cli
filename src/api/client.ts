@@ -22,6 +22,7 @@ import type { WorkspaceService } from '../services/workspace-service.js';
 import type { BillingService } from '../services/billing-service.js';
 import type { SubscriptionService } from '../services/subscription-service.js';
 import type { SubscriptionTokenPlanService } from '../services/subscription-tokenplan-service.js';
+import type { TokenPlanListService } from '../services/tokenplan-list-service.js';
 import type { SupportService } from '../services/support-service.js';
 import type { DocsService, DocsSearchOptions } from '../services/docs-service.js';
 import type { UsageLogsOptions } from '../services/usage-service.js';
@@ -101,6 +102,7 @@ export interface CliFacade {
   billingService: BillingService;
   subscriptionService: SubscriptionService;
   subscriptionTokenPlanService: SubscriptionTokenPlanService;
+  tokenPlanListService: TokenPlanListService;
   docsService: DocsService;
   supportService: SupportService;
 
@@ -116,7 +118,10 @@ export interface CliFacade {
   getPaymentMethods(): Promise<PaymentMethodsResult>;
 
   // Subscription
-  getSubscriptionStatus(opts?: { plan?: 'token' | 'coding' }): Promise<SubscriptionStatusResult>;
+  getSubscriptionStatus(opts?: {
+    plan?: 'token' | 'coding';
+    signal?: AbortSignal;
+  }): Promise<SubscriptionStatusResult>;
   listSubscriptionOrders(opts: ListOrdersOptions): Promise<SubscriptionOrdersResult>;
 
   // Health
@@ -189,7 +194,7 @@ export async function createClient(_options?: { endpoint?: string }): Promise<Cl
     docsService,
     supportService,
   } = services;
-  const { subscriptionTokenPlanService } = services;
+  const { subscriptionTokenPlanService, tokenPlanListService } = services;
 
   return {
     // Models
@@ -229,6 +234,7 @@ export async function createClient(_options?: { endpoint?: string }): Promise<Cl
     billingService,
     subscriptionService,
     subscriptionTokenPlanService,
+    tokenPlanListService,
     docsService,
     supportService,
 

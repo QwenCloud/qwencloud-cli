@@ -12,12 +12,9 @@ import type { ApiClient } from '../../src/api/api-client.js';
 
 // ─── Mock factories ──────────────────────────────────────────────────────────
 
-function makeCachedFetcher(): CachedFetcher & {
-  getOrFetch: ReturnType<typeof vi.fn>;
-  invalidate: ReturnType<typeof vi.fn>;
-} {
+function makeCachedFetcher(): CachedFetcher {
   return {
-    getOrFetch: vi.fn(async <T>(_key: string, _ttl: number, fetcher: () => Promise<T>) => fetcher()),
+    getOrFetch: async <T>(_key: string, _ttl: number, fetcher: () => Promise<T>) => fetcher(),
     invalidate: vi.fn(),
   };
 }
@@ -103,7 +100,7 @@ describe('BillingService.getOuterPaymentMethods — normal response', () => {
     apiClient.callFlatApi.mockResolvedValue(FULL_API_RESPONSE);
     const result = await service.getOuterPaymentMethods();
 
-    const item = result.items[0] as Record<string, unknown>;
+    const item = result.items[0];
     expect(item).not.toHaveProperty('PaymentMethodId');
     expect(item).not.toHaveProperty('paymentMethodId');
     expect(item).not.toHaveProperty('UserId');

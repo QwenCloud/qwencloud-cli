@@ -6,6 +6,7 @@
  * empty JSON array in text mode.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { ReactElement } from 'react';
 import { runCommand } from '../../helpers/run-command.js';
 import { renderInkForTest, clearRenderedFrames } from '../../helpers/ink-render-mock.js';
 import type {
@@ -20,7 +21,7 @@ const holder = {
   },
 };
 const { renderInteractiveSpy } = vi.hoisted(() => ({
-  renderInteractiveSpy: vi.fn<(el: unknown) => Promise<void>>(),
+  renderInteractiveSpy: vi.fn<(el: ReactElement) => Promise<void>>(),
 }));
 
 vi.mock('../../../src/services/index.js', () => ({

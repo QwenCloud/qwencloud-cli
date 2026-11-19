@@ -6,41 +6,41 @@ import type { ApiClient } from '../../src/api/api-client.js';
 
 interface SeatGroup {
   specType: string;
-  seats: number;
-  assigned: number;
-  totalValue: string;
-  surplusValue: string;
+  seats: number | null;
+  assigned: number | null;
+  totalValue: string | null;
+  surplusValue: string | null;
   unit: string;
-  nextCycleFlushTime: string;
+  nextCycleFlushTime: string | null;
 }
 
 interface SeatTotal {
-  seats: number;
-  totalValue: string;
-  surplusValue: string;
+  seats: number | null;
+  totalValue: string | null;
+  surplusValue: string | null;
   unit: string;
 }
 
 interface SeatSummary {
   groups: SeatGroup[];
-  total: SeatTotal;
+  total: SeatTotal | null;
 }
 
 interface TokenPlanPeriod {
   start: string;
   end: string;
-  remainingDays: number;
+  remainingDays: number | null;
 }
 
 interface AutoRenew {
   enabled: boolean;
-  period: number;
-  periodUnit: string;
+  period: number | null;
+  periodUnit: string | null;
 }
 
 interface Renewable {
   canRenew: boolean;
-  interceptCode: string;
+  interceptCode: string | null;
 }
 
 interface TokenPlanDiagnostic {
@@ -56,6 +56,7 @@ interface TokenPlanStatusResult {
   renewable: Renewable | null;
   seatSummary: SeatSummary | null;
   diagnostics: TokenPlanDiagnostic[];
+  team?: { diagnostics: TokenPlanDiagnostic[] };
 }
 
 // Mock infrastructure
@@ -71,6 +72,22 @@ function makeMockApiClient(): MockApiClient {
 /** Per-action success payload factory. */
 function defaultSuccess(action: string): Record<string, unknown> {
   switch (action) {
+    case 'GetSubscriptionDetail':
+      return {
+        Data: {
+          SubscriptionList: Array.from({ length: 11 }, (_, index) => ({
+            InstanceCode: `mock-seat-${index}`,
+            ProductCode: 'sfm_tokenplanteams_dp_intl',
+            SpecType: index < 7 ? 'standard' : 'pro',
+            Status: 'NORMAL',
+            MemberId: 'mock-member',
+            EquityList: [{ CycleTotalValue: '25000', CycleSurplusValue: '20000' }],
+          })),
+          TotalCount: 11,
+          CurrentPage: 1,
+          PageSize: 100,
+        },
+      };
     case 'DescribeFrInstances':
       return {
         TotalCount: 1,
@@ -94,14 +111,28 @@ function defaultSuccess(action: string): Record<string, unknown> {
               SpecType: 'standard',
               SubscriptionTotalNumber: 7,
               SubscriptionAssignedNumber: 7,
-              EquityList: [{ EquityCode: 'credit_value', TotalValue: '175000', SurplusValue: '174999.75' }],
+              EquityList: [
+                {
+                  EquityType: 'CREDITS',
+                  EquityCode: 'credit_value',
+                  TotalValue: '175000',
+                  SurplusValue: '174999.75',
+                },
+              ],
               NextCycleFlushTime: '2026-06-14T00:00:00+08:00',
             },
             {
               SpecType: 'pro',
               SubscriptionTotalNumber: 4,
               SubscriptionAssignedNumber: 4,
-              EquityList: [{ EquityCode: 'credit_value', TotalValue: '400000', SurplusValue: '391284.56' }],
+              EquityList: [
+                {
+                  EquityType: 'CREDITS',
+                  EquityCode: 'credit_value',
+                  TotalValue: '400000',
+                  SurplusValue: '391284.56',
+                },
+              ],
               NextCycleFlushTime: '2026-06-14T00:00:00+08:00',
             },
           ],
@@ -129,6 +160,7 @@ function defaultSuccess(action: string): Record<string, unknown> {
         Data: [
           {
             InstanceId: 'subs-test-instance-001',
+            CommodityCode: 'sfm_tokenplanteams_dp_intl',
             CanRenew: false,
             InterceptCode: 'PENDING_RENEWAL',
           },
@@ -158,7 +190,11 @@ function buildSelectiveMock(
 
 describe('SubscriptionTokenPlanService.getTokenPlanStatus — 4-API orchestration', () => {
   let apiClient: MockApiClient;
-  let service: { getTokenPlanStatus: () => Promise<TokenPlanStatusResult> };
+  let service: {
+    getTokenPlanStatus: (options?: {
+      edition?: 'individual' | 'team' | 'all';
+    }) => Promise<TokenPlanStatusResult>;
+  };
 
   beforeEach(async () => {
     apiClient = makeMockApiClient();
@@ -166,15 +202,13 @@ describe('SubscriptionTokenPlanService.getTokenPlanStatus — 4-API orchestratio
     // Dynamic import to let vi.mock take effect
     const mod = await import('../../src/services/subscription-tokenplan-service.js');
     const ServiceClass = mod.SubscriptionTokenPlanService;
-    service = new ServiceClass(
-      apiClient as unknown as ApiClient,
-    );
+    service = new ServiceClass(apiClient as unknown as ApiClient);
   });
 
   // ──────── Happy Path ────────
 
   it('returns full data with empty diagnostics when all 4 APIs succeed', async () => {
-    const result = await service.getTokenPlanStatus();
+    const result = await service.getTokenPlanStatus({ edition: 'team' });
     expect(result.diagnostics).toEqual([]);
     expect(result.product).toBe('Token Plan Team Edition');
     expect(result.period).not.toBeNull();
@@ -186,7 +220,7 @@ describe('SubscriptionTokenPlanService.getTokenPlanStatus — 4-API orchestratio
   });
 
   it('seatSummary.groups contains both standard and pro with correct fields', async () => {
-    const result = await service.getTokenPlanStatus();
+    const result = await service.getTokenPlanStatus({ edition: 'team' });
     const groups = result.seatSummary!.groups;
     expect(groups).toHaveLength(2);
     const std = groups.find((g) => g.specType === 'standard')!;
@@ -202,8 +236,9 @@ describe('SubscriptionTokenPlanService.getTokenPlanStatus — 4-API orchestratio
   });
 
   it('seatSummary.total comes from GetSubscriptionSummary (independent API)', async () => {
-    const result = await service.getTokenPlanStatus();
-    const total = result.seatSummary!.total;
+    const result = await service.getTokenPlanStatus({ edition: 'team' });
+    expect(result.seatSummary!.total).not.toBeNull();
+    const total = result.seatSummary!.total!;
     expect(total.seats).toBe(11);
     expect(total.totalValue).toBe('575000');
     expect(total.surplusValue).toBe('566284.3192002');
@@ -211,7 +246,7 @@ describe('SubscriptionTokenPlanService.getTokenPlanStatus — 4-API orchestratio
   });
 
   it('autoRenew.enabled converts AutoRenewal 1 → true', async () => {
-    const result = await service.getTokenPlanStatus();
+    const result = await service.getTokenPlanStatus({ edition: 'team' });
     expect(result.autoRenew!.enabled).toBe(true);
     expect(result.autoRenew!.period).toBe(1);
     expect(result.autoRenew!.periodUnit).toBe('M');
@@ -224,33 +259,33 @@ describe('SubscriptionTokenPlanService.getTokenPlanStatus — 4-API orchestratio
       }
       return defaultSuccess(opts.action);
     });
-    const result = await service.getTokenPlanStatus();
+    const result = await service.getTokenPlanStatus({ edition: 'team' });
     expect(result.autoRenew!.enabled).toBe(false);
   });
 
   it('renewable fields map correctly from CheckInstancesRenewable', async () => {
-    const result = await service.getTokenPlanStatus();
+    const result = await service.getTokenPlanStatus({ edition: 'team' });
     expect(result.renewable!.canRenew).toBe(false);
     expect(result.renewable!.interceptCode).toBe('PENDING_RENEWAL');
   });
 
   it('period fields contain start, end, and remainingDays as number', async () => {
-    const result = await service.getTokenPlanStatus();
+    const result = await service.getTokenPlanStatus({ edition: 'team' });
     expect(result.period!.start).toBe('2026-06-14T00:00:00+08:00');
     expect(result.period!.end).toBe('2026-07-14T00:00:00+08:00');
     expect(typeof result.period!.remainingDays).toBe('number');
   });
 
   it('amount fields are strings (not numbers) — full precision preserved', async () => {
-    const result = await service.getTokenPlanStatus();
+    const result = await service.getTokenPlanStatus({ edition: 'team' });
     expect(typeof result.seatSummary!.groups[0].totalValue).toBe('string');
     expect(typeof result.seatSummary!.groups[0].surplusValue).toBe('string');
-    expect(typeof result.seatSummary!.total.totalValue).toBe('string');
-    expect(typeof result.seatSummary!.total.surplusValue).toBe('string');
+    expect(typeof result.seatSummary!.total!.totalValue).toBe('string');
+    expect(typeof result.seatSummary!.total!.surplusValue).toBe('string');
   });
 
   it('specType values are passed through unchanged', async () => {
-    const result = await service.getTokenPlanStatus();
+    const result = await service.getTokenPlanStatus({ edition: 'team' });
     const types = result.seatSummary!.groups.map((g) => g.specType);
     expect(types).toContain('standard');
     expect(types).toContain('pro');
@@ -262,7 +297,7 @@ describe('SubscriptionTokenPlanService.getTokenPlanStatus — 4-API orchestratio
     apiClient.callFlatApi = buildSelectiveMock({
       GetSeatSubscriptionSummary: new Error('Service timeout'),
     });
-    const result = await service.getTokenPlanStatus();
+    const result = await service.getTokenPlanStatus({ edition: 'team' });
     expect(result.seatSummary).toBeNull();
     expect(result.period).toBeNull();
     expect(result.diagnostics.length).toBeGreaterThanOrEqual(1);
@@ -273,7 +308,7 @@ describe('SubscriptionTokenPlanService.getTokenPlanStatus — 4-API orchestratio
     apiClient.callFlatApi = buildSelectiveMock({
       CheckTokenPlanAutoRenewal: new Error('BssOpenApi.InternalError'),
     });
-    const result = await service.getTokenPlanStatus();
+    const result = await service.getTokenPlanStatus({ edition: 'team' });
     expect(result.autoRenew).toBeNull();
     expect(result.seatSummary).not.toBeNull();
     expect(result.period).not.toBeNull();
@@ -285,7 +320,7 @@ describe('SubscriptionTokenPlanService.getTokenPlanStatus — 4-API orchestratio
     apiClient.callFlatApi = buildSelectiveMock({
       CheckInstancesRenewable: new Error('Network error'),
     });
-    const result = await service.getTokenPlanStatus();
+    const result = await service.getTokenPlanStatus({ edition: 'team' });
     expect(result.renewable).toBeNull();
     expect(result.seatSummary).not.toBeNull();
     expect(result.diagnostics.some((d) => d.api === 'CheckInstancesRenewable')).toBe(true);
@@ -295,7 +330,7 @@ describe('SubscriptionTokenPlanService.getTokenPlanStatus — 4-API orchestratio
     apiClient.callFlatApi = buildSelectiveMock({
       GetSubscriptionSummary: new Error('500 Internal Server Error'),
     });
-    const result = await service.getTokenPlanStatus();
+    const result = await service.getTokenPlanStatus({ edition: 'team' });
     // groups from API 1 should still be present
     expect(result.seatSummary).not.toBeNull();
     expect(result.seatSummary!.groups.length).toBeGreaterThan(0);
@@ -314,7 +349,7 @@ describe('SubscriptionTokenPlanService.getTokenPlanStatus — 4-API orchestratio
       CheckTokenPlanAutoRenewal: e,
       CheckInstancesRenewable: e,
     });
-    const result = await service.getTokenPlanStatus();
+    const result = await service.getTokenPlanStatus({ edition: 'team' });
     expect(result.seatSummary).toBeNull();
     expect(result.period).toBeNull();
     expect(result.autoRenew).toBeNull();
@@ -324,33 +359,34 @@ describe('SubscriptionTokenPlanService.getTokenPlanStatus — 4-API orchestratio
 
   // ──────── Data Dependency ────────
 
-  it('API 1 failure causes API 3/4 to skip (InstanceId dependency)', async () => {
+  it('retains commodity-scoped auto renewal while skipping renewable lookup when instance resolution fails', async () => {
     apiClient.callFlatApi = buildSelectiveMock({
       DescribeFrInstances: new Error('Upstream unavailable'),
     });
-    const result = await service.getTokenPlanStatus();
-    // API 3 (CheckTokenPlanAutoRenewal) and API 4 (CheckInstancesRenewable)
-    // require InstanceId resolution → should be skipped
-    expect(result.autoRenew).toBeNull();
+    const result = await service.getTokenPlanStatus({ edition: 'team' });
+    expect(result.autoRenew).toEqual({ enabled: true, period: 1, periodUnit: 'M' });
     expect(result.renewable).toBeNull();
-    // Check diagnostics mention the skip reason
-    const skipDiags = result.diagnostics.filter(
-      (d) => d.api === 'CheckTokenPlanAutoRenewal' || d.api === 'CheckInstancesRenewable',
+    expect(result.team?.diagnostics).toContainEqual(
+      expect.objectContaining({ api: 'DescribeFrInstances' }),
     );
-    expect(skipDiags.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('API 3/4 are not called when API 1 fails (no wasted network requests)', async () => {
+  it('still requests auto renewal by commodity while avoiding renewable lookup without an instance', async () => {
     apiClient.callFlatApi = buildSelectiveMock({
       DescribeFrInstances: new Error('Upstream unavailable'),
     });
-    await service.getTokenPlanStatus();
+    await service.getTokenPlanStatus({ edition: 'team' });
     const calledActions = apiClient.callFlatApi.mock.calls.map(
       (c) => (c[0] as { action: string }).action,
     );
-    // API 3 and API 4 should not be called when InstanceId resolution fails
-    expect(calledActions).not.toContain('CheckTokenPlanAutoRenewal');
+    expect(calledActions).toContain('CheckTokenPlanAutoRenewal');
     expect(calledActions).not.toContain('CheckInstancesRenewable');
+    expect(apiClient.callFlatApi).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'CheckTokenPlanAutoRenewal',
+        params: { CommodityCode: 'sfm_tokenplanteams_dp_intl' },
+      }),
+    );
   });
 
   // ──────── Timeout ────────
@@ -358,12 +394,16 @@ describe('SubscriptionTokenPlanService.getTokenPlanStatus — 4-API orchestratio
   it('classifies a hung call as a timeout diagnostic via soft timeout sentinel', async () => {
     vi.useFakeTimers();
     apiClient.callFlatApi = buildSelectiveMock({}, new Set(['CheckTokenPlanAutoRenewal']));
-    const promise = service.getTokenPlanStatus();
+    const promise = service.getTokenPlanStatus({ edition: 'team' });
     await vi.advanceTimersByTimeAsync(35_000);
     const result = await promise;
     vi.useRealTimers();
     expect(result.autoRenew).toBeNull();
-    expect(result.diagnostics.some((d) => /timeout/i.test(d.errorMessage))).toBe(true);
+    expect(result.diagnostics).toContainEqual({
+      api: 'CheckTokenPlanAutoRenewal',
+      errorCode: 'Timeout',
+      errorMessage: 'The service did not respond in time. Try again later.',
+    });
   });
 
   it('returns timeout diagnostics for every call when entire batch hangs', async () => {
@@ -377,7 +417,7 @@ describe('SubscriptionTokenPlanService.getTokenPlanStatus — 4-API orchestratio
         'CheckInstancesRenewable',
       ]),
     );
-    const promise = service.getTokenPlanStatus();
+    const promise = service.getTokenPlanStatus({ edition: 'team' });
     await vi.advanceTimersByTimeAsync(35_000);
     const result = await promise;
     vi.useRealTimers();
@@ -386,13 +426,18 @@ describe('SubscriptionTokenPlanService.getTokenPlanStatus — 4-API orchestratio
     expect(result.autoRenew).toBeNull();
     expect(result.renewable).toBeNull();
     expect(result.diagnostics.length).toBeGreaterThanOrEqual(4);
-    expect(result.diagnostics.every((d) => /timeout/i.test(d.errorMessage))).toBe(true);
+    expect(result.diagnostics.every((d) => d.errorCode === 'Timeout')).toBe(true);
+    expect(
+      result.diagnostics.every(
+        (d) => d.errorMessage === 'The service did not respond in time. Try again later.',
+      ),
+    ).toBe(true);
   });
 
   // ──────── Parameter Validation ────────
 
   it('passes productCode to GetSeatSubscriptionSummary', async () => {
-    await service.getTokenPlanStatus();
+    await service.getTokenPlanStatus({ edition: 'team' });
     const seatCall = apiClient.callFlatApi.mock.calls.find(
       (c) => (c[0] as { action: string }).action === 'GetSeatSubscriptionSummary',
     );
@@ -403,7 +448,7 @@ describe('SubscriptionTokenPlanService.getTokenPlanStatus — 4-API orchestratio
   });
 
   it('passes productCode to GetSubscriptionSummary', async () => {
-    await service.getTokenPlanStatus();
+    await service.getTokenPlanStatus({ edition: 'team' });
     const sumCall = apiClient.callFlatApi.mock.calls.find(
       (c) => (c[0] as { action: string }).action === 'GetSubscriptionSummary',
     );
@@ -413,7 +458,7 @@ describe('SubscriptionTokenPlanService.getTokenPlanStatus — 4-API orchestratio
   });
 
   it('uses BssOpenApi product (non-V3) for CheckTokenPlanAutoRenewal', async () => {
-    await service.getTokenPlanStatus();
+    await service.getTokenPlanStatus({ edition: 'team' });
     const autoCall = apiClient.callFlatApi.mock.calls.find(
       (c) => (c[0] as { action: string }).action === 'CheckTokenPlanAutoRenewal',
     );
@@ -423,7 +468,7 @@ describe('SubscriptionTokenPlanService.getTokenPlanStatus — 4-API orchestratio
   });
 
   it('uses BssOpenAPI-V3 product for GetSeatSubscriptionSummary', async () => {
-    await service.getTokenPlanStatus();
+    await service.getTokenPlanStatus({ edition: 'team' });
     const seatCall = apiClient.callFlatApi.mock.calls.find(
       (c) => (c[0] as { action: string }).action === 'GetSeatSubscriptionSummary',
     );
@@ -433,7 +478,7 @@ describe('SubscriptionTokenPlanService.getTokenPlanStatus — 4-API orchestratio
   });
 
   it('uses flat dot-notation for CheckInstancesRenewable params', async () => {
-    await service.getTokenPlanStatus();
+    await service.getTokenPlanStatus({ edition: 'team' });
     const renewCall = apiClient.callFlatApi.mock.calls.find(
       (c) => (c[0] as { action: string }).action === 'CheckInstancesRenewable',
     );

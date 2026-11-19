@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { runCommand } from '../../helpers/run-command.js';
 import { makeMockApiClient } from '../../helpers/api-client.js';
 import type { ApiClient } from '../../../src/api/client.js';
-import type { WorkspaceListResult } from '../../../src/types/workspace.js';
+import type { Workspace, WorkspaceListResult } from '../../../src/types/workspace.js';
 
 const holder: { client: ApiClient } = { client: makeMockApiClient() };
 const authHolder: { ensureAuthenticated: () => unknown } = {
@@ -44,7 +44,7 @@ function buildWorkspaceList(program: import('commander').Command) {
   list.action(workspaceListAction(list, getClient));
 }
 
-const SAMPLE: WorkspaceListResult = {
+const SAMPLE: WorkspaceListResult & { items: Array<Workspace & { endpoint: string }> } = {
   total: 2,
   limit: 10,
   items: [
@@ -52,6 +52,7 @@ const SAMPLE: WorkspaceListResult = {
       id: 'ws-001',
       name: 'default',
       region: 'cn-beijing',
+      tenantId: 1,
       endpoint: 'https://default.test.qwencloud.com',
       createdAt: '2026-01-01T00:00:00Z',
       isDefault: true,
@@ -60,6 +61,7 @@ const SAMPLE: WorkspaceListResult = {
       id: 'ws-002',
       name: 'staging',
       region: 'cn-hangzhou',
+      tenantId: 2,
       endpoint: 'https://staging.test.qwencloud.com',
       createdAt: '2026-02-01T00:00:00Z',
       isDefault: false,

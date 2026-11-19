@@ -4,13 +4,13 @@ import type { CachedFetcher } from '../types/cache.js';
 import type {
   CheckInstancesRenewableResponse,
   CheckTokenPlanAutoRenewalResponse,
+  FrInstanceItem,
   FrInstanceResponse,
   GetSeatSubscriptionSummaryResponse,
   GetSubscriptionDetailResponse,
   QueryOrderDetailResponse,
   QueryOrderListResponse,
   QuerySubscriptionGrayResponse,
-  SubscriptionDetailItem,
 } from '../types/api-models.js';
 import type {
   AutoRenewalDto,
@@ -19,29 +19,26 @@ import type {
   OrderDetail,
   OrderListDto,
   SeatSubscriptionSummaryDto,
-  SubscriptionCreditPack,
   SubscriptionDetailDto,
   SubscriptionDiagnostic,
   SubscriptionGrayDto,
   SubscriptionOrder,
   SubscriptionOrders,
   SubscriptionOrdersResult,
-  SubscriptionQuota,
   SubscriptionRecentOrder,
-  SubscriptionSeatTier,
-  SubscriptionStatus,
   SubscriptionStatusResult,
 } from '../types/subscription.js';
-import type { TokenPlan } from '../types/usage.js';
-import type { TokenplanService } from './tokenplan-service.js';
+import {
+  safeSubscriptionDiagnostic,
+  subscriptionFailureExitCode,
+} from './subscription-diagnostics.js';
+import { type TokenplanService } from './tokenplan-service.js';
 import { site } from '../site.js';
 import { API_PRODUCT_ACCOUNT_CENTER } from '../types/api-routes.js';
 import { CliError } from '../utils/errors.js';
 import { EXIT_CODES } from '../utils/exit-codes.js';
-import { isSentinelDate } from '../utils/timestamp.js';
 
 const API_PRODUCT_BSS = 'BssOpenAPI-V3';
-const API_PRODUCT_BSS_LEGACY = 'BssOpenApi';
 const STATUS_SOFT_TIMEOUT_MS = 35_000;
 const ORDERS_CACHE_TTL_MS = 5 * 60 * 1000;
 const DETAIL_CONCURRENCY = 5;
@@ -65,97 +62,14 @@ export interface SubscriptionAdapter {
   transformOrderDetail(raw: QueryOrderDetailResponse | null | undefined): OrderDetail;
 }
 
-interface SubCallSpec<T> {
-  api: string;
-  invoke: () => Promise<T>;
-}
-
-interface SubCallResult<T> {
-  api: string;
-  data: T | null;
-  diagnostic: SubscriptionDiagnostic | null;
-}
-
-function toDiagnostic(api: string, error: unknown): SubscriptionDiagnostic {
-  const errorMessage = error instanceof Error ? error.message : String(error);
-  let errorCode = 'Unknown';
-  if (error && typeof error === 'object') {
-    const candidate =
-      (error as { code?: unknown; errorCode?: unknown }).code ??
-      (error as { errorCode?: unknown }).errorCode;
-    if (typeof candidate === 'string' && candidate.length > 0) errorCode = candidate;
-  }
-  return { api, errorCode, errorMessage };
-}
-
-async function runWithSoftTimeout(
-  calls: Array<SubCallSpec<unknown>>,
-  timeoutMs: number,
-): Promise<Array<SubCallResult<unknown>>> {
-  const results: Array<SubCallResult<unknown>> = calls.map((c) => ({
-    api: c.api,
-    data: null,
-    diagnostic: null,
-  }));
-
-  const tasks = calls.map(async (c, idx) => {
-    try {
-      results[idx]!.data = await c.invoke();
-    } catch (error) {
-      results[idx]!.diagnostic = toDiagnostic(c.api, error);
-    }
-  });
-
-  let timeoutHandle: NodeJS.Timeout | undefined;
-  const timeoutPromise = new Promise<void>((resolve) => {
-    timeoutHandle = setTimeout(() => resolve(), timeoutMs);
-  });
-
-  await Promise.race([Promise.all(tasks), timeoutPromise]);
-  if (timeoutHandle) clearTimeout(timeoutHandle);
-
-  for (const r of results) {
-    if (r.data === null && r.diagnostic === null) {
-      r.diagnostic = {
-        api: r.api,
-        errorCode: 'Timeout',
-        errorMessage: `timeout: sub-call exceeded ${timeoutMs}ms soft limit`,
-      };
-    }
-  }
-  return results;
-}
-
-function quotaFromTokenPlan(dto: TokenPlan | null | undefined): SubscriptionQuota | null {
-  if (!dto || dto.subscribed !== true) return null;
-  const total = Number(dto.totalCredits ?? 0);
-  const remaining = Number(dto.remainingCredits ?? 0);
-  if (!Number.isFinite(total) || !Number.isFinite(remaining)) return null;
-  if (total <= 0) return { remaining: Math.max(0, remaining), total: 0, usedPct: 0 };
-  const used = Math.max(0, total - remaining);
-  const usedPct = Math.min(100, Math.max(0, Math.round((used / total) * 100)));
-  return { remaining: Math.max(0, remaining), total, usedPct };
-}
-
-function syntheticSeatTierFromTokenPlan(dto: TokenPlan | null | undefined): SubscriptionSeatTier[] {
-  if (!dto || dto.subscribed !== true) return [];
-  const total = Number(dto.totalCredits ?? 0);
-  const remaining = Number(dto.remainingCredits ?? 0);
-  if (!Number.isFinite(total) || total <= 0) return [];
-  const safeRemaining = Number.isFinite(remaining) ? Math.max(0, remaining) : 0;
-  const used = Math.max(0, total - safeRemaining);
-  const usedPct = Math.min(100, Math.max(0, Math.round((used / total) * 100)));
-  return [
-    {
-      specType: '',
-      seats: 1,
-      totalCredits: total,
-      remainingCredits: safeRemaining,
-      usedPct,
-      nextCycleFlushTime: dto.resetDate ?? null,
-    },
-  ];
-}
+import {
+  readCodingSubscription,
+  readIndividualSubscription,
+  readTeamSubscription,
+} from './subscription-readers.js';
+import { projectSubscriptionStatus } from './subscription-status-compat.js';
+import { runSubscriptionCalls } from './subscription-query.js';
+import { createCsDataBudget, awaitCsDataOperation } from '../auth/cs-data-session.js';
 
 function detectOrderApiUnavailable(
   raw: { Code?: string; Message?: string; Data?: unknown } | null | undefined,
@@ -182,44 +96,96 @@ export class SubscriptionService {
     private readonly tokenplanService: TokenplanService,
   ) {}
 
-  async getStatus(opts: { plan?: 'token' | 'coding' } = {}): Promise<SubscriptionStatusResult> {
-    const isAll = opts.plan === undefined;
-    const wantToken = isAll || opts.plan === 'token';
-    const wantCoding = isAll || opts.plan === 'coding';
+  async getStatus(
+    opts: { plan?: 'token' | 'coding'; signal?: AbortSignal } = {},
+  ): Promise<SubscriptionStatusResult> {
+    const budget = createCsDataBudget(opts.signal, STATUS_SOFT_TIMEOUT_MS);
+    try {
+      return await this.getStatusWithinBudget({ ...opts, signal: budget.signal });
+    } finally {
+      budget.dispose();
+    }
+  }
 
-    const calls: Array<SubCallSpec<unknown>> = [
-      {
-        api: 'QuerySubscriptionGray',
-        invoke: () =>
-          this.apiClient.callFlatApi<QuerySubscriptionGrayResponse>({
+  private async getStatusWithinBudget(opts: {
+    plan?: 'token' | 'coding';
+    signal: AbortSignal;
+  }): Promise<SubscriptionStatusResult> {
+    if (opts.plan !== undefined && opts.plan !== 'token' && opts.plan !== 'coding')
+      throw new CliError({
+        code: 'INVALID_ARGUMENT',
+        message: '--plan must be token or coding.',
+        exitCode: EXIT_CODES.INVALID_ARGUMENT,
+      });
+    if (opts.signal?.aborted) throw opts.signal.reason;
+    const wantCoding = opts.plan === undefined || opts.plan === 'coding';
+    const wantToken = opts.plan === undefined || opts.plan === 'token';
+    let grayPromise: Promise<QuerySubscriptionGrayResponse> | undefined;
+    const getGray = (signal: AbortSignal) =>
+      (grayPromise ??= this.apiClient.callFlatApi<QuerySubscriptionGrayResponse>({
+        product: API_PRODUCT_BSS,
+        action: 'QuerySubscriptionGray',
+        signal,
+      }));
+    const getPersonalInstances = async (signal: AbortSignal) => {
+      if (!wantCoding) return [];
+      try {
+        const gray = await awaitCsDataOperation(
+          getGray(signal).catch(() => undefined),
+          signal,
+        );
+        signal.throwIfAborted();
+        if (this.subscriptionAdapter.transformSubscriptionGray(gray).isGray === true) return [];
+        const raw = await awaitCsDataOperation(
+          this.apiClient.callFlatApi<FrInstanceResponse & { Success?: boolean; Code?: string }>({
             product: API_PRODUCT_BSS,
-            action: 'QuerySubscriptionGray',
-          }),
-      },
-    ];
-
-    if (wantToken) {
-      calls.push({
-        api: 'GetSeatSubscriptionSummary',
-        invoke: () =>
-          this.apiClient.callFlatApi<GetSeatSubscriptionSummaryResponse>({
-            product: API_PRODUCT_BSS,
-            action: 'GetSeatSubscriptionSummary',
+            action: 'DescribeFrInstances',
+            signal,
             params: {
-              productCode: site.features.tokenPlanCommodityCodes.teams,
+              Group: 'tokenPlan',
+              CommodityCode: site.features.tokenPlanCommodityCodes.personal,
+              PageNum: 1,
+              PageSize: 10,
             },
           }),
-      });
-      calls.push({
-        api: 'TokenPlan',
-        invoke: () => this.tokenplanService.fetchTokenPlan(),
-      });
+          signal,
+        );
+        return raw &&
+          Array.isArray(raw.Data) &&
+          (raw.Success === undefined || raw.Success === true) &&
+          (raw.Code === undefined || raw.Code === 'Success' || raw.Code === '200')
+          ? raw.Data
+          : [];
+      } catch {
+        return [];
+      }
+    };
+    const codingPromise = wantCoding
+      ? readCodingSubscription(this.apiClient, this.subscriptionAdapter, opts.signal)
+      : undefined;
+    const individualPromise = wantToken
+      ? readIndividualSubscription(this.apiClient, opts.signal, (signal) =>
+          this.tokenplanService.fetchIndividualTokenPlan(signal),
+        )
+      : undefined;
+    const teamPromise = wantToken
+      ? readTeamSubscription(this.apiClient, opts.signal, (signal) =>
+          this.tokenplanService.fetchTeamTokenPlan(signal),
+        )
+      : undefined;
+    const calls: Array<{ api: string; invoke: (signal: AbortSignal) => Promise<unknown> }> = [
+      { api: 'QuerySubscriptionGray', invoke: getGray },
+    ];
+    if (wantToken && wantCoding)
+      calls.push({ api: 'DescribeFrInstances-personal', invoke: getPersonalInstances });
+    if (wantToken)
       calls.push({
         api: 'DescribeFrInstances-addon',
-        invoke: () =>
+        invoke: (signal) =>
           this.apiClient.callFlatApi<FrInstanceResponse>({
             product: API_PRODUCT_BSS,
             action: 'DescribeFrInstances',
+            signal,
             params: {
               Group: 'tokenPlan',
               CommodityCode: site.features.tokenPlanCommodityCodes.addon,
@@ -228,101 +194,47 @@ export class SubscriptionService {
             },
           }),
       });
-      calls.push({
-        api: 'CheckTokenPlanAutoRenewal',
-        invoke: () =>
-          this.apiClient.callFlatApi<CheckTokenPlanAutoRenewalResponse>({
-            product: API_PRODUCT_BSS_LEGACY,
-            action: 'CheckTokenPlanAutoRenewal',
-            params: {
-              CommodityCode: site.features.tokenPlanCommodityCodes.teams,
-            },
-          }),
-      });
-    }
-
-    if (wantCoding) {
-      calls.push({
-        api: 'GetSubscriptionDetail',
-        invoke: () =>
-          this.apiClient.callFlatApi<GetSubscriptionDetailResponse>({
-            product: API_PRODUCT_BSS,
-            action: 'GetSubscriptionDetail',
-            params: {
-              productCode: site.features.codingPlanCommodityCode,
-              pageNo: 1,
-              pageSize: 100,
-            },
-          }),
-      });
-    }
-
-    // Phase 1: run all independent sub-calls concurrently.
-    const results = await runWithSoftTimeout(calls, STATUS_SOFT_TIMEOUT_MS);
-
-    const diagnostics: SubscriptionDiagnostic[] = results
-      .map((r) => r.diagnostic)
-      .filter((d): d is SubscriptionDiagnostic => d !== null);
-
-    const lookup = new Map<string, unknown>();
-    for (const r of results) {
-      if (r.data !== null) lookup.set(r.api, r.data);
-    }
-
-    // Phase 2: CheckInstancesRenewable depends on GetSubscriptionDetail.
-    if (wantCoding) {
-      const detailRaw = lookup.get('GetSubscriptionDetail') as
-        | GetSubscriptionDetailResponse
-        | undefined;
-      const detailData = detailRaw?.Data;
-      const detailItems: SubscriptionDetailItem[] = Array.isArray(detailData)
-        ? detailData
-        : (detailData?.SubscriptionList ?? []);
-      const validInstances = detailItems.filter(
-        (inst: SubscriptionDetailItem) => inst.Status === 'NORMAL',
+    const [coding, individual, team, supplementary] = await Promise.all([
+      codingPromise,
+      individualPromise,
+      teamPromise,
+      runSubscriptionCalls(calls, STATUS_SOFT_TIMEOUT_MS, opts.signal),
+    ]);
+    const lookup = new Map(supplementary.map((reply) => [reply.api, reply.data]));
+    const diagnostics: SubscriptionDiagnostic[] = [
+      ...supplementary.flatMap((reply) => (reply.diagnostic ? [reply.diagnostic] : [])),
+      ...(coding?.diagnostics ?? []),
+      ...(individual?.diagnostics ?? []),
+      ...(team?.diagnostics ?? []),
+    ];
+    if (individual?.outcome === 'failed' && team?.outcome === 'failed')
+      diagnostics.push(
+        safeSubscriptionDiagnostic('TokenPlan', {
+          exitCode: subscriptionFailureExitCode([...individual.diagnostics, ...team.diagnostics]),
+        }),
       );
-      if (validInstances.length > 0) {
-        const renewParams: Record<string, string> = {};
-        validInstances.forEach((inst: SubscriptionDetailItem, idx: number) => {
-          const n = idx + 1;
-          renewParams[`instanceIdentities.${n}.InstanceId`] =
-            inst.InstanceCode ?? inst.InstanceId ?? '';
-          renewParams[`instanceIdentities.${n}.CommodityCode`] = inst.ProductCode ?? '';
-          renewParams[`instanceIdentities.${n}.ResourceType`] = 'subscription';
-        });
-        try {
-          const renewableData = await this.apiClient.callFlatApi<CheckInstancesRenewableResponse>({
-            product: API_PRODUCT_BSS,
-            action: 'CheckInstancesRenewable',
-            params: renewParams,
-          });
-          lookup.set('CheckInstancesRenewable', renewableData);
-        } catch (error) {
-          diagnostics.push(toDiagnostic('CheckInstancesRenewable', error));
-        }
-      }
-    }
 
-    if (diagnostics.length === results.length && !lookup.has('CheckInstancesRenewable')) {
-      return { data: null, diagnostics };
-    }
-
-    // Phase 3: best-effort recent orders (non-fatal).
+    // Recent orders do not determine subscription validity.
     let recentOrders: SubscriptionRecentOrder[] = [];
     try {
       const tokenPlanCommodityCodes = [
         site.features.tokenPlanCommodityCodes.teams,
         site.features.tokenPlanCommodityCodes.addon,
+        site.features.tokenPlanCommodityCodes.soloBuy,
       ]
         .filter(Boolean)
         .join(',');
-      const ordersResult = await this.listOrders({
-        page: 1,
-        pageSize: 3,
-        expandDetail: false,
-        commodityCodeList:
-          wantToken && tokenPlanCommodityCodes ? tokenPlanCommodityCodes : undefined,
-      });
+      const ordersResult = await awaitCsDataOperation(
+        this.listOrders({
+          signal: opts.signal,
+          page: 1,
+          pageSize: 3,
+          expandDetail: false,
+          commodityCodeList:
+            wantToken && tokenPlanCommodityCodes ? tokenPlanCommodityCodes : undefined,
+        }),
+        opts.signal,
+      );
       recentOrders = ordersResult.orders.map((o) => ({
         orderId: o.orderId,
         orderType: o.orderType,
@@ -334,14 +246,43 @@ export class SubscriptionService {
       // Non-fatal: recent orders are supplementary.
     }
 
-    const data = this.assembleStatus(lookup, recentOrders);
-    return { data, diagnostics };
+    if (
+      opts.signal.aborted &&
+      !(opts.signal.reason instanceof Error && opts.signal.reason.name === 'RequestTimeoutError')
+    )
+      throw opts.signal.reason;
+    if (![coding, individual, team].some((read) => read && read.outcome !== 'failed'))
+      return { data: null, diagnostics, failureExitCode: subscriptionFailureExitCode(diagnostics) };
+    const data = projectSubscriptionStatus(
+      {
+        coding,
+        individual,
+        team,
+        gray: lookup.get('QuerySubscriptionGray') as QuerySubscriptionGrayResponse | undefined,
+        personalInstances: lookup.get('DescribeFrInstances-personal') as
+          | FrInstanceItem[]
+          | undefined,
+        addon: lookup.get('DescribeFrInstances-addon') as FrInstanceResponse | undefined,
+        recentOrders,
+        includeCoding: wantCoding,
+        includeToken: wantToken,
+      },
+      this.subscriptionAdapter,
+    );
+    diagnostics.push(...(data.team?.diagnostics ?? []));
+    return {
+      data,
+      diagnostics: [
+        ...new Map(diagnostics.map((entry) => [JSON.stringify(entry), entry])).values(),
+      ],
+    };
   }
 
   async listOrders(opts: ListOrdersOptions): Promise<SubscriptionOrdersResult> {
+    opts.signal?.throwIfAborted();
     const cacheKey = `orders:${opts.from ?? ''}:${opts.to ?? ''}:${opts.type ?? ''}:${opts.page}:${opts.pageSize}:${opts.commodityCodeList ?? ''}`;
 
-    const nbId = await this.resolveNbId();
+    const nbId = await this.resolveNbId(opts.signal);
 
     const params: Record<string, unknown> = {
       CurrentPage: opts.page,
@@ -371,6 +312,7 @@ export class SubscriptionService {
         product: API_PRODUCT_BSS,
         action: 'QueryOrderList',
         params,
+        signal: opts.signal,
       }),
     );
 
@@ -446,7 +388,7 @@ export class SubscriptionService {
     return result;
   }
 
-  private async resolveNbId(): Promise<string | null> {
+  private async resolveNbId(signal?: AbortSignal): Promise<string | null> {
     if (this.cachedNbId && Date.now() - this.nbIdTimestamp < NBID_CACHE_TTL_MS) {
       return this.cachedNbId;
     }
@@ -455,6 +397,7 @@ export class SubscriptionService {
         product: API_PRODUCT_ACCOUNT_CENTER,
         action: 'QueryAccountBaseInfoApi',
         params: {},
+        signal,
       });
       const inner =
         raw?.Data && typeof raw.Data === 'object' ? (raw.Data as Record<string, unknown>) : raw;
@@ -469,132 +412,4 @@ export class SubscriptionService {
     }
     return null;
   }
-
-  private assembleStatus(
-    lookup: Map<string, unknown>,
-    recentOrders: SubscriptionRecentOrder[] = [],
-  ): SubscriptionStatus {
-    const grayDto = this.subscriptionAdapter.transformSubscriptionGray(
-      lookup.get('QuerySubscriptionGray') as QuerySubscriptionGrayResponse | undefined,
-    );
-    const seatRaw = lookup.get('GetSeatSubscriptionSummary') as
-      | GetSeatSubscriptionSummaryResponse
-      | undefined;
-    const seatDto = this.subscriptionAdapter.transformSeatSubscriptionSummary(seatRaw);
-    const detailDto = this.subscriptionAdapter.transformSubscriptionDetail(
-      lookup.get('GetSubscriptionDetail') as GetSubscriptionDetailResponse | undefined,
-    );
-    const autoRenewDto = this.subscriptionAdapter.transformAutoRenewal(
-      lookup.get('CheckTokenPlanAutoRenewal') as CheckTokenPlanAutoRenewalResponse | undefined,
-    );
-    const renewableDto = this.subscriptionAdapter.transformInstancesRenewable(
-      lookup.get('CheckInstancesRenewable') as CheckInstancesRenewableResponse | undefined,
-    );
-    const frAddonRaw = lookup.get('DescribeFrInstances-addon') as FrInstanceResponse | undefined;
-    const tokenPlanDto = lookup.get('TokenPlan') as TokenPlan | undefined;
-    const quota = quotaFromTokenPlan(tokenPlanDto);
-
-    const detailActive = detailDto.activeInstance;
-    const plan = detailActive?.plan ?? seatDto.plan ?? tokenPlanDto?.planName ?? null;
-    const period = detailActive?.period ?? seatDto.period ?? null;
-
-    const seatInner = seatRaw?.Data ?? seatRaw;
-    const seatTiersRaw = extractSeatTiers(seatInner);
-    const seatTiers = seatTiersRaw.some((tier) => tier.totalCredits > 0)
-      ? seatTiersRaw
-      : syntheticSeatTierFromTokenPlan(tokenPlanDto);
-    const remainingDays = extractRemainingDays(seatInner);
-    const creditPacks = extractCreditPacks(frAddonRaw);
-    const codingPlanStatus = detailActive?.status ?? null;
-
-    return {
-      isGray: grayDto.isGray,
-      plan,
-      period,
-      quota,
-      autoRenew: autoRenewDto.autoRenew,
-      renewable: renewableDto.renewable,
-      remainingDays,
-      seatTiers,
-      creditPacks,
-      codingPlanStatus,
-      recentOrders,
-    };
-  }
-}
-
-// Raw-response extractors.
-
-function extractRemainingDays(
-  inner: { RemainingDays?: number | string } | null | undefined,
-): number | null {
-  if (!inner) return null;
-  const raw = inner.RemainingDays;
-  if (raw === undefined || raw === null) return null;
-  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
-  const parsed = parseInt(raw, 10);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function extractSeatTiers(
-  inner:
-    | { SubscriptionGroupList?: GetSeatSubscriptionSummaryResponse['SubscriptionGroupList'] }
-    | null
-    | undefined,
-): SubscriptionSeatTier[] {
-  const groups = inner?.SubscriptionGroupList;
-  if (!Array.isArray(groups) || groups.length === 0) return [];
-  const tiers: SubscriptionSeatTier[] = [];
-  for (const group of groups) {
-    if (!group) continue;
-    const equity = group.EquityList?.[0];
-    const total = parseFloat(equity?.TotalValue ?? group.TotalValue ?? '0');
-    const remaining = parseFloat(equity?.SurplusValue ?? group.SurplusValue ?? '0');
-    const safeTotal = Number.isFinite(total) ? total : 0;
-    const safeRemaining = Number.isFinite(remaining) ? remaining : 0;
-    const used = Math.max(0, safeTotal - safeRemaining);
-    const usedPct =
-      safeTotal > 0 ? Math.min(100, Math.max(0, Math.round((used / safeTotal) * 100))) : 0;
-    let flush: string | null = null;
-    const rawFlush = group.NextCycleFlushTime;
-    if (typeof rawFlush === 'number' && Number.isFinite(rawFlush)) {
-      flush = new Date(rawFlush).toISOString();
-    } else if (typeof rawFlush === 'string' && rawFlush.length > 0) {
-      flush = rawFlush;
-    }
-    tiers.push({
-      specType: group.SpecType ?? '',
-      seats: typeof group.SubscriptionTotalNumber === 'number' ? group.SubscriptionTotalNumber : 0,
-      totalCredits: safeTotal,
-      remainingCredits: safeRemaining,
-      usedPct,
-      nextCycleFlushTime: flush,
-    });
-  }
-  return tiers;
-}
-
-function extractCreditPacks(raw: FrInstanceResponse | null | undefined): SubscriptionCreditPack[] {
-  if (!raw || !Array.isArray(raw.Data) || raw.Data.length === 0) return [];
-  const packs: SubscriptionCreditPack[] = [];
-  for (const item of raw.Data) {
-    if (!item) continue;
-    const statusCode =
-      item.StatusCode ?? (typeof item.Status === 'string' ? item.Status : item.Status?.Code);
-    if (statusCode !== 'valid') continue;
-    const total = parseFloat(item.InitCapacityBaseValue ?? '0');
-    const remaining = parseFloat(item.CurrCapacityBaseValue ?? '0');
-    let expiresAt: string | null = null;
-    if (typeof item.EndTime === 'number' && Number.isFinite(item.EndTime)) {
-      const isoStr = new Date(item.EndTime).toISOString();
-      expiresAt = isSentinelDate(isoStr) ? null : isoStr;
-    }
-    packs.push({
-      instanceId: item.InstanceId ?? '',
-      totalCredits: Number.isFinite(total) ? total : 0,
-      remainingCredits: Number.isFinite(remaining) ? remaining : 0,
-      expiresAt,
-    });
-  }
-  return packs;
 }

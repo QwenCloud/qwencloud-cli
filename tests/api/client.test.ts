@@ -135,7 +135,13 @@ describe('createClient — service delegation', () => {
   });
 
   it('delegates getUsageLogs to usageService', async () => {
-    const opts = { model: 'qwen-plus', page: 1, pageSize: 10 };
+    const opts = {
+      model: 'qwen-plus',
+      page: 1,
+      pageSize: 10,
+      from: '2026-11-01T00:00:00Z',
+      to: '2026-11-02T00:00:00Z',
+    };
     const client = await createClient();
     await client.getUsageLogs(opts);
     expect(mockUsageService.getUsageLogs).toHaveBeenCalledWith(opts);

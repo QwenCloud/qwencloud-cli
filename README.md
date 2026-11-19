@@ -6,7 +6,7 @@
 
 > Official command-line tool for [QwenCloud](https://www.qwencloud.com/). Discover models, check usage, manage authentication, and diagnose local setup from a terminal or an AI agent runtime.
 
-![Version](https://img.shields.io/badge/version-1.6.0-blue)
+![Version](https://img.shields.io/badge/version-1.7.0-blue)
 ![Node](https://img.shields.io/badge/node-%3E%3D18-green)
 ![License](https://img.shields.io/badge/license-Apache--2.0-green)
 
@@ -24,6 +24,7 @@ QwenCloud is an AI-native cloud for models, tools, and apps. It provides hosted 
 - **Model invocation command family**: call chat, image, video, and speech models directly via `chat`, `image`, `video`, `audio`, and `task`, with streaming output, file downloads, and async task polling.
 - **Agent-ready contract**: commands support `--format json`, standardized exit codes, parseable JSON errors, and `--quiet` for exit-code-only checks.
 - **Model and usage workflows**: browse models, inspect model metadata, search by keyword, and review Free Tier, Coding Plan, and PAYG usage.
+- **Token Plan subscriptions**: browse individual and team prices, quota windows, and supported models; inspect your subscriptions, remaining credits, and team seat summaries and details.
 - **Native credential storage**: credentials are stored in the OS keychain when available, with an encrypted file fallback. No `keytar` or native Node binding is required.
 - **Self-documenting command tree**: every command supports `--help`; generated help is the canonical syntax reference.
 
@@ -32,7 +33,6 @@ QwenCloud is an AI-native cloud for models, tools, and apps. It provides hosted 
 ## Installation
 
 Choose the channel that matches your environment. npm and source builds are available.
-
 
 ### npm
 
@@ -131,22 +131,23 @@ Run diagnostics to verify authentication, network access, configuration, and she
 
 ## Commands
 
-| Area | Commands | Common flags |
-|---|---|---|
-| Model invocation | `chat create`, `image generate`, `video generate`, `audio transcribe`, `audio speech`, `task get` | `--model`, `--stream`, `--size`, `--image`, `--voice`, `--out`, `--no-wait`, `--timeout`, `--request`, `--api-key`, `--format` |
-| Auth | `auth login`, `auth logout`, `auth status` | `--init-only`, `--complete`, `--timeout`, `--format` |
-| Models | `models list`, `models info`, `models search` | `--input`, `--output`, `--all`, `--verbose`, `--page`, `--per-page`, `--format` |
-| Usage | `usage summary`, `usage breakdown`, `usage free-tier`, `usage payg`, `usage logs` | `--period`, `--from`, `--to`, `--days`, `--model`, `--granularity`, `--format` |
-| Billing | `billing summary`, `billing breakdown`, `billing limit`, `billing payment-method list`, `billing payment-method bind` | `--from`, `--to`, `--period`, `--group-by`, `--granularity`, `--format` |
-| Workspace | `workspace list`, `workspace limit` | `--format` |
-| Subscription | `subscription status`, `subscription orders`, `subscription tokenplan status`, `subscription tokenplan seats` | `--format` |
-| Docs | `docs search`, `docs view` | `--format` |
-| Support | `support list`, `support view`, `support create`, `support reply`, `support close`, `support rate` | `--format` |
-| Plugins | `plugin list`, `plugin install`, `plugin update`, `plugin uninstall`, `plugin init`, `plugin validate` | `--name`, `--command`, `--force`, `--format` |
-| Config | `config list`, `config get`, `config set`, `config unset` | `--format` |
-| Diagnostics | `doctor` | `--format` |
-| Shell | `completion install`, `completion generate` | `--shell` |
-| Version | `version` | `--check` |
+| Area             | Commands                                                                                                              | Common flags                                                                                                                   |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Model invocation | `chat create`, `image generate`, `video generate`, `audio transcribe`, `audio speech`, `task get`                     | `--model`, `--stream`, `--size`, `--image`, `--voice`, `--out`, `--no-wait`, `--timeout`, `--request`, `--api-key`, `--format` |
+| Auth             | `auth login`, `auth logout`, `auth status`                                                                            | `--init-only`, `--complete`, `--timeout`, `--format`                                                                           |
+| Models           | `models list`, `models info`, `models search`                                                                         | `--input`, `--output`, `--all`, `--verbose`, `--page`, `--per-page`, `--format`                                                |
+| Usage            | `usage summary`, `usage breakdown`, `usage free-tier`, `usage payg`, `usage logs`                                     | `--period`, `--from`, `--to`, `--days`, `--model`, `--granularity`, `--format`                                                 |
+| Billing          | `billing summary`, `billing breakdown`, `billing limit`, `billing payment-method list`, `billing payment-method bind` | `--from`, `--to`, `--period`, `--group-by`, `--granularity`, `--format`                                                        |
+| Workspace        | `workspace list`, `workspace limit`                                                                                   | `--format`                                                                                                                     |
+| Subscription     | `subscription status`, `subscription orders`                                                                          | `--plan`, `--type`, `--page`, `--page-size`, `--format`                                                                        |
+| Token Plan       | `subscription tokenplan list`, `subscription tokenplan status`, `subscription tokenplan seats`                        | `--edition`, `--billing-cycle`, `--include-models`, `--spec-type`, `--page`, `--page-size`, `--format`                         |
+| Docs             | `docs search`, `docs view`                                                                                            | `--format`                                                                                                                     |
+| Support          | `support list`, `support view`, `support create`, `support reply`, `support close`, `support rate`                    | `--format`                                                                                                                     |
+| Plugins          | `plugin list`, `plugin install`, `plugin update`, `plugin uninstall`, `plugin init`, `plugin validate`                | `--name`, `--command`, `--force`, `--format`                                                                                   |
+| Config           | `config list`, `config get`, `config set`, `config unset`                                                             | `--format`                                                                                                                     |
+| Diagnostics      | `doctor`                                                                                                              | `--format`                                                                                                                     |
+| Shell            | `completion install`, `completion generate`                                                                           | `--shell`                                                                                                                      |
+| Version          | `version`                                                                                                             | `--check`                                                                                                                      |
 
 Use help for exact syntax:
 
@@ -154,6 +155,7 @@ Use help for exact syntax:
 qwencloud --help
 qwencloud models --help
 qwencloud usage breakdown --help
+qwencloud subscription tokenplan --help
 ```
 
 ---
@@ -175,14 +177,14 @@ qwencloud --quiet doctor
 
 Exit codes:
 
-| Code | Meaning |
-|---:|---|
-| `0` | Success |
-| `1` | General or usage error |
-| `2` | Authentication error |
-| `3` | Network error |
-| `4` | Configuration error |
-| `130` | Interrupted |
+|  Code | Meaning                |
+| ----: | ---------------------- |
+|   `0` | Success                |
+|   `1` | General or usage error |
+|   `2` | Authentication error   |
+|   `3` | Network error          |
+|   `4` | Configuration error    |
+| `130` | Interrupted            |
 
 JSON errors follow a stable shape:
 
@@ -246,9 +248,9 @@ QwenCloud CLI uses one global config file:
 
 Public configuration keys:
 
-| Key | Values | Default |
-|---|---|---|
-| `output.format` | `auto`, `table`, `json`, `text` | `auto` |
+| Key             | Values                          | Default |
+| --------------- | ------------------------------- | ------- |
+| `output.format` | `auto`, `table`, `json`, `text` | `auto`  |
 
 ```bash
 qwencloud config set output.format json

@@ -2,6 +2,9 @@ node_modules/
 .pnpm-store/
 dist/
 release/
+.build-tmp/
+.local-test-tmp/
+out/
 *.tsbuildinfo
 .DS_Store
 *.log

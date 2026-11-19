@@ -44,6 +44,7 @@ describe('SubscriptionOrders (rendered)', () => {
   it('renders one visible row per order with id and amount', () => {
     const vm = buildSubscriptionOrdersViewModel(
       makeOrders([makeOrder({ orderId: 'ORD-A' }), makeOrder({ orderId: 'ORD-B', amount: '99.00' })]),
+      [],
       ctx,
     );
     const out = frame(<SubscriptionOrdersInk vm={vm} />);
@@ -54,7 +55,7 @@ describe('SubscriptionOrders (rendered)', () => {
   });
 
   it('renders a friendly placeholder for an empty list', () => {
-    const vm = buildSubscriptionOrdersViewModel(makeOrders([], 0), ctx);
+    const vm = buildSubscriptionOrdersViewModel(makeOrders([], 0), [], ctx);
     const out = frame(<SubscriptionOrdersInk vm={vm} />);
     expect(out.toLowerCase()).toMatch(/no\s+orders|empty|—/);
   });
@@ -65,6 +66,7 @@ describe('SubscriptionOrders (rendered)', () => {
         makeOrder({ orderId: 'ORD-OK' }),
         makeOrder({ orderId: 'ORD-BAD', detailError: 'detail.fetch.timeout' }),
       ]),
+      [],
       ctx,
     );
     const out = frame(<SubscriptionOrdersInk vm={vm} />);
@@ -78,6 +80,7 @@ describe('SubscriptionOrders (rendered)', () => {
     const rows = Array.from({ length: 5 }, (_, i) => makeOrder({ orderId: `ORD-${i + 1}` }));
     const vm = buildSubscriptionOrdersViewModel(
       { orders: rows, pagination: { page: 2, pageSize: 5, total: 12 } } as SubscriptionOrders,
+      [],
       ctx,
     );
     const out = frame(<SubscriptionOrdersInk vm={vm} />);

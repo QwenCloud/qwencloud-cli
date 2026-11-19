@@ -309,8 +309,14 @@ export interface CodingPlanApiResponse {
   code?: string;
   message?: string;
   data?: unknown;
+  Success?: boolean;
   DataV2?: {
+    ret?: string[];
     data?: {
+      success?: boolean;
+      failed?: boolean;
+      errorCode?: string | number;
+      errorMsg?: string;
       data?: {
         codingPlanInstanceInfos?: CodingPlanInstance[];
       };

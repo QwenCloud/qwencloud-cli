@@ -8,7 +8,7 @@ declare const __ALLOW_PROXY__: boolean;
 
 import { resolveCredentials } from '../auth/credentials.js';
 import { site } from '../site.js';
-import { redactToken } from '../utils/redact.js';
+import { redactSensitiveValue } from '../utils/redact.js';
 import { startRequest, endRequest, isEnabled } from './debug-buffer.js';
 
 let proxyInit: Promise<void> | undefined;
@@ -35,10 +35,39 @@ export interface RequestOptions {
   authMode?: 'required' | 'optional' | 'none';
   context?: string;
   signal?: AbortSignal;
+  onRequestStart?: () => void;
 }
 
 export interface BaseClient {
   request<T>(options: RequestOptions): Promise<T>;
+}
+
+export class HttpResponseError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'HttpResponseError';
+  }
+}
+export class RequestTimeoutError extends Error {
+  constructor(
+    public readonly timeoutMs: number,
+    url: string,
+  ) {
+    super(`Request timeout after ${timeoutMs / 1000}s\n  URL: ${url}`);
+    this.name = 'RequestTimeoutError';
+  }
+}
+export class ResponseParseError extends Error {
+  constructor() {
+    super('Invalid JSON response from server');
+    this.name = 'ResponseParseError';
+  }
+}
+export function isResponseParseError(error: unknown): boolean {
+  return error instanceof ResponseParseError;
 }
 
 // ────────────────────────────────────────────────────────────────────
@@ -67,14 +96,22 @@ export function createBaseClient(opts?: BaseClientOptions): BaseClient {
         ...(options.headers ?? {}),
       };
 
-      // Auth injection based on authMode
-      if (authMode === 'required') {
+      if (options.signal?.aborted) {
+        throw options.signal.reason instanceof Error
+          ? options.signal.reason
+          : new DOMException('Request aborted', 'AbortError');
+      }
+      const hasExplicitAuthorization = Object.keys(headers).some(
+        (key) => key.toLowerCase() === 'authorization',
+      );
+      // Caller-provided credentials belong to the selected transport channel.
+      if (authMode === 'required' && !hasExplicitAuthorization) {
         const creds = resolveCredentials();
         if (!creds) {
           throw new Error('Not authenticated. Please login first.');
         }
         headers.Authorization = `Bearer ${creds.access_token}`;
-      } else if (authMode === 'optional') {
+      } else if (authMode === 'optional' && !hasExplicitAuthorization) {
         const creds = resolveCredentials();
         if (creds) {
           headers.Authorization = `Bearer ${creds.access_token}`;
@@ -82,30 +119,39 @@ export function createBaseClient(opts?: BaseClientOptions): BaseClient {
       }
       // 'none' — no auth header
 
-      // Debug buffer tracking
-      const debugEnabled = isEnabled();
+      const secrets = Object.entries(headers)
+        .filter(([key]) => key.toLowerCase() === 'authorization')
+        .map(([, value]) => value.replace(/^Bearer /i, ''));
       let debugId: number | undefined;
-      if (debugEnabled) {
-        // Redact Authorization in debug headers
-        const debugHeaders: Record<string, unknown> = { ...headers };
-        if (debugHeaders.Authorization && typeof debugHeaders.Authorization === 'string') {
-          debugHeaders.Authorization = `Bearer ${redactToken((debugHeaders.Authorization as string).replace('Bearer ', ''))}`;
-        }
-        debugId = startRequest(method, options.url, debugHeaders, options.body ?? null, context);
+      if (isEnabled()) {
+        debugId = startRequest(
+          method,
+          options.url,
+          redactSensitiveValue(headers, secrets) as Record<string, unknown>,
+          String(redactSensitiveValue(options.body ?? '', secrets)),
+          context,
+        );
       }
-
-      // AbortController for timeout
       const controller = new AbortController();
-      const abortFromCaller = () => controller.abort(options.signal?.reason);
-      if (options.signal?.aborted) abortFromCaller();
-      else options.signal?.addEventListener('abort', abortFromCaller, { once: true });
-      const timer = setTimeout(() => {
-        controller.abort(new Error(`Request timeout after ${timeout}ms`));
-      }, timeout);
+      const forwardAbort = () => controller.abort(options.signal?.reason);
+      if (options.signal?.aborted) forwardAbort();
+      else options.signal?.addEventListener('abort', forwardAbort, { once: true });
+      const timer = setTimeout(
+        () => controller.abort(new RequestTimeoutError(timeout, options.url)),
+        timeout,
+      );
+      const checkSignal = () => {
+        if (!controller.signal.aborted) return;
+        throw controller.signal.reason instanceof Error
+          ? controller.signal.reason
+          : new DOMException('Request aborted', 'AbortError');
+      };
 
       try {
+        checkSignal();
         if (proxyInit) await proxyInit;
-        controller.signal.throwIfAborted();
+        checkSignal();
+        options.onRequestStart?.();
         const response = await fetch(options.url, {
           method,
           headers,
@@ -114,10 +160,12 @@ export function createBaseClient(opts?: BaseClientOptions): BaseClient {
           redirect: 'error',
         });
 
-        clearTimeout(timer);
+        checkSignal();
 
         if (!response.ok) {
-          const bodyText = await response.text().catch(() => '');
+          const bodyText = String(
+            redactSensitiveValue(await response.text().catch(() => ''), secrets),
+          );
           const truncated =
             bodyText.length > 500 ? bodyText.slice(0, 500) + '...(truncated)' : bodyText;
 
@@ -130,13 +178,20 @@ export function createBaseClient(opts?: BaseClientOptions): BaseClient {
             `  URL: ${options.url}`,
           ];
           if (truncated) parts.push(`  Response: ${truncated}`);
-          throw new Error(parts.join('\n'));
+          throw new HttpResponseError(response.status, parts.join('\n'));
         }
 
-        const data = (await response.json()) as T;
+        let data: T;
+        try {
+          data = (await response.json()) as T;
+        } catch {
+          checkSignal();
+          throw new ResponseParseError();
+        }
+        checkSignal();
 
         if (debugId !== undefined) {
-          const bodyStr = JSON.stringify(data);
+          const bodyStr = JSON.stringify(redactSensitiveValue(data, secrets));
           const truncated = bodyStr.length > 2000 ? bodyStr.slice(0, 2000) : bodyStr;
           endRequest(debugId, response.status, response.statusText, truncated, false);
         }
@@ -146,27 +201,25 @@ export function createBaseClient(opts?: BaseClientOptions): BaseClient {
         clearTimeout(timer);
 
         if (debugId !== undefined && err instanceof Error) {
-          endRequest(debugId, null, null, err.message, true);
+          endRequest(debugId, null, null, String(redactSensitiveValue(err.message, secrets)), true);
         }
 
-        if (options.signal?.aborted) throw options.signal.reason ?? err;
-
-        // Re-throw with normalized message for abort/timeout
-        if (err instanceof Error && (err.name === 'AbortError' || controller.signal.aborted)) {
-          throw new Error(`Request timeout after ${timeout / 1000}s\n  URL: ${options.url}`);
-        }
-
-        // Already a normalized HTTP error from the !response.ok branch above —
-        // pass through verbatim so callers see the original status context.
-        if (err instanceof Error && /^HTTP \d{3}:/.test(err.message)) {
-          throw err;
-        }
+        checkSignal();
+        if (err instanceof HttpResponseError || isResponseParseError(err)) throw err;
+        if (err instanceof Error && err.name === 'AbortError') throw err;
 
         // Network-layer failure (DNS, refused, TLS, etc.) — wrap with a
         // stable "Network request failed" prefix for downstream consumers.
-        const baseMsg = err instanceof Error ? err.message : String(err);
+        const baseMsg = String(
+          redactSensitiveValue(err instanceof Error ? err.message : String(err), secrets),
+        );
         const cause = err instanceof Error && err.cause ? err.cause : undefined;
-        const causeMsg = cause instanceof Error ? cause.message : cause ? String(cause) : '';
+        const causeMsg = String(
+          redactSensitiveValue(
+            cause instanceof Error ? cause.message : cause ? String(cause) : '',
+            secrets,
+          ),
+        );
         const parts = [`Network request failed: ${baseMsg}`, `  URL: ${options.url}`];
         if (causeMsg) parts.push(`  Cause: ${causeMsg}`);
         const enriched = new Error(parts.join('\n'));
@@ -174,7 +227,7 @@ export function createBaseClient(opts?: BaseClientOptions): BaseClient {
         throw enriched;
       } finally {
         clearTimeout(timer);
-        options.signal?.removeEventListener('abort', abortFromCaller);
+        options.signal?.removeEventListener('abort', forwardAbort);
       }
     },
   };

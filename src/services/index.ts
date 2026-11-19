@@ -56,6 +56,7 @@ import { DocsService } from './docs-service.js';
 import { WorkspaceService } from './workspace-service.js';
 import { SubscriptionService, type SubscriptionAdapter } from './subscription-service.js';
 import { SubscriptionTokenPlanService } from './subscription-tokenplan-service.js';
+import { TokenPlanListService } from './tokenplan-list-service.js';
 import { SupportService } from './support-service.js';
 
 import type { CachedFetcher } from '../types/cache.js';
@@ -82,6 +83,7 @@ export interface ServiceContainer {
   workspaceService: WorkspaceService;
   subscriptionService: SubscriptionService;
   subscriptionTokenPlanService: SubscriptionTokenPlanService;
+  tokenPlanListService: TokenPlanListService;
   supportService: SupportService;
 }
 
@@ -184,6 +186,7 @@ export function createServices(options: CreateServicesOptions = {}): ServiceCont
     tokenplanService,
   );
   const subscriptionTokenPlanService = new SubscriptionTokenPlanService(apiClient);
+  const tokenPlanListService = new TokenPlanListService(apiClient);
   const supportService = new SupportService(apiClient);
 
   return {
@@ -201,6 +204,7 @@ export function createServices(options: CreateServicesOptions = {}): ServiceCont
     workspaceService,
     subscriptionService,
     subscriptionTokenPlanService,
+    tokenPlanListService,
     supportService,
   };
 }

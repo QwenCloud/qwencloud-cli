@@ -27,7 +27,7 @@ interface SeatGroup {
 }
 
 interface TokenPlanStatusResult {
-  product: string | null;
+  product: string;
   period: { start: string; end: string; remainingDays: number } | null;
   autoRenew: { enabled: boolean; period: number; periodUnit: string } | null;
   renewable: { canRenew: boolean; interceptCode: string } | null;
@@ -179,11 +179,19 @@ describe('SubscriptionTokenPlanStatus (rendered)', () => {
     ];
     const vm = buildTokenPlanStatusViewModel(result, 'tui');
     const out = frame(<SubscriptionTokenPlanStatusInk vm={vm} />);
-    expect(out).toMatch(/CheckTokenPlanAutoRenewal|CheckInstancesRenewable|2.*unavailable/i);
+    expect(out.match(/⚠ Service unavailable/g)).toEqual([
+      '⚠ Service unavailable',
+      '⚠ Service unavailable',
+    ]);
+    expect(vm.diagnostics).toEqual([
+      makeDiag('CheckTokenPlanAutoRenewal'),
+      makeDiag('CheckInstancesRenewable'),
+    ]);
   });
 
   it('renders unavailable banner when all data is null', () => {
     const result: TokenPlanStatusResult = {
+      // @ts-expect-error Exercise malformed upstream data at runtime.
       product: null,
       period: null,
       autoRenew: null,

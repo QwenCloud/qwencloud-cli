@@ -1,18 +1,20 @@
 /**
  * CodingplanService — Coding Plan subscription orchestration.
  *
- * Wire format: envelope protocol via the injected ApiClient. Failures are
- * downgraded to "not subscribed" so the surrounding UsageService can still
- * render a usable summary even when this dimension is unavailable.
+ * Uses flat gateway parameters and validates the gateway and business statuses.
+ * Failures emit a diagnostic while allowing UsageService to render its summary.
  */
 
 import type { ApiClient } from '../api/api-client.js';
 import type { CachedFetcher } from '../types/cache.js';
-import type { CodingPlanInstance, CodingPlanApiResponse } from '../types/api-models.js';
+import type { CodingPlanInstance } from '../types/api-models.js';
 import type { CodingPlan } from '../types/usage.js';
 import { getEffectiveConfig } from '../config/manager.js';
 import { addDiagnostic } from '../api/debug-buffer.js';
 import { site } from '../site.js';
+import { API_ACTION_GATEWAY, API_PRODUCT_GATEWAY } from '../types/api-routes.js';
+import { parseRetError } from '../api/adapters/gateway-adapter.js';
+import { GatewayBusinessError, GatewayShapeError } from '../api/request-adapter.js';
 
 // ────────────────────────────────────────────────────────────────────
 // Wire format constants
@@ -21,21 +23,83 @@ import { site } from '../site.js';
 const ENVELOPE_API = 'zeldaEasy.broadscope-bailian.codingPlan.queryCodingPlanInstanceInfoV2';
 
 // ────────────────────────────────────────────────────────────────────
-// GatewayAdapter contract — surfaces gateway-level extraction so tests can
-// inject a stub. Production wires extractCodingPlanInstances from the
-// envelope protocol response shape.
+// Coding Plan response validation
 // ────────────────────────────────────────────────────────────────────
 
 export interface GatewayAdapter {
   /** Extract the codingPlanInstanceInfos array from a raw envelope response. */
-  extractCodingPlanInstances(raw: CodingPlanApiResponse | null | undefined): CodingPlanInstance[];
+  extractCodingPlanInstances(raw: unknown): CodingPlanInstance[];
 }
 
-/** Extract coding plan instances from the standard envelope response shape. */
-export function extractCodingPlanInstances(
-  raw: CodingPlanApiResponse | null | undefined,
-): CodingPlanInstance[] {
-  return raw?.DataV2?.data?.data?.codingPlanInstanceInfos ?? [];
+function responseObject(value: unknown): Record<string, unknown> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new GatewayShapeError('Invalid Coding Plan response');
+  }
+  return value as Record<string, unknown>;
+}
+
+function diagnosticCode(value: unknown): string {
+  const code = typeof value === 'string' || typeof value === 'number' ? String(value) : '';
+  return /^(?:\d{1,8}|[A-Z][A-Z_]{1,63})$/.test(code) ? code : 'QUERY_FAILED';
+}
+
+/** Validate both success layers before extracting Coding Plan instances. */
+export function extractCodingPlanInstances(raw: unknown): CodingPlanInstance[] {
+  const envelope = responseObject(raw);
+  if (envelope.Success === false) {
+    throw new GatewayBusinessError('QUERY_FAILED', 'Coding Plan query failed');
+  }
+  const payload = responseObject(envelope.DataV2);
+  const ret = payload.ret;
+  if (!Array.isArray(ret) || typeof ret[0] !== 'string') {
+    throw new GatewayShapeError('Coding Plan response missing gateway status');
+  }
+  const { code } = parseRetError(ret[0]);
+  if (code !== 'SUCCESS') {
+    throw new GatewayBusinessError(diagnosticCode(code), 'Coding Plan gateway rejected the query');
+  }
+  const business = responseObject(payload.data);
+  if (business.success === false || business.failed === true) {
+    throw new GatewayBusinessError(diagnosticCode(business.errorCode), 'Coding Plan query failed');
+  }
+  if (business.success !== true) {
+    throw new GatewayShapeError('Coding Plan response missing business success');
+  }
+  const data = responseObject(business.data);
+  if (!Array.isArray(data.codingPlanInstanceInfos)) {
+    throw new GatewayShapeError('Coding Plan response missing instances');
+  }
+  return data.codingPlanInstanceInfos.map((value: unknown) => {
+    const instance = responseObject(value);
+    if (typeof instance.status !== 'string' || instance.status.length === 0) {
+      throw new GatewayShapeError('Coding Plan instance missing status');
+    }
+    if (instance.instanceType !== undefined && typeof instance.instanceType !== 'string') {
+      throw new GatewayShapeError('Invalid Coding Plan instance type');
+    }
+    if (instance.codingPlanQuotaInfo !== undefined) {
+      const quota = responseObject(instance.codingPlanQuotaInfo);
+      for (const key of [
+        'per5HourTotalQuota',
+        'per5HourUsedQuota',
+        'per5HourQuotaNextRefreshTime',
+        'perWeekTotalQuota',
+        'perWeekUsedQuota',
+        'perWeekQuotaNextRefreshTime',
+        'perBillMonthTotalQuota',
+        'perBillMonthUsedQuota',
+        'perBillMonthQuotaNextRefreshTime',
+      ]) {
+        if (
+          quota[key] !== undefined &&
+          (typeof quota[key] !== 'number' || !Number.isFinite(quota[key]))
+        ) {
+          throw new GatewayShapeError('Invalid Coding Plan quota value');
+        }
+      }
+    }
+    return instance as CodingPlanInstance;
+  });
 }
 
 /** Production GatewayAdapter — pass-through to the standalone extractor. */
@@ -51,7 +115,7 @@ export function createGatewayAdapter(): GatewayAdapter {
 
 export class CodingplanService {
   constructor(
-    private readonly apiClient: ApiClient,
+    private readonly apiClient: Pick<ApiClient, 'callFlatApi'>,
     private readonly gatewayAdapter: GatewayAdapter,
     private readonly cache: CachedFetcher,
   ) {}
@@ -75,16 +139,23 @@ export class CodingplanService {
         },
       };
 
-      const data = await this.apiClient.callEnvelopeApi<CodingPlanApiResponse | null>({
-        api: ENVELOPE_API,
-        data: requestPayload,
-        cornerstoneParam: {
-          domain: this.getCodingPlanHost(),
-          consoleSite: 'QWENCLOUD',
-          console: 'ONE_CONSOLE',
-          xsp_lang: site.defaults.language,
-          protocol: 'V2',
-          productCode: 'p_efm',
+      const data = await this.apiClient.callFlatApi<unknown>({
+        product: API_PRODUCT_GATEWAY,
+        action: API_ACTION_GATEWAY,
+        params: {
+          Api: ENVELOPE_API,
+          V: '1.0',
+          Data: JSON.stringify({
+            ...requestPayload,
+            cornerstoneParam: {
+              domain: this.getCodingPlanHost(),
+              consoleSite: 'QWENCLOUD',
+              console: 'ONE_CONSOLE',
+              xsp_lang: site.defaults.language,
+              protocol: 'V2',
+              productCode: 'p_efm',
+            },
+          }),
         },
       });
 
@@ -96,9 +167,16 @@ export class CodingplanService {
 
       return this.buildCodingPlanDto(instance);
     } catch (error) {
+      const code =
+        error instanceof GatewayBusinessError
+          ? diagnosticCode(error.code)
+          : error instanceof GatewayShapeError
+            ? 'PROTOCOL_ERROR'
+            : 'QUERY_FAILED';
       addDiagnostic(
         'CodingPlan',
-        `fetch failed, treating as not subscribed: ${error instanceof Error ? error.message : String(error)}`,
+        `Quota query failed (${code}); Coding Plan availability could not be verified.`,
+        'warn',
       );
       return { subscribed: false };
     } finally {

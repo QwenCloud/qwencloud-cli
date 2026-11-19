@@ -21,7 +21,20 @@ const mockBreakdownCodingPlan = mockBreakdownCodingPlanRaw as any;
 import { mockAuthStatus } from './mock-data/auth.js';
 
 /** Mock API client for development and testing. */
-export class MockApiClient implements ApiClient {
+export class MockApiClient implements Pick<
+  ApiClient,
+  | 'listModels'
+  | 'getModel'
+  | 'getModels'
+  | 'fetchQuotasForModels'
+  | 'searchModels'
+  | 'getUsageSummary'
+  | 'getUsageBreakdown'
+  | 'getAuthStatus'
+  | 'revokeSession'
+  | 'ping'
+  | 'checkVersion'
+> {
   async listModels(options?: ListModelsOptions): Promise<ModelsListResponse> {
     let models = mockModels.map(toListModel);
 

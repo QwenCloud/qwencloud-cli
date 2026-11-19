@@ -318,6 +318,7 @@ describe('plugin import state', () => {
     const child = spawnSync(
       process.execPath,
       [
+        ...(Number(process.versions.node.split('.')[0]) >= 26 ? ['--disable-warning=DEP0205'] : []),
         '--import',
         'tsx',
         '--input-type=module',

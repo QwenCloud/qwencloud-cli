@@ -1,6 +1,9 @@
 /** View-model unit tests for the subscription status card. */
 import { describe, it, expect } from 'vitest';
 import { buildSubscriptionStatusViewModel } from '../../../src/view-models/subscription/index.js';
+import { buildTokenPlanStatusViewModel } from '../../../src/view-models/subscription/tokenplan-status.js';
+import { formatSubscriptionStatusJson } from '../../../src/view-models/subscription/shared.js';
+import type { TokenPlanEditionStatus } from '../../../src/types/tokenplan-subscription.js';
 import type {
   SubscriptionStatus,
   SubscriptionDiagnostic,
@@ -32,6 +35,101 @@ function diag(api: string, errorMessage = 'failed'): SubscriptionDiagnostic {
 }
 
 describe('buildSubscriptionStatusViewModel', () => {
+  it('sorts legacy seat tiers while preserving machine data and Coding Plan fields', () => {
+    const data = makeStatus({
+      codingPlanStatus: 'VALID',
+      seatTiers: ['max', 'standard', 'pro', 'custom', 'standard'].map((specType) => ({
+        specType,
+        seats: 1,
+        totalCredits: 100,
+        remainingCredits: 50,
+        usedPct: 50,
+        nextCycleFlushTime: null,
+      })),
+    });
+    const before = structuredClone(data);
+    const machine = formatSubscriptionStatusJson(data);
+    const vm = buildSubscriptionStatusViewModel(data, [], ctx);
+    expect(vm.tokenPlanSection?.tiers.map((tier) => tier.label)).toEqual([
+      'Standard (1 seat)',
+      'Standard (1 seat)',
+      'Pro (1 seat)',
+      'Max (1 seat)',
+      'Custom (1 seat)',
+    ]);
+    expect(vm.codingPlanSection?.status).toBe('VALID');
+    expect(formatSubscriptionStatusJson(data)).toEqual(machine);
+    expect(data).toEqual(before);
+  });
+  it.each(['active', 'not_subscribed', 'unknown'] as const)(
+    'shares dedicated personal fields and tables for status %s without changing team or JSON',
+    (status) => {
+      const individual: TokenPlanEditionStatus = {
+        edition: 'individual',
+        commodityCode: 'sfm_tokenplansolo_public_intl',
+        status,
+        type: 'lite',
+        name: 'Mock Personal Lite',
+        specCode: 'lite',
+        period: { start: '2026-11-01T00:00:00Z', end: '2026-12-01T00:00:00Z', remainingDays: 19 },
+        remainingDays: 19,
+        autoRenew: { enabled: true, period: 1, periodUnit: 'Month' },
+        confirmedAutoRenew: null,
+        subscriptionId: 'mock-subscription',
+        endAt: '2026-12-01T00:00:00Z',
+        seatSummary: null,
+        tiers: [
+          {
+            tier: 'lite',
+            windowType: 'monthly',
+            totalCredits: '20000',
+            remainingCredits: null,
+            remainingPct: 50,
+            usedPct: 50,
+            resetAt: null,
+          },
+        ],
+        completeness: 'complete',
+        diagnostics: [],
+      };
+      const team: TokenPlanEditionStatus = {
+        ...individual,
+        edition: 'team',
+        commodityCode: 'sfm_tokenplanteams_dp_intl',
+        subscriptionId: null,
+      };
+      const data = makeStatus({ individual, team, codingPlanStatus: 'VALID' });
+      const before = structuredClone(data);
+      const jsonBefore = formatSubscriptionStatusJson(data);
+      const aggregate = buildSubscriptionStatusViewModel(data, [], ctx);
+      const dedicated = buildTokenPlanStatusViewModel(
+        {
+          individual,
+          product: 'Token Plan',
+          period: null,
+          autoRenew: null,
+          renewable: null,
+          seatSummary: null,
+          diagnostics: [],
+        },
+        'text',
+      );
+      const personal = aggregate.sections.find((section) => section.id === 'tokenplan-individual')!;
+      expect(personal.fields).toEqual(dedicated.editionSections[0]!.fields);
+      expect(personal.detailTables).toEqual(dedicated.editionSections[0]!.detailTables);
+      expect(personal.fields.some((field) => field.label === 'Period')).toBe(false);
+      const teamSection = aggregate.sections.find((section) => section.id === 'tokenplan-team')!;
+      expect(teamSection.fields.some((field) => field.label === 'Period')).toBe(
+        status !== 'not_subscribed',
+      );
+      if (status !== 'not_subscribed')
+        expect(personal.fields).toContainEqual({ label: 'Auto-Renew', value: 'unknown' });
+      expect(aggregate.codingPlanSection?.status).toBe('VALID');
+      expect(data).toEqual(before);
+      expect(formatSubscriptionStatusJson(data)).toEqual(jsonBefore);
+    },
+  );
+
   it('renders all sections without degradation when data is complete', () => {
     const vm = buildSubscriptionStatusViewModel(makeStatus(), [], ctx);
     expect(vm.banner).toBeNull();
@@ -45,7 +143,7 @@ describe('buildSubscriptionStatusViewModel', () => {
       [diag('QuerySubscriptionGray'), diag('CheckTokenPlanAutoRenewal')],
       ctx,
     );
-    expect(vm.footnote).toMatch(/2 source\(s\) unavailable/);
+    expect(vm.footnote).toBe('Note: 2 diagnostic(s), see --format json for details');
   });
 
   it('shows a red top banner when data is null (full failure)', () => {
@@ -74,7 +172,7 @@ describe('buildSubscriptionStatusViewModel', () => {
 
   it('renders a graphical quota bar on wide terminals', () => {
     const vm = buildSubscriptionStatusViewModel(makeStatus(), [], { ...ctx, columns: 120 });
-    expect(vm.quotaBar.length).toBeGreaterThan(10);
+    expect(vm.quotaBar?.length).toBeGreaterThan(10);
   });
 
   it('replaces the quota section with a placeholder when quota is null', () => {
@@ -138,10 +236,11 @@ describe('buildSubscriptionStatusViewModel', () => {
     expect(vm.tokenPlanSection?.autoRenew).toBe('On');
     expect(vm.tokenPlanSection?.expires).toMatch(/12d/);
     expect(vm.tokenPlanSection?.tiers).toHaveLength(2);
-    expect(vm.tokenPlanSection?.tiers[0].label).toBe('Pro (3 seats)');
-    expect(vm.tokenPlanSection?.tiers[0].bar).toMatch(/600,000\s*\/\s*1,000,000/);
-    expect(vm.tokenPlanSection?.tiers[0].bar).toMatch(/60%/);
-    expect(vm.tokenPlanSection?.tiers[1].label).toBe('Standard (1 seat)');
+    expect(vm.tokenPlanSection?.tiers[0].label).toBe('Standard (1 seat)');
+    expect(vm.tokenPlanSection?.tiers[0].bar).toMatch(/500,000\s*\/\s*500,000/);
+    expect(vm.tokenPlanSection?.tiers[1].label).toBe('Pro (3 seats)');
+    expect(vm.tokenPlanSection?.tiers[1].bar).toMatch(/600,000\s*\/\s*1,000,000/);
+    expect(vm.tokenPlanSection?.tiers[1].bar).toMatch(/60%/);
   });
 
   it('builds creditPackSection with count, totalRemaining, and pack list', () => {
@@ -172,7 +271,7 @@ describe('buildSubscriptionStatusViewModel', () => {
     expect(vm.creditPackSection?.packs[0].id).toBe('fr-001');
     expect(vm.creditPackSection?.packs[0].remaining).toMatch(/250,000\s*\/\s*1,000,000/);
     expect(vm.creditPackSection?.packs[0].bar).toMatch(/25%/);
-    expect(vm.creditPackSection?.packs[0].expires).toBe('2099-12-31');
+    expect(vm.creditPackSection?.packs[0].expires).toBe('2099-12-31 00:00:00 (UTC)');
     expect(vm.creditPackSection?.packs[1].bar).toMatch(/100%/);
     expect(vm.creditPackSection?.packs[1].expires).toBe('—');
   });
@@ -225,7 +324,7 @@ describe('buildSubscriptionStatusViewModel', () => {
     expect(vm.recentOrdersSection?.orders[0].id).toBe('ord-001');
     expect(vm.recentOrdersSection?.orders[0].type).toBe('purchase');
     expect(vm.recentOrdersSection?.orders[0].typeLabel).toBe('Purchase');
-    expect(vm.recentOrdersSection?.orders[0].date).toBe('2026-04-15');
+    expect(vm.recentOrdersSection?.orders[0].date).toBe('2026-04-15 10:00:00 (UTC)');
     expect(vm.recentOrdersSection?.orders[0].amount).toContain('199.00');
     expect(vm.recentOrdersSection?.orders[0].statusLabel).toBe('Paid');
     expect(vm.recentOrdersSection?.orders[0].statusColor).toBe('green');
@@ -244,5 +343,99 @@ describe('buildSubscriptionStatusViewModel', () => {
     expect(vm.fields.some((f) => f.label === 'Plan')).toBe(true);
     expect(vm.quota).not.toBeNull();
     expect(vm.quotaBar).not.toBeNull();
+  });
+
+  it('keeps a not-subscribed edition minimal without names or empty placeholder fields', () => {
+    const vm = buildSubscriptionStatusViewModel(
+      makeStatus({
+        individual: {
+          edition: 'individual',
+          commodityCode: 'sfm_tokenplansolo_public_intl',
+          status: 'not_subscribed',
+          type: null,
+          name: null,
+          specCode: null,
+          period: null,
+          remainingDays: null,
+          autoRenew: null,
+          subscriptionId: null,
+          endAt: null,
+          seatSummary: null,
+          completeness: 'complete',
+          diagnostics: [],
+        },
+      }),
+      [],
+      ctx,
+    );
+    const fields = vm.sections.find((section) => section.id === 'tokenplan-individual')?.fields;
+    expect(fields).toEqual([
+      { label: 'Status', value: 'not_subscribed' },
+      { label: 'Subscription', value: 'No active Individual Token Plan subscription.' },
+    ]);
+    for (const label of ['Subscription ID', 'Commodity', 'Edition', 'End At', 'Remaining Days'])
+      expect(fields?.some((field) => field.label === label)).toBe(false);
+  });
+
+  it.each([
+    { subscriptionId: null, subscriptionIds: [] },
+    { subscriptionId: 'mock-team-seat', subscriptionIds: ['mock-team-seat'] },
+    { subscriptionId: null, subscriptionIds: ['mock-team-seat', 'mock-team-second'] },
+  ])('hides team seat identifiers in aggregate status for %j', (identity) => {
+    const team: TokenPlanEditionStatus = {
+      edition: 'team',
+      commodityCode: 'sfm_tokenplanteams_dp_intl',
+      status: 'active',
+      type: null,
+      name: null,
+      specCode: null,
+      period: null,
+      remainingDays: null,
+      autoRenew: null,
+      seatSummary: null,
+      completeness: 'complete',
+      diagnostics: [],
+      ...identity,
+    };
+    const data = makeStatus({ team });
+    const before = structuredClone(data);
+    const jsonBefore = formatSubscriptionStatusJson(data);
+    const vm = buildSubscriptionStatusViewModel(data, [], ctx);
+    const fields = vm.sections.find((section) => section.id === 'tokenplan-team')!.fields!;
+    expect(fields.some((field) => /^Subscription IDs?$/.test(field.label))).toBe(false);
+    expect(formatSubscriptionStatusJson(data)).toEqual(jsonBefore);
+    expect(data).toEqual(before);
+  });
+
+  it('hides the Subscription ID row for an active edition without a trusted id', () => {
+    const active = {
+      edition: 'individual' as const,
+      commodityCode: 'sfm_tokenplansolo_public_intl',
+      status: 'active' as const,
+      type: 'lite',
+      name: 'Mock Personal Lite',
+      specCode: 'lite',
+      period: { start: '2026-09-09T09:09:09Z', end: '2026-11-20T00:00:00Z', remainingDays: 22 },
+      remainingDays: 22,
+      autoRenew: { enabled: true, period: 1, periodUnit: 'Month' },
+      subscriptionId: null,
+      endAt: '2026-11-20T00:00:00Z',
+      seatSummary: null,
+      completeness: 'complete' as const,
+      diagnostics: [],
+    };
+    const hidden = buildSubscriptionStatusViewModel(makeStatus({ individual: active }), [], ctx);
+    const hiddenFields = hidden.sections.find((s) => s.id === 'tokenplan-individual')?.fields;
+    expect(hiddenFields?.some((field) => field.label === 'Subscription ID')).toBe(false);
+
+    const shown = buildSubscriptionStatusViewModel(
+      makeStatus({ individual: { ...active, subscriptionId: 'fixture-subscription' } }),
+      [],
+      ctx,
+    );
+    const shownFields = shown.sections.find((s) => s.id === 'tokenplan-individual')?.fields;
+    expect(shownFields?.find((field) => field.label === 'Subscription ID')?.value).toBe(
+      'fixture-subscription',
+    );
   });
 });

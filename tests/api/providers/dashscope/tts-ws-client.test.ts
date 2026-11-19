@@ -17,7 +17,14 @@ class FakeSocket implements WebSocketLike {
   readonly listeners = new Map<string, Listener>();
   closed = false;
 
-  on(event: string, listener: Listener): void {
+  on(
+    event: string,
+    listener:
+      | (() => void)
+      | ((data: unknown, isBinary: boolean) => void)
+      | ((err: Error) => void)
+      | ((code: number, reason: Buffer) => void),
+  ): void {
     this.listeners.set(event, listener as Listener);
   }
 
