@@ -1,6 +1,6 @@
 {
   "name": "@qwencloud/qwencloud-cli",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "publishConfig": {
     "access": "public"
   },
@@ -13,7 +13,7 @@
     "dist/bin/qwencloud.js",
     "scripts/postinstall.js"
   ],
-  "license": "SEE LICENSE IN README.md",
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/QwenCloud/qwencloud-cli.git"
@@ -35,6 +35,7 @@
     "build:analyze": "tsx scripts/build.ts --mode prod --analyze",
     "dev": "tsup --watch",
     "test": "vitest run",
+    "typecheck": "tsc --noEmit && tsc --project tsconfig.tests.json",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint \"{src,bin,scripts}/**/*.{ts,tsx}\"",

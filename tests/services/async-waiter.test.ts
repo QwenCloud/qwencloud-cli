@@ -29,7 +29,7 @@ describe('AsyncWaiter.wait', () => {
   it('queries immediately and returns completed when the first poll is terminal', async () => {
     const { deps, sleeps } = makeClock();
     const poll = vi
-      .fn<[], Promise<PollResult<string>>>()
+      .fn<() => Promise<PollResult<string>>>()
       .mockResolvedValue({ status: 'terminal', value: 'done' });
 
     const result = await new AsyncWaiter(deps).wait(poll, {
@@ -45,7 +45,7 @@ describe('AsyncWaiter.wait', () => {
   it('does not sleep before the first query', async () => {
     const { deps, sleeps } = makeClock();
     const poll = vi
-      .fn<[], Promise<PollResult<string>>>()
+      .fn<() => Promise<PollResult<string>>>()
       .mockResolvedValue({ status: 'terminal', value: 'x' });
 
     await new AsyncWaiter(deps).wait(poll, { timeoutMs: 1000, pollIntervalMs: 500 });
@@ -56,7 +56,7 @@ describe('AsyncWaiter.wait', () => {
   it('polls repeatedly with the interval until a terminal state', async () => {
     const { deps, sleeps } = makeClock();
     const poll = vi
-      .fn<[], Promise<PollResult<string>>>()
+      .fn<() => Promise<PollResult<string>>>()
       .mockResolvedValueOnce({ status: 'pending', value: 'p1' })
       .mockResolvedValueOnce({ status: 'pending', value: 'p2' })
       .mockResolvedValueOnce({ status: 'terminal', value: 'ok' });
@@ -74,7 +74,7 @@ describe('AsyncWaiter.wait', () => {
   it('returns not-completed with the last value when the timeout elapses', async () => {
     const { deps } = makeClock();
     const poll = vi
-      .fn<[], Promise<PollResult<string>>>()
+      .fn<() => Promise<PollResult<string>>>()
       .mockResolvedValue({ status: 'pending', value: 'still-running' });
 
     const result = await new AsyncWaiter(deps).wait(poll, {
@@ -89,7 +89,7 @@ describe('AsyncWaiter.wait', () => {
   it('never throws on timeout', async () => {
     const { deps } = makeClock();
     const poll = vi
-      .fn<[], Promise<PollResult<number>>>()
+      .fn<() => Promise<PollResult<number>>>()
       .mockResolvedValue({ status: 'pending', value: 1 });
 
     await expect(
@@ -102,7 +102,7 @@ describe('AsyncWaiter.wait', () => {
     // deadline 5000, interval 2000: poll@0(pending), sleep2000, poll@2000(pending),
     // sleep2000, poll@4000(pending); next sleep to 6000 would cross deadline -> stop.
     const poll = vi
-      .fn<[], Promise<PollResult<string>>>()
+      .fn<() => Promise<PollResult<string>>>()
       .mockResolvedValue({ status: 'pending', value: 'p' });
 
     const result = await new AsyncWaiter(deps).wait(poll, {
@@ -119,7 +119,7 @@ describe('AsyncWaiter.wait', () => {
   it('returns completed on a terminal state reached on the final allowed poll', async () => {
     const { deps } = makeClock();
     const poll = vi
-      .fn<[], Promise<PollResult<string>>>()
+      .fn<() => Promise<PollResult<string>>>()
       .mockResolvedValueOnce({ status: 'pending', value: 'p' })
       .mockResolvedValueOnce({ status: 'terminal', value: 'late' });
 

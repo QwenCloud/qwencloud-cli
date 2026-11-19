@@ -12,16 +12,15 @@ import { render } from 'ink-testing-library';
 import stripAnsi from 'strip-ansi';
 import { SubscriptionStatusInk } from '../../src/ui/SubscriptionStatus.js';
 import { buildSubscriptionStatusViewModel } from '../../src/view-models/subscription/index.js';
-import type {
-  SubscriptionStatus,
-  SubscriptionDiagnostic,
-} from '../../src/types/subscription.js';
+import type { SubscriptionStatus, SubscriptionDiagnostic } from '../../src/types/subscription.js';
 
 const ctx = { currency: 'USD', locale: 'en-US', columns: 100 };
 
 function frame(el: React.ReactElement): string {
-  const { lastFrame } = render(el);
-  return stripAnsi(lastFrame() ?? '');
+  const view = render(el);
+  const output = stripAnsi(view.lastFrame() ?? '');
+  view.unmount();
+  return output;
 }
 
 function makeStatus(overrides: Partial<SubscriptionStatus> = {}): SubscriptionStatus {
@@ -46,6 +45,108 @@ function diag(api: string): SubscriptionDiagnostic {
 }
 
 describe('SubscriptionStatusInk (rendered)', () => {
+  it('keeps one row between editions without a trailing edition margin', () => {
+    const vm = buildSubscriptionStatusViewModel(makeStatus(), [], ctx);
+    vm.sections = [
+      {
+        id: 'tokenplan-individual',
+        title: 'Individual',
+        fields: [{ label: 'Subscription', value: 'individual-end' }],
+      },
+      {
+        id: 'tokenplan-team',
+        title: 'Team',
+        fields: [{ label: 'Subscription', value: 'team-end' }],
+      },
+    ];
+    vm.creditPackSection = null;
+    vm.codingPlanSection = null;
+    vm.recentOrdersSection = null;
+    const out = frame(<SubscriptionStatusInk vm={vm} />);
+    expect(out).toMatch(/individual-end\n[^\S\n]*\n\s*Team/);
+    expect(out).not.toMatch(/individual-end\n[^\S\n]*\n[^\S\n]*\n\s*Team/);
+    expect(out).toMatch(/team-end$/);
+  });
+  it.each(['individual', 'team'] as const)(
+    'keeps the narrow first-record gap specific to edition %s',
+    (edition) => {
+      const descriptor = Object.getOwnPropertyDescriptor(process.stdout, 'columns');
+      Object.defineProperty(process.stdout, 'columns', { value: 60, configurable: true });
+      const vm = buildSubscriptionStatusViewModel(makeStatus(), [], ctx);
+      vm.sections = [
+        {
+          id: `tokenplan-${edition}`,
+          title: edition,
+          fields: [],
+          detailTables: [
+            {
+              title: 'CREDIT USAGE',
+              edition,
+              layout: 'records',
+              headers: ['TIER', 'TOTAL CREDITS', 'REMAINING (%)'],
+              rows: [['lite', '1234567890123456789012345678901234567890', '50%']],
+              emptyMessage: 'No credits',
+            },
+          ],
+        },
+      ];
+      try {
+        const out = frame(<SubscriptionStatusInk vm={vm} />);
+        expect(out).toMatch(
+          edition === 'individual'
+            ? /CREDIT USAGE\n\s*TIER: lite/
+            : /CREDIT USAGE\n[^\S\n]*\n\s*TIER: lite/,
+        );
+        expect(out).toContain('1234567890123456789012345678901234567890');
+      } finally {
+        if (descriptor) Object.defineProperty(process.stdout, 'columns', descriptor);
+        else Reflect.deleteProperty(process.stdout, 'columns');
+      }
+    },
+  );
+
+  it('uses a double top title and single lines for every sibling section', () => {
+    const vm = buildSubscriptionStatusViewModel(
+      makeStatus({
+        codingPlanStatus: 'VALID',
+        creditPacks: [
+          { instanceId: 'mock-pack', totalCredits: 100, remainingCredits: 50, expiresAt: null },
+        ],
+        recentOrders: [
+          {
+            orderId: 'mock-order',
+            orderType: 'purchase',
+            orderTime: '2026-11-12T00:00:00Z',
+            amount: '10.00',
+            status: 'PAID',
+          },
+          {
+            orderId: 'mock-order-2',
+            orderType: 'renew',
+            orderTime: '2026-11-12T01:00:00Z',
+            amount: '10.00',
+            status: 'PAID',
+          },
+        ],
+      }),
+      [],
+      ctx,
+    );
+    vm.sections = [{ id: 'tokenplan-individual', title: 'Individual', fields: [] }];
+    const out = frame(<SubscriptionStatusInk vm={vm} />);
+    expect(out).toMatch(/Subscription Status═+/);
+    for (const title of [
+      'Token Plans',
+      'Add-on Credit Packs',
+      'Coding Plan',
+      'Recent Orders (latest 2)',
+    ]) {
+      const line = out.split('\n').find((entry) => entry.includes(` ${title} `));
+      expect(line).toContain(`─── ${title} ─`);
+      expect(line).not.toContain('═');
+    }
+  });
+
   // ────────────────────────────────────────────────────────────────────
   // Legacy flat-fallback rendering — preserved when no new sections exist
   // ────────────────────────────────────────────────────────────────────
@@ -53,6 +154,7 @@ describe('SubscriptionStatusInk (rendered)', () => {
   it('renders the plan name and a graphical quota bar on wide terminals', () => {
     const vm = buildSubscriptionStatusViewModel(makeStatus(), [], ctx);
     const out = frame(<SubscriptionStatusInk vm={vm} />);
+    expect(out).toMatch(/Subscription Status═+/);
     expect(out).toContain('Token Plan');
     expect(out.length).toBeGreaterThan(50);
   });
@@ -74,6 +176,7 @@ describe('SubscriptionStatusInk (rendered)', () => {
       ctx,
     );
     const out = frame(<SubscriptionStatusInk vm={vm} />);
+    expect(out).toMatch(/Subscription Status═+/);
     expect(out.toLowerCase()).toMatch(/subscription\s+data\s+unavailable|unavailable/i);
   });
 
@@ -110,8 +213,8 @@ describe('SubscriptionStatusInk (rendered)', () => {
     // Flat fallback prints the legacy field labels rather than the dashboard dividers.
     expect(out).toContain('Plan');
     expect(out).toContain('Auto-Renew');
-    expect(out).not.toContain('═══ Token Plan');
-    expect(out).not.toContain('═══ Credit Pack');
+    expect(out).not.toContain('─── Token Plan');
+    expect(out).not.toContain('─── Credit Pack');
   });
 
   // ────────────────────────────────────────────────────────────────────
@@ -137,7 +240,7 @@ describe('SubscriptionStatusInk (rendered)', () => {
       ctx,
     );
     const out = frame(<SubscriptionStatusInk vm={vm} />);
-    expect(out).toMatch(/═══\s+Token Plan/);
+    expect(out).toMatch(/───\s+Token Plan/);
     expect(out).toContain('Pro (3 seats)');
     expect(out).toMatch(/600,000\s*\/\s*1,000,000/);
     expect(out).toContain('60%');
@@ -159,7 +262,7 @@ describe('SubscriptionStatusInk (rendered)', () => {
       ctx,
     );
     const out = frame(<SubscriptionStatusInk vm={vm} />);
-    expect(out).toMatch(/═══\s+Credit Pack/);
+    expect(out).toMatch(/^    ─── Add-on Credit Packs ─+$/m);
     expect(out).toContain('fr-001');
     expect(out).toContain('250,000');
     expect(out).toContain('2099-12-31');
@@ -172,8 +275,23 @@ describe('SubscriptionStatusInk (rendered)', () => {
       ctx,
     );
     const out = frame(<SubscriptionStatusInk vm={vm} />);
-    expect(out).toMatch(/═══\s+Coding Plan/);
+    expect(out).toMatch(/───\s+Coding Plan/);
     expect(out).toContain('NORMAL');
+  });
+
+  it('preserves the Coding Plan layout without adding flat summary fields', () => {
+    const vm = buildSubscriptionStatusViewModel(
+      makeStatus({ codingPlanStatus: 'VALID', seatTiers: [], quota: null }),
+      [],
+      ctx,
+    );
+    const out = frame(<SubscriptionStatusInk vm={vm} />);
+    expect(out).toMatch(/───\s+Coding Plan/);
+    expect(out).toContain('Status: VALID');
+    expect(out).toContain('Credits: —');
+    expect(out).not.toContain('Auto-Renew');
+    expect(out).not.toContain('Renewable');
+    expect(out).not.toContain('Gray');
   });
 
   it('renders the Recent Orders section with order rows', () => {
@@ -200,7 +318,7 @@ describe('SubscriptionStatusInk (rendered)', () => {
       ctx,
     );
     const out = frame(<SubscriptionStatusInk vm={vm} />);
-    expect(out).toMatch(/═══\s+Recent Orders/);
+    expect(out).toMatch(/^    ─── Recent Token Plan Orders \(latest 2\) ─+$/m);
     expect(out).toContain('ord-101');
     expect(out).toContain('Purchase');
     expect(out).toContain('2026-04-15');

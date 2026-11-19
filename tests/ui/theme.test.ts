@@ -4,7 +4,7 @@ import { buildProgressBar, progressColor } from '../../src/ui/theme.js';
 
 // Force chalk color level to 3 (truecolor) so color functions produce
 // actual ANSI escape sequences regardless of the test runner's TTY state.
-let originalLevel: number;
+let originalLevel: typeof chalk.level;
 beforeAll(() => {
   originalLevel = chalk.level;
   chalk.level = 3;

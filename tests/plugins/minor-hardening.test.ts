@@ -285,7 +285,7 @@ describe('minCliVersion type validation', () => {
     expect(validateManifest(leaf('run'))).toBeNull();
     expect(validateManifest({ ...leaf('run'), minCliVersion: '1.0.0' })).toBeNull();
     expect(
-      validateManifest({
+      validateUntrustedManifest({
         command: 'minor-probe',
         entry: './entry.js',
         subcommands: [{ command: 'run', handlerKey: 'run', minCliVersion: '1.0.0' }],

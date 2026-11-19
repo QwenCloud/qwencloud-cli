@@ -19,6 +19,7 @@ export type { RouteType } from '../types/api-routes.js';
 export interface AdapterOptions {
   product: string;
   action: string;
+  version?: string;
   params?: Record<string, unknown>;
   gatewayApi?: string;
   gatewayData?: Record<string, unknown>;
@@ -111,10 +112,12 @@ export function flattenParams(params: Record<string, unknown>): Record<string, s
 // ────────────────────────────────────────────────────────────────────
 
 declare const __NODE_ENV__: string;
-const GATEWAY_URL = `${(typeof __NODE_ENV__ === 'undefined' || __NODE_ENV__ !== 'production'
-  ? process.env.QWENCLOUD_API_ENDPOINT || site.apiEndpoint
-  : site.apiEndpoint
-).replace(/\/+$/, '')}/data/v2/api.json`;
+export const API_ENDPOINT = (
+  typeof __NODE_ENV__ === 'undefined' || __NODE_ENV__ !== 'production'
+    ? process.env.QWENCLOUD_API_ENDPOINT || site.apiEndpoint
+    : site.apiEndpoint
+).replace(/\/+$/, '');
+const GATEWAY_URL = `${API_ENDPOINT}/data/v2/api.json`;
 const DEFAULT_REGION = site.defaults.region;
 
 function resolveAuthMode(opts: AdapterOptions): 'required' | 'optional' {
@@ -151,6 +154,7 @@ export function buildRequest(routeType: RouteType, opts: AdapterOptions): Adapte
     bodyObj = {
       product: opts.product,
       action: opts.action,
+      ...(opts.version ? { version: opts.version } : {}),
       region: DEFAULT_REGION,
       params: flattened,
     };

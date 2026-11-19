@@ -14,6 +14,7 @@ import type { WorkspaceService } from '../../src/services/workspace-service.js';
 import type { BillingService } from '../../src/services/billing-service.js';
 import type { SubscriptionService } from '../../src/services/subscription-service.js';
 import type { SubscriptionTokenPlanService } from '../../src/services/subscription-tokenplan-service.js';
+import type { TokenPlanListService } from '../../src/services/tokenplan-list-service.js';
 import type { DocsService, DocsSearchOptions } from '../../src/services/docs-service.js';
 import type { SupportService } from '../../src/services/support-service.js';
 import type { DocContentResult } from '../../src/types/docs.js';
@@ -29,6 +30,7 @@ export function makeMockApiClient(overrides: Partial<ApiClient> = {}): ApiClient
   const billingServiceStub = {} as unknown as BillingService;
   const subscriptionServiceStub = {} as unknown as SubscriptionService;
   const subscriptionTokenPlanServiceStub = {} as unknown as SubscriptionTokenPlanService;
+  const tokenPlanListServiceStub = {} as unknown as TokenPlanListService;
   const docsServiceStub = {} as unknown as DocsService;
   const supportServiceStub = {} as unknown as SupportService;
 
@@ -113,7 +115,11 @@ export function makeMockApiClient(overrides: Partial<ApiClient> = {}): ApiClient
 
     getAuthStatus: async () => ({ authenticated: true, server_verified: true }),
     loginInit: async () => ({
-      token: 't', verification_url: '', expires_in: 600, interval: 5, auth_mode: 'pkce',
+      token: 't',
+      verification_url: '',
+      expires_in: 600,
+      interval: 5,
+      auth_mode: 'pkce',
     }),
     loginPoll: async () => ({ status: 'authorization_pending' }),
     revokeSession: async () => true,
@@ -122,6 +128,7 @@ export function makeMockApiClient(overrides: Partial<ApiClient> = {}): ApiClient
     billingService: billingServiceStub,
     subscriptionService: subscriptionServiceStub,
     subscriptionTokenPlanService: subscriptionTokenPlanServiceStub,
+    tokenPlanListService: tokenPlanListServiceStub,
     docsService: docsServiceStub,
     supportService: supportServiceStub,
 
@@ -130,10 +137,19 @@ export function makeMockApiClient(overrides: Partial<ApiClient> = {}): ApiClient
 
     getUsageLimit: async () => emptyUsageLimit as never,
     getConsumeBreakdown: async () => emptyConsumeBreakdown as never,
-    getConsumeBreakdownByPeriods: async () => ({ slices: [], groupBy: 'model', dateRange: { from: '', to: '' }, granularity: 'day', chargeType: 'all', currency: 'USD' }) as never,
+    getConsumeBreakdownByPeriods: async () =>
+      ({
+        slices: [],
+        groupBy: 'model',
+        dateRange: { from: '', to: '' },
+        granularity: 'day',
+        chargeType: 'all',
+        currency: 'USD',
+      }) as never,
     getSettleBillSummary: async () => emptySettleBillSummary as never,
     getSubscriptionStatus: async () => emptySubscriptionStatus as never,
     listSubscriptionOrders: async () => emptySubscriptionOrders as never,
+    getPaymentMethods: async () => ({ items: [] }),
 
     ping: async () => ({ latency: 1, reachable: true, hostname: 'test' }),
     checkVersion: async () => ({ current: '1.0.0', latest: '1.0.0', update_available: false }),

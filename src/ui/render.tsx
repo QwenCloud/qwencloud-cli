@@ -1,6 +1,6 @@
 import { PassThrough } from 'stream';
 import React, { useEffect } from 'react';
-import { render, useApp } from 'ink';
+import { render, Static, useApp } from 'ink';
 import { isReplMode } from '../utils/runtime-mode.js';
 import { isConHost } from './terminalCompat.js';
 
@@ -66,23 +66,50 @@ function AutoExitWrapper({ children }: { children: React.ReactNode }) {
  * }
  * ```
  */
-export async function renderWithInk(element: React.ReactElement): Promise<void> {
+export async function renderWithInk(
+  element: React.ReactElement,
+  options?: { trailingNewline?: boolean },
+): Promise<void> {
   // Use a dummy stdin so Ink never calls setRawMode / pause / resume on the
   // real process.stdin, which would interfere with the REPL's readline state.
   const dummyStdin = new PassThrough();
-
-  const { waitUntilExit } = render(<AutoExitWrapper>{element}</AutoExitWrapper>, {
-    stdout: process.stdout,
-    stdin: dummyStdin as any,
-    exitOnCtrlC: false,
-    patchConsole: false,
+  const stdout = new Proxy(process.stdout, {
+    get(stream, property) {
+      if (property === 'write') {
+        return (...args: Parameters<typeof stream.write>) => {
+          // Static already ends with a newline; the empty dynamic frame adds no content.
+          if (args[0] === '\n') {
+            const callback = args[args.length - 1];
+            if (typeof callback === 'function') callback();
+            return true;
+          }
+          return stream.write(...args);
+        };
+      }
+      const value = Reflect.get(stream, property, stream);
+      return typeof value === 'function' ? value.bind(stream) : value;
+    },
   });
+
+  const { waitUntilExit } = render(
+    <AutoExitWrapper>
+      <Static items={[element]}>
+        {(item) => <React.Fragment key="content">{item}</React.Fragment>}
+      </Static>
+    </AutoExitWrapper>,
+    {
+      stdout,
+      stdin: dummyStdin as any,
+      exitOnCtrlC: false,
+      patchConsole: false,
+    },
+  );
 
   // Resolves only after AutoExitWrapper calls app.exit().
   await waitUntilExit();
 
   // Write a trailing newline so the shell prompt appears on its own line.
-  process.stdout.write('\n');
+  if (options?.trailingNewline !== false) process.stdout.write('\n');
 
   // Wait one event-loop tick so Ink's internal async handles fully close.
   // Prevents libuv assertion failures on Windows when process.exit() follows.

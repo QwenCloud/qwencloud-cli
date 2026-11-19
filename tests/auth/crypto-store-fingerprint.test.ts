@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // Contract tests for getMachineFingerprint — platform-specific parsing logic.
 // Only external dependencies (execSync, os, fs) are mocked.
 
-const mockExecSync = vi.fn((): string => '');
+const mockExecSync = vi.fn((_cmd: string): string => '');
 const mockPlatform = vi.fn((): string => 'darwin');
 const mockMachine = vi.fn((): string => 'arm64');
 const mockExistsSync = vi.fn((_p: string): boolean => false);

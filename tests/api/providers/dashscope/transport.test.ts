@@ -55,7 +55,7 @@ function capturedHeaders(fetchMock: ReturnType<typeof vi.fn>): Record<string, st
 describe('DashScopeTransport', () => {
   describe('request composition', () => {
     it('joins the base URL with the request path', async () => {
-      const fetchMock = vi.fn(async () => jsonResponse({ ok: true }));
+      const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse({ ok: true }));
       const transport = makeTransport(fetchMock as unknown as typeof fetch);
 
       await transport.request({ path: CHAT_PATH, method: 'POST', body: {} });

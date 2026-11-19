@@ -1,3 +1,6 @@
+import type { SubscriptionDiagnostic } from './subscription.js';
+import type { TokenPlanEditionStatus } from './tokenplan-subscription.js';
+
 // Usage summary response
 export interface UsageSummaryResponse {
   period: { from: string; to: string };
@@ -39,7 +42,10 @@ export interface CodingPlanWindow {
 }
 
 export interface TokenPlan {
-  subscribed: boolean;
+  subscribed: boolean | null;
+  individual?: TokenPlanEditionStatus;
+  team?: TokenPlanEditionStatus;
+  diagnostics?: SubscriptionDiagnostic[];
   planName?: string; // e.g. "Token Plan Team (Monthly)"
   status?: 'valid' | 'exhaust' | 'invalid';
   totalCredits?: number; // InitCapacityBaseValue

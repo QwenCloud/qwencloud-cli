@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach, type MockInstance } from 'vitest';
 import React from 'react';
 import { Text, useApp } from 'ink';
+import { stripVTControlCharacters } from 'node:util';
 import { renderWithInk, renderInteractive } from '../../src/ui/render.js';
 
 afterEach(() => {
@@ -8,6 +9,55 @@ afterEach(() => {
 });
 
 describe('renderWithInk', () => {
+  it.each([
+    { trailingNewline: true, expected: 'static-content\n\nnext-content\n' },
+    { trailingNewline: false, expected: 'static-content\nnext-content\n' },
+  ])('keeps the requested output spacing for %j', async ({ trailingNewline, expected }) => {
+    const writeSpy = vi
+      .spyOn(process.stdout, 'write')
+      .mockImplementation(((_chunk: unknown) => true) as typeof process.stdout.write);
+    await renderWithInk(<Text>static-content</Text>, { trailingNewline });
+    process.stdout.write('next-content\n');
+    const output = stripVTControlCharacters(
+      writeSpy.mock.calls.map((call) => String(call[0])).join(''),
+    );
+    expect(output).toBe(expected);
+  });
+  it.each([23, 24, 80])(
+    'prints all %s lines once without clearing the terminal or scrollback',
+    async (lineCount) => {
+      const descriptors = new Map(
+        ['isTTY', 'columns', 'rows'].map((key) => [
+          key,
+          Object.getOwnPropertyDescriptor(process.stdout, key),
+        ]),
+      );
+      Object.defineProperties(process.stdout, {
+        isTTY: { value: true, configurable: true },
+        columns: { value: 80, configurable: true },
+        rows: { value: 24, configurable: true },
+      });
+      const writeSpy = vi
+        .spyOn(process.stdout, 'write')
+        .mockImplementation(((_chunk: unknown) => true) as typeof process.stdout.write);
+      const lines = Array.from({ length: lineCount }, (_, index) => `row-${index}`);
+
+      try {
+        await renderWithInk(<Text>{lines.join('\n')}</Text>);
+        const output = writeSpy.mock.calls.map((call) => String(call[0])).join('');
+        expect(output).not.toContain('\x1b[2J');
+        expect(output).not.toContain('\x1b[3J');
+        expect(output).not.toContain('\x1b[?1049h');
+        expect(stripVTControlCharacters(output).split('\n').filter(Boolean)).toEqual(lines);
+      } finally {
+        for (const [key, descriptor] of descriptors) {
+          if (descriptor) Object.defineProperty(process.stdout, key, descriptor);
+          else Reflect.deleteProperty(process.stdout, key);
+        }
+      }
+    },
+  );
+
   it('renders an Ink element to stdout and resolves after paint', async () => {
     const writeSpy = vi
       .spyOn(process.stdout, 'write')
@@ -67,7 +117,7 @@ describe('renderWithInk', () => {
 });
 
 describe('renderInteractive', () => {
-  let writeSpy: ReturnType<typeof vi.spyOn>;
+  let writeSpy: MockInstance<typeof process.stdout.write>;
   let originalIsTTY: boolean | undefined;
 
   beforeEach(() => {

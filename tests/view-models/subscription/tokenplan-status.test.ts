@@ -49,7 +49,7 @@ interface TokenPlanDiagnostic {
 }
 
 interface TokenPlanStatusResult {
-  product: string | null;
+  product: string;
   period: TokenPlanPeriod | null;
   autoRenew: AutoRenew | null;
   renewable: Renewable | null;
@@ -113,9 +113,8 @@ function makeDiag(api: string, msg = 'failed'): TokenPlanDiagnostic {
 
 describe('buildTokenPlanStatusViewModel — JSON mode', () => {
   it('produces complete nested object structure with full data', async () => {
-    const { buildTokenPlanStatusViewModel } = await import(
-      '../../../src/view-models/subscription/tokenplan-status.js'
-    );
+    const { buildTokenPlanStatusViewModel } =
+      await import('../../../src/view-models/subscription/tokenplan-status.js');
     const result = makeFullResult();
     const vm = buildTokenPlanStatusViewModel(result, 'json');
 
@@ -127,26 +126,24 @@ describe('buildTokenPlanStatusViewModel — JSON mode', () => {
     });
     expect(vm.autoRenew).toEqual({ enabled: true, period: 1, periodUnit: 'M' });
     expect(vm.renewable).toEqual({ canRenew: false, interceptCode: 'PENDING_RENEWAL' });
-    expect(vm.seatSummary.groups).toHaveLength(2);
-    expect(vm.seatSummary.total.seats).toBe(11);
+    expect(vm.seatSummary!.groups).toHaveLength(2);
+    expect(vm.seatSummary!.total!.seats).toBe(11);
     expect(vm.diagnostics).toEqual([]);
   });
 
   it('preserves amount strings at full precision (no number conversion)', async () => {
-    const { buildTokenPlanStatusViewModel } = await import(
-      '../../../src/view-models/subscription/tokenplan-status.js'
-    );
+    const { buildTokenPlanStatusViewModel } =
+      await import('../../../src/view-models/subscription/tokenplan-status.js');
     const result = makeFullResult();
     const vm = buildTokenPlanStatusViewModel(result, 'json');
 
-    expect(vm.seatSummary.total.surplusValue).toBe('566284.3192002');
-    expect(vm.seatSummary.groups[0].totalValue).toBe('175000');
+    expect(vm.seatSummary!.total!.surplusValue).toBe('566284.3192002');
+    expect(vm.seatSummary!.groups[0].totalValue).toBe('175000');
   });
 
   it('sets null fields when autoRenew is unavailable', async () => {
-    const { buildTokenPlanStatusViewModel } = await import(
-      '../../../src/view-models/subscription/tokenplan-status.js'
-    );
+    const { buildTokenPlanStatusViewModel } =
+      await import('../../../src/view-models/subscription/tokenplan-status.js');
     const result = makeFullResult();
     result.autoRenew = null;
     result.diagnostics = [makeDiag('CheckTokenPlanAutoRenewal')];
@@ -158,9 +155,8 @@ describe('buildTokenPlanStatusViewModel — JSON mode', () => {
   });
 
   it('sets seatSummary null when both seat APIs fail', async () => {
-    const { buildTokenPlanStatusViewModel } = await import(
-      '../../../src/view-models/subscription/tokenplan-status.js'
-    );
+    const { buildTokenPlanStatusViewModel } =
+      await import('../../../src/view-models/subscription/tokenplan-status.js');
     const result = makeFullResult();
     result.seatSummary = null;
     result.diagnostics = [
@@ -174,9 +170,8 @@ describe('buildTokenPlanStatusViewModel — JSON mode', () => {
   });
 
   it('includes non-empty diagnostics array on partial failure', async () => {
-    const { buildTokenPlanStatusViewModel } = await import(
-      '../../../src/view-models/subscription/tokenplan-status.js'
-    );
+    const { buildTokenPlanStatusViewModel } =
+      await import('../../../src/view-models/subscription/tokenplan-status.js');
     const result = makeFullResult();
     result.renewable = null;
     result.diagnostics = [makeDiag('CheckInstancesRenewable', 'Network timeout')];
@@ -190,54 +185,50 @@ describe('buildTokenPlanStatusViewModel — JSON mode', () => {
 
 describe('buildTokenPlanStatusViewModel — TUI mode', () => {
   it('produces sections and table structure for full data', async () => {
-    const { buildTokenPlanStatusViewModel } = await import(
-      '../../../src/view-models/subscription/tokenplan-status.js'
-    );
+    const { buildTokenPlanStatusViewModel } =
+      await import('../../../src/view-models/subscription/tokenplan-status.js');
     const result = makeFullResult();
     const vm = buildTokenPlanStatusViewModel(result, 'tui');
 
     // TUI mode should have header section with product/period/autoRenew/renewable
     expect(vm.header).toBeDefined();
-    expect(vm.header.product).toBe('Token Plan Team Edition');
-    expect(vm.header.period).toBeDefined();
-    expect(vm.header.autoRenew).toBeDefined();
-    expect(vm.header.renewable).toBeDefined();
+    expect(vm.header!.product).toBe('Token Plan Team Edition');
+    expect(vm.header!.period).toBeDefined();
+    expect(vm.header!.autoRenew).toBeDefined();
+    expect(vm.header!.renewable).toBeDefined();
     // Table section with seat groups
     expect(vm.table).toBeDefined();
-    expect(vm.table.rows).toHaveLength(2);
+    expect(vm.table!.rows).toHaveLength(2);
     // Footer with total
     expect(vm.footer).toBeDefined();
-    expect(vm.footer.total).toBeDefined();
+    expect(vm.footer!.total).toBeDefined();
   });
 
   it('renders em-dash placeholder for null autoRenew', async () => {
-    const { buildTokenPlanStatusViewModel } = await import(
-      '../../../src/view-models/subscription/tokenplan-status.js'
-    );
+    const { buildTokenPlanStatusViewModel } =
+      await import('../../../src/view-models/subscription/tokenplan-status.js');
     const result = makeFullResult();
     result.autoRenew = null;
     result.diagnostics = [makeDiag('CheckTokenPlanAutoRenewal')];
     const vm = buildTokenPlanStatusViewModel(result, 'tui');
 
-    expect(vm.header.autoRenew).toBe('—');
+    expect(vm.header!.autoRenew).toBe('—');
   });
 
   it('renders em-dash placeholder for null renewable', async () => {
-    const { buildTokenPlanStatusViewModel } = await import(
-      '../../../src/view-models/subscription/tokenplan-status.js'
-    );
+    const { buildTokenPlanStatusViewModel } =
+      await import('../../../src/view-models/subscription/tokenplan-status.js');
     const result = makeFullResult();
     result.renewable = null;
     result.diagnostics = [makeDiag('CheckInstancesRenewable')];
     const vm = buildTokenPlanStatusViewModel(result, 'tui');
 
-    expect(vm.header.renewable).toBe('—');
+    expect(vm.header!.renewable).toBe('—');
   });
 
   it('omits table section when seatSummary is null', async () => {
-    const { buildTokenPlanStatusViewModel } = await import(
-      '../../../src/view-models/subscription/tokenplan-status.js'
-    );
+    const { buildTokenPlanStatusViewModel } =
+      await import('../../../src/view-models/subscription/tokenplan-status.js');
     const result = makeFullResult();
     result.seatSummary = null;
     result.diagnostics = [makeDiag('GetSeatSubscriptionSummary')];
@@ -247,25 +238,22 @@ describe('buildTokenPlanStatusViewModel — TUI mode', () => {
   });
 
   it('includes diagnostics warnings when present', async () => {
-    const { buildTokenPlanStatusViewModel } = await import(
-      '../../../src/view-models/subscription/tokenplan-status.js'
-    );
+    const { buildTokenPlanStatusViewModel } =
+      await import('../../../src/view-models/subscription/tokenplan-status.js');
     const result = makeFullResult();
     result.autoRenew = null;
     result.diagnostics = [makeDiag('CheckTokenPlanAutoRenewal', 'Service unavailable')];
     const vm = buildTokenPlanStatusViewModel(result, 'tui');
 
-    expect(vm.warnings).toBeDefined();
-    expect(vm.warnings.length).toBeGreaterThan(0);
-    expect(vm.warnings[0]).toMatch(/CheckTokenPlanAutoRenewal/);
+    expect(vm.warnings).toEqual(['⚠ Service unavailable']);
+    expect(vm.diagnostics).toEqual([makeDiag('CheckTokenPlanAutoRenewal', 'Service unavailable')]);
   });
 });
 
 describe('buildTokenPlanStatusViewModel — TEXT mode', () => {
   it('produces compact key-value structure', async () => {
-    const { buildTokenPlanStatusViewModel } = await import(
-      '../../../src/view-models/subscription/tokenplan-status.js'
-    );
+    const { buildTokenPlanStatusViewModel } =
+      await import('../../../src/view-models/subscription/tokenplan-status.js');
     const result = makeFullResult();
     const vm = buildTokenPlanStatusViewModel(result, 'text');
 
@@ -277,38 +265,35 @@ describe('buildTokenPlanStatusViewModel — TEXT mode', () => {
   });
 
   it('includes remaining days in period line', async () => {
-    const { buildTokenPlanStatusViewModel } = await import(
-      '../../../src/view-models/subscription/tokenplan-status.js'
-    );
+    const { buildTokenPlanStatusViewModel } =
+      await import('../../../src/view-models/subscription/tokenplan-status.js');
     const result = makeFullResult();
     const vm = buildTokenPlanStatusViewModel(result, 'text');
 
-    const periodStr = JSON.stringify(vm.header.period);
+    const periodStr = JSON.stringify(vm.header!.period);
     expect(periodStr).toContain('41');
   });
 
   it('uses em-dash for null fields in text mode', async () => {
-    const { buildTokenPlanStatusViewModel } = await import(
-      '../../../src/view-models/subscription/tokenplan-status.js'
-    );
+    const { buildTokenPlanStatusViewModel } =
+      await import('../../../src/view-models/subscription/tokenplan-status.js');
     const result = makeFullResult();
     result.autoRenew = null;
     result.diagnostics = [makeDiag('CheckTokenPlanAutoRenewal')];
     const vm = buildTokenPlanStatusViewModel(result, 'text');
 
-    expect(vm.header.autoRenew).toBe('—');
+    expect(vm.header!.autoRenew).toBe('—');
   });
 
   it('displays diagnostics warnings in text mode', async () => {
-    const { buildTokenPlanStatusViewModel } = await import(
-      '../../../src/view-models/subscription/tokenplan-status.js'
-    );
+    const { buildTokenPlanStatusViewModel } =
+      await import('../../../src/view-models/subscription/tokenplan-status.js');
     const result = makeFullResult();
     result.renewable = null;
     result.diagnostics = [makeDiag('CheckInstancesRenewable')];
     const vm = buildTokenPlanStatusViewModel(result, 'text');
 
     expect(vm.warnings).toBeDefined();
-    expect(vm.warnings.length).toBeGreaterThan(0);
+    expect(vm.warnings!.length).toBeGreaterThan(0);
   });
 });

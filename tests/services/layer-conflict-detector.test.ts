@@ -9,10 +9,8 @@
  * overrides the model carried in the passthrough body.
  */
 import { describe, it, expect } from 'vitest';
-import {
-  LayerConflictDetector,
-  type Layer2Assignment,
-} from '../../src/services/layer-conflict-detector.js';
+import { LayerConflictDetector } from '../../src/services/layer-conflict-detector.js';
+import type { Layer2Assignment } from '../../src/types/invocation-params.js';
 import { CliError } from '../../src/utils/errors.js';
 import { EXIT_CODES } from '../../src/utils/exit-codes.js';
 

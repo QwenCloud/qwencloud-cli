@@ -26,6 +26,7 @@ const SAMPLE_ROW = {
   instanceCode: 'inst-001',
   specType: 'pro',
   status: 'active',
+  statusColor: 'green' as const,
   memberIdMasked: '138****5678',
   totalValue: '100,000.00',
   surplusValue: '91,284.56',

@@ -12,6 +12,7 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { runCommand } from '../../helpers/run-command.js';
 import { makeMockApiClient } from '../../helpers/api-client.js';
+import type { SupportService } from '../../../src/services/support-service.js';
 import type { ApiClient } from '../../../src/api/client.js';
 
 // ── Module mocks ────────────────────────────────────────────────────────
@@ -407,7 +408,7 @@ describe('support create --category-id + --description', () => {
     setTTY(false, false);
 
     const longDesc = 'x'.repeat(2500);
-    const createTicketSpy = vi.fn(async () => ({ vid: 'TICKET-130000666' }));
+    const createTicketSpy = vi.fn<SupportService['createTicket']>(async () => ({ vid: 'TICKET-130000666' }));
     holder.client = makeMockApiClient({
       supportService: {
         getCategoryTree: async () => SAMPLE_TREE,

@@ -34,6 +34,7 @@ import {
 import { formatHelp } from './output/help-formatter.js';
 import { isHelpRequest } from './utils/cli-help.js';
 import { createClient, type ClientFactory } from './api/client.js';
+import { EXIT_CODES } from './utils/exit-codes.js';
 
 // ---------------------------------------------------------------------------
 // Apply custom help to every command recursively
@@ -54,7 +55,28 @@ function applyCustomHelp(cmd: Command, force = false): void {
 // under `usage`, etc. all surface through bin/qwencloud.ts as structured JSON
 // when --format json is in effect.
 function applyExitOverride(cmd: Command): void {
-  cmd.exitOverride();
+  const tokenPlanOptions =
+    cmd.parent?.name() === 'tokenplan' &&
+    cmd.parent.parent?.name() === 'subscription' &&
+    (cmd.name() === 'list' || cmd.name() === 'status')
+      ? cmd.options.filter(
+          (option) => option.long === '--edition' || option.long === '--billing-cycle',
+        )
+      : [];
+  if (tokenPlanOptions.length > 0) {
+    cmd.exitOverride((error) => {
+      // Commander identifies a missing option only through its flags in the message.
+      if (
+        error.code === 'commander.optionMissingArgument' &&
+        tokenPlanOptions.some((option) => error.message.includes(`'${option.flags}'`))
+      ) {
+        error.exitCode = EXIT_CODES.INVALID_ARGUMENT;
+      }
+      throw error;
+    });
+  } else {
+    cmd.exitOverride();
+  }
   cmd.configureOutput({ writeErr: () => {} });
   for (const sub of cmd.commands) {
     applyExitOverride(sub);

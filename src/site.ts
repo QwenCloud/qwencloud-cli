@@ -31,6 +31,7 @@ export const site = {
   configDirName: '.qwencloud',
   localConfigFile: '.qwencloud.json',
   apiEndpoint: 'https://cli.qwencloud.com',
+  csDataEndpoint: 'https://ap-southeast-1-cs-data.qwencloud.com',
   authEndpoint: 'https://t.qwencloud.com',
   dashscopeEndpoint: 'https://dashscope-intl.aliyuncs.com',
   dashscopeEndpointName: 'dashscope-intl',
@@ -68,6 +69,7 @@ export const site = {
     tokenPlanCommodityCodes: {
       teams: 'sfm_tokenplanteams_dp_intl',
       personal: 'sfm_tokenplanpersonal_dp_intl',
+      soloBuy: 'sfm_tokenplansolo_public_intl',
       addon: 'sfm_tokenplanteamsaddon_dp_intl',
     },
     codingPlanCommodityCode: 'sfm_codingplan_public_intl',

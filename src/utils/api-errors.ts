@@ -44,6 +44,15 @@ export function classifyHttpError(error: unknown, url?: string): CliError {
       });
     }
 
+    if (name === 'RequestTimeoutError') {
+      return new CliError({
+        code: 'NETWORK_ERROR',
+        message: 'Request timed out. Try again later.',
+        exitCode: EXIT_CODES.NETWORK_ERROR,
+        detail: buildDetail(msg, url, error),
+      });
+    }
+
     // Timeout (AbortError from our 30s controller)
     if (name === 'AbortError') {
       return new CliError({

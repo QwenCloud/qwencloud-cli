@@ -1,177 +1,170 @@
+import { collectTokenPlanDiagnostics } from '../../services/subscription-diagnostics.js';
 import type {
   TokenPlanStatusResult,
-  TokenPlanStatusViewModel,
+  TokenPlanStatusViewModel as BaseTokenPlanStatusViewModel,
   TokenPlanStatusViewModelHeader,
   TokenPlanStatusSeatLine,
   TokenPlanStatusTable,
   TokenPlanStatusFooter,
+  TokenPlanEditionSection,
+  TokenPlanSeatDetailsViewModel,
 } from '../../types/tokenplan-subscription.js';
-import { NA, PARTIAL_FAILURE_NOTE_TEMPLATE } from './shared.js';
-import { formatDate as toLocalDate } from '../../utils/date.js';
+import {
+  NA,
+  PARTIAL_FAILURE_NOTE_TEMPLATE,
+  buildSubscriptionStatusEditionSections,
+  formatDiagnosticMessage,
+} from './shared.js';
+import {
+  buildTokenPlanStatusDetails,
+  tokenPlanDisplayDate,
+  tokenPlanDisplayText,
+  type TokenPlanDisplayTable,
+} from './tokenplan-details.js';
+import {
+  buildTokenPlanSeatDetailsViewModel,
+  sortTokenPlanSeats,
+} from './tokenplan-seat-details.js';
 
-/** Build view model for the tokenplan status command. */
+export interface TokenPlanStatusViewModel extends BaseTokenPlanStatusViewModel {
+  detailTables?: TokenPlanDisplayTable[];
+  editionSections: Array<
+    TokenPlanEditionSection & {
+      detailTables?: TokenPlanDisplayTable[];
+      seatLines?: TokenPlanStatusSeatLine[];
+      seatDetails?: TokenPlanSeatDetailsViewModel;
+    }
+  >;
+}
+
+/** Build display labels while preserving the service DTO for JSON output. */
 export function buildTokenPlanStatusViewModel(
   result: TokenPlanStatusResult,
   format: 'tui' | 'text' | 'json',
 ): TokenPlanStatusViewModel {
-  const { diagnostics } = result;
-  const footnote =
-    diagnostics.length > 0 ? PARTIAL_FAILURE_NOTE_TEMPLATE(diagnostics.length) : null;
-
-  const warnings =
-    diagnostics.length > 0 ? diagnostics.map((d) => `⚠ ${d.api}: ${d.errorMessage}`) : undefined;
-
-  const header = format !== 'json' ? buildHeader(result) : undefined;
+  const diagnostics = collectTokenPlanDiagnostics(result);
+  const detailTables = buildTokenPlanStatusDetails(result);
   const seatLines = buildSeatLines(result);
+  const seatDetails = buildTokenPlanSeatDetailsViewModel(result.team?.seatDetails, 'tokenplan');
+  const editionSections = buildSubscriptionStatusEditionSections(
+    result,
+    result.renewable ? formatRenewable(result.renewable) : null,
+  ).map((section) => ({
+    ...section,
+    detailTables: detailTables.filter((table) => table.edition === section.edition),
+    ...(section.edition === 'team' ? { seatLines, seatDetails } : {}),
+  }));
   const totalLine = buildTotalLine(result);
-  const table = buildTable(result);
-  const footer = format !== 'json' ? buildFooter(result, diagnostics) : undefined;
-
   return {
     format,
-    // JSON-mode fields
+    individual: result.individual,
+    team: result.team,
+    editionSections,
     product: result.product,
     period: result.period,
     autoRenew: result.autoRenew,
     renewable: result.renewable,
     seatSummary: result.seatSummary,
-    // TUI/TEXT-mode fields
-    header,
-    table,
-    footer,
+    header: format !== 'json' && editionSections.length === 0 ? buildHeader(result) : undefined,
+    table: buildTable(result),
+    footer: format !== 'json' ? buildFooter(result) : undefined,
     seatLines,
     totalLine,
-    // Shared
-    warnings,
-    diagnostics,
-    footnote,
+    seatDetails,
+    warnings:
+      diagnostics.length > 0
+        ? diagnostics.map(
+            (diagnostic) => `⚠ ${tokenPlanDisplayText(formatDiagnosticMessage(diagnostic))}`,
+          )
+        : undefined,
+    diagnostics: result.diagnostics,
+    footnote: diagnostics.length > 0 ? PARTIAL_FAILURE_NOTE_TEMPLATE(diagnostics.length) : null,
+    detailTables,
   };
 }
 
 function buildHeader(result: TokenPlanStatusResult): TokenPlanStatusViewModelHeader {
-  const product = result.product;
+  return {
+    product: tokenPlanDisplayText(result.product),
+    period: result.period
+      ? `${tokenPlanDisplayDate(result.period.end)} (${tokenPlanDisplayText(result.period.remainingDays)} days remaining)`
+      : NA,
+    autoRenew: result.autoRenew
+      ? result.autoRenew.enabled
+        ? `ON (${formatRenewalPeriod(result.autoRenew.period, result.autoRenew.periodUnit)})`
+        : 'OFF'
+      : NA,
+    renewable: formatRenewable(result.renewable),
+  };
+}
 
-  let period: string;
-  if (result.period) {
-    period = `${formatDate(result.period.start)} → ${formatDate(result.period.end)} (${result.period.remainingDays} days remaining)`;
-  } else {
-    period = NA;
-  }
+function formatRenewable(renewable: TokenPlanStatusResult['renewable']): string {
+  if (!renewable) return NA;
+  return renewable.canRenew
+    ? 'Yes'
+    : renewable.interceptCode
+      ? `No (${tokenPlanDisplayText(renewable.interceptCode)})`
+      : 'No';
+}
 
-  let autoRenew: string;
-  if (result.autoRenew) {
-    autoRenew = result.autoRenew.enabled
-      ? `ON (${formatRenewalPeriod(result.autoRenew.period, result.autoRenew.periodUnit)})`
-      : 'OFF';
-  } else {
-    autoRenew = NA;
-  }
-
-  let renewable: string;
-  if (result.renewable) {
-    renewable = result.renewable.canRenew
-      ? 'Yes'
-      : result.renewable.interceptCode
-        ? `No (${result.renewable.interceptCode})`
-        : 'No';
-  } else {
-    renewable = NA;
-  }
-
-  return { product, period, autoRenew, renewable };
+function seatLine(
+  group: NonNullable<TokenPlanStatusResult['seatSummary']>['groups'][number],
+): TokenPlanStatusSeatLine {
+  return {
+    specType: ['standard', 'pro', 'max'].includes(group.specType.toLowerCase())
+      ? capitalizeFirst(group.specType.toLowerCase())
+      : 'unknown',
+    seats: tokenPlanDisplayText(group.seats),
+    totalValue: formatAmount(group.totalValue),
+    surplusValue: formatAmount(group.surplusValue),
+    nextCycleFlushTime: tokenPlanDisplayDate(group.nextCycleFlushTime),
+  };
 }
 
 function buildSeatLines(result: TokenPlanStatusResult): TokenPlanStatusSeatLine[] | undefined {
-  if (!result.seatSummary) return undefined;
-  return result.seatSummary.groups.map((g) => ({
-    specType: capitalizeFirst(g.specType),
-    seats: String(g.seats),
-    totalValue: formatAmount(g.totalValue),
-    surplusValue: formatAmount(g.surplusValue),
-    nextCycleFlushTime: g.nextCycleFlushTime ? formatDate(g.nextCycleFlushTime) : NA,
-  }));
+  return result.seatSummary
+    ? sortTokenPlanSeats(result.seatSummary.groups, (group) => group.specType).map(seatLine)
+    : undefined;
 }
 
 function buildTotalLine(result: TokenPlanStatusResult): TokenPlanStatusSeatLine | undefined {
   const total = result.seatSummary?.total;
-  if (!total) return undefined;
-  return {
-    specType: 'Total',
-    seats: String(total.seats),
-    totalValue: formatAmount(total.totalValue),
-    surplusValue: formatAmount(total.surplusValue),
-    nextCycleFlushTime: '',
-  };
+  return total
+    ? {
+        specType: 'Total',
+        seats: tokenPlanDisplayText(total.seats),
+        totalValue: formatAmount(total.totalValue),
+        surplusValue: formatAmount(total.surplusValue),
+        nextCycleFlushTime: '',
+      }
+    : undefined;
 }
 
 function buildTable(result: TokenPlanStatusResult): TokenPlanStatusTable | null {
-  if (!result.seatSummary) return null;
-  const rows = result.seatSummary.groups.map((g) => ({
-    specType: capitalizeFirst(g.specType),
-    seats: String(g.seats),
-    totalValue: formatAmount(g.totalValue),
-    surplusValue: formatAmount(g.surplusValue),
-    nextCycleFlushTime: g.nextCycleFlushTime ? formatDate(g.nextCycleFlushTime) : NA,
-  }));
-  const total = result.seatSummary.total;
-  const totalRow = total
-    ? {
-        specType: 'Total',
-        seats: String(total.seats),
-        totalValue: formatAmount(total.totalValue),
-        surplusValue: formatAmount(total.surplusValue),
-        nextCycleFlushTime: '',
-      }
+  return result.seatSummary
+    ? { rows: buildSeatLines(result) ?? [], totalRow: buildTotalLine(result) ?? null }
     : null;
-  return { rows, totalRow };
 }
 
-function buildFooter(
-  result: TokenPlanStatusResult,
-  diagnostics: import('../../types/subscription.js').SubscriptionDiagnostic[],
-): TokenPlanStatusFooter {
-  const total = result.seatSummary?.total;
-  const totalLine = total
-    ? {
-        specType: 'Total',
-        seats: String(total.seats),
-        totalValue: formatAmount(total.totalValue),
-        surplusValue: formatAmount(total.surplusValue),
-        nextCycleFlushTime: '',
-      }
-    : null;
-  return { total: totalLine, diagnostics };
+function buildFooter(result: TokenPlanStatusResult): TokenPlanStatusFooter {
+  return { total: buildTotalLine(result) ?? null, diagnostics: result.diagnostics };
 }
 
-// ────────────────────────────────────────────────────────────────────
-// Formatting helpers
-// ────────────────────────────────────────────────────────────────────
-
-function formatDate(iso: string): string {
-  if (!iso) return NA;
-  return toLocalDate(new Date(iso));
+function formatAmount(value: string | null): string {
+  if (value === null) return NA;
+  const [integer = '', fraction] = tokenPlanDisplayText(value).split('.');
+  const formatted = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return fraction ? `${formatted}.${fraction}` : formatted;
 }
 
-function formatAmount(value: string): string {
-  if (!value || value === '0') return '0';
-  const parts = value.split('.');
-  const intPart = parts[0]!;
-  const decPart = parts[1];
-  const formatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return decPart ? `${formatted}.${decPart}` : formatted;
+function formatRenewalPeriod(period: number | null, unit: string | null): string {
+  if (period === null || unit === null) return NA;
+  if (unit === 'M' || unit === 'Month') return period === 1 ? 'Monthly' : `${period} Months`;
+  if (unit === 'Y' || unit === 'Year') return period === 1 ? 'Yearly' : `${period} Years`;
+  return `${period} ${tokenPlanDisplayText(unit)}`;
 }
 
-function formatRenewalPeriod(period: number, unit: string): string {
-  if (unit === 'M' || unit === 'Month') {
-    return period === 1 ? 'Monthly' : `${period} Months`;
-  }
-  if (unit === 'Y' || unit === 'Year') {
-    return period === 1 ? 'Yearly' : `${period} Years`;
-  }
-  return `${period} ${unit}`;
-}
-
-function capitalizeFirst(str: string): string {
-  if (!str) return str;
-  return str.charAt(0).toUpperCase() + str.slice(1);
+function capitalizeFirst(value: string): string {
+  const safe = tokenPlanDisplayText(value);
+  return safe.charAt(0).toUpperCase() + safe.slice(1);
 }

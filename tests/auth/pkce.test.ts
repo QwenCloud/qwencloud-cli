@@ -87,25 +87,25 @@ describe('selectAuthMode', () => {
 
   // PK-SAM-01
   it('returns the forcedMode when explicitly provided (pkce)', () => {
-    const mode: AuthMode = selectAuthMode({ forcedMode: 'pkce' });
+    const mode: AuthMode = selectAuthMode({ isInteractiveTty: true, forcedMode: 'pkce' });
     expect(mode).toBe('pkce');
   });
 
   // PK-SAM-02
   it('returns the forcedMode when explicitly provided (device-flow), even if env says pkce', () => {
     process.env.QWENCLOUD_AUTH_MODE = 'pkce';
-    const mode: AuthMode = selectAuthMode({ forcedMode: 'device-flow' });
+    const mode: AuthMode = selectAuthMode({ isInteractiveTty: true, forcedMode: 'device-flow' });
     expect(mode).toBe('device-flow');
   });
 
   // PK-SAM-03
   it('honours envOverride=pkce', () => {
-    expect(selectAuthMode({ envOverride: 'pkce' })).toBe('pkce');
+    expect(selectAuthMode({ isInteractiveTty: true, envOverride: 'pkce' })).toBe('pkce');
   });
 
   // PK-SAM-04
   it('honours envOverride=device-flow', () => {
-    expect(selectAuthMode({ envOverride: 'device-flow' })).toBe('device-flow');
+    expect(selectAuthMode({ isInteractiveTty: true, envOverride: 'device-flow' })).toBe('device-flow');
   });
 
   // PK-SAM-05
@@ -117,7 +117,7 @@ describe('selectAuthMode', () => {
   // PK-SAM-06
   it('falls back to pkce when env var is empty / unset', () => {
     expect(selectAuthMode()).toBe('pkce');
-    expect(selectAuthMode({})).toBe('pkce');
+    expect(selectAuthMode({ isInteractiveTty: true })).toBe('pkce');
   });
 
   // PK-SAM-07

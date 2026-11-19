@@ -13,9 +13,9 @@ import {
 } from '../../src/services/billing-service.js';
 import type { ApiClient } from '../../src/api/api-client.js';
 
-function makeCachedFetcher(): CachedFetcher & { getOrFetch: ReturnType<typeof vi.fn>; invalidate: ReturnType<typeof vi.fn> } {
+function makeCachedFetcher(): CachedFetcher {
   return {
-    getOrFetch: vi.fn(async <T>(_key: string, _ttl: number, fetcher: () => Promise<T>) => fetcher()),
+    getOrFetch: async <T>(_key: string, _ttl: number, fetcher: () => Promise<T>) => fetcher(),
     invalidate: vi.fn(),
   };
 }

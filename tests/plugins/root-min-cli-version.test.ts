@@ -231,14 +231,14 @@ describe('minimum CLI versions belong only to the root manifest', () => {
       command: commandName,
       entry: './index.mjs',
       subcommands: [{ command: 'run', handlerKey: 'run', minCliVersion: undefined }],
-    } as PluginManifest);
+    } as unknown as PluginManifest);
     expect(error).not.toBeNull();
     expectRootRelocation(String(error), 'qwencloud.subcommands[0].minCliVersion');
   });
 
   it.each(nestedCases)('rejects $label during static validation', (scenario) => {
     const declared = nestedManifest(scenario);
-    const error = validateManifest(declared as PluginManifest);
+    const error = validateManifest(declared as unknown as PluginManifest);
     expect(error).not.toBeNull();
     expectRootRelocation(String(error), scenario.expectedPath);
 
@@ -298,7 +298,7 @@ describe('minimum CLI versions belong only to the root manifest', () => {
     async (minimum) => {
       const declared = rootManifest(minimum);
       const candidate = writePackage(path.join(state.root, 'candidate'), declared);
-      expect(validateManifest(declared as PluginManifest)).toBeNull();
+      expect(validateManifest(declared as unknown as PluginManifest)).toBeNull();
       expect(
         runPluginValidateChecks(candidate, new Set(), []).every((check) => check.status === 'pass'),
       ).toBe(true);
@@ -363,7 +363,7 @@ describe('minimum CLI versions belong only to the root manifest', () => {
           {
             name: packageName,
             version: '1.0.0',
-            manifest: declared as PluginManifest,
+            manifest: declared as unknown as PluginManifest,
             loadHandlers,
           },
         ],

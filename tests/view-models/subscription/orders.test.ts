@@ -32,7 +32,7 @@ describe('buildSubscriptionOrdersViewModel', () => {
       makeOrder({ orderId: 'ORD-A' }),
       makeOrder({ orderId: 'ORD-B', orderType: 'renew', amount: '99.00' }),
     ]);
-    const vm = buildSubscriptionOrdersViewModel(data, ctx);
+    const vm = buildSubscriptionOrdersViewModel(data, [], ctx);
     expect(vm.items).toHaveLength(2);
     expect(vm.items[0].orderId).toBe('ORD-A');
     expect(vm.items[1].orderType).toBe('renew');
@@ -43,7 +43,7 @@ describe('buildSubscriptionOrdersViewModel', () => {
 
   it('returns an empty rows array with a friendly placeholder for empty lists', () => {
     const data = makeOrders([], 1, 20, 0);
-    const vm = buildSubscriptionOrdersViewModel(data, ctx);
+    const vm = buildSubscriptionOrdersViewModel(data, [], ctx);
     expect(vm.items).toEqual([]);
     expect(vm.emptyPlaceholder).toMatch(/no\s+orders|empty/i);
   });
@@ -53,14 +53,14 @@ describe('buildSubscriptionOrdersViewModel', () => {
       makeOrder({ orderId: 'ORD-OK' }),
       makeOrder({ orderId: 'ORD-BAD', detailError: 'detail.fetch.timeout' }),
     ]);
-    const vm = buildSubscriptionOrdersViewModel(data, ctx);
+    const vm = buildSubscriptionOrdersViewModel(data, [], ctx);
     expect(vm.items[0].detailError).toBeNull();
     expect(vm.items[1].detailError).toBe('detail.fetch.timeout');
   });
 
   it('formats amount cells with the configured currency without re-deriving precision', () => {
     const data = makeOrders([makeOrder({ amount: '1.23456789012', currency: 'USD' })]);
-    const vm = buildSubscriptionOrdersViewModel(data, ctx);
+    const vm = buildSubscriptionOrdersViewModel(data, [], ctx);
     // Currency symbol or code is present; the raw precision is retained for JSON consumers.
     expect(vm.items[0].amountDisplay).toMatch(/1\.23456789012|1\.23/);
     expect(vm.items[0].amountRaw).toBe('1.23456789012');
@@ -69,7 +69,7 @@ describe('buildSubscriptionOrdersViewModel', () => {
   it('reports pagination metadata so callers can render "Showing X-Y of Z" hints', () => {
     const rows = Array.from({ length: 5 }, (_, i) => makeOrder({ orderId: `ORD-${i + 1}` }));
     const data = makeOrders(rows, 2, 5, 12);
-    const vm = buildSubscriptionOrdersViewModel(data, ctx);
+    const vm = buildSubscriptionOrdersViewModel(data, [], ctx);
     expect(vm.pagination.page).toBe(2);
     expect(vm.pagination.pageSize).toBe(5);
     expect(vm.pagination.total).toBe(12);

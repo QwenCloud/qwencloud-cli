@@ -41,7 +41,8 @@ describe('BillingLimit (rendered)', () => {
 
   it('renders em-dash for missing optional fields', () => {
     const vm = buildBillingLimitViewModel(
-      makeLimit({ alertThreshold: null as string | null, receivers: [] }),
+      // @ts-expect-error Exercise malformed upstream optional values at runtime.
+      makeLimit({ alertThreshold: null, receivers: [] }),
       ctx,
     );
     const out = frame(<BillingLimitInk vm={vm} />);

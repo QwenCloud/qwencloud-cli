@@ -9,6 +9,7 @@
  * No implementation code is read — tests are written purely from spec.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { RecordedRequest } from '../helpers/http-mock.js';
 import { mockFetch } from '../helpers/http-mock.js';
 import type { RawApiEnvelope } from '../../src/types/api-envelope.js';
 
@@ -60,7 +61,7 @@ afterEach(() => {
 describe('ApiClient.callFlatApi — success paths', () => {
   it('returns parsed data on a standard Type A success response', async () => {
     activeMock = mockFetch({
-      'data/v2/api.json': (req) => {
+      'data/v2/api.json': (req: RecordedRequest) => {
         const body = JSON.parse(req.body!);
         expect(body.product).toBe('BssOpenAPI-V3');
         expect(body.action).toBe('MaasListConsumeSummary');
@@ -80,7 +81,7 @@ describe('ApiClient.callFlatApi — success paths', () => {
 
   it('flattens params to strings in the request body', async () => {
     activeMock = mockFetch({
-      'data/v2/api.json': (req) => {
+      'data/v2/api.json': (req: RecordedRequest) => {
         const body = JSON.parse(req.body!);
         expect(body.params.PageSize).toBe('100');
         expect(body.params.Enabled).toBe('true');
@@ -278,7 +279,7 @@ describe('ApiClient.callEnvelopeApi — success paths', () => {
 
   it('sends fixed product and action in envelope request body', async () => {
     activeMock = mockFetch({
-      'data/v2/api.json': (req) => {
+      'data/v2/api.json': (req: RecordedRequest) => {
         const body = JSON.parse(req.body!);
         expect(body.product).toBe('sfm_bailian');
         expect(body.action).toBe('IntlBroadScopeAspnGateway');
@@ -294,7 +295,7 @@ describe('ApiClient.callEnvelopeApi — success paths', () => {
 
   it('wraps api and data into params.Api and params.Data', async () => {
     activeMock = mockFetch({
-      'data/v2/api.json': (req) => {
+      'data/v2/api.json': (req: RecordedRequest) => {
         const body = JSON.parse(req.body!);
         expect(body.params.Api).toBe('test.api.path');
         expect(typeof body.params.Data).toBe('string');

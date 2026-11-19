@@ -16,6 +16,7 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { runCommand } from '../../helpers/run-command.js';
 import { makeMockApiClient } from '../../helpers/api-client.js';
+import type { SupportService } from '../../../src/services/support-service.js';
 import type { ApiClient } from '../../../src/api/client.js';
 import type {
   SupportTicketDetail,
@@ -188,7 +189,7 @@ afterEach(() => {
 
 describe('support rate — non-interactive submission', () => {
   it('submits rating with --rating flag (no comment, no tags)', async () => {
-    const rateSpy = vi.fn(async () => makeRateResponse(4));
+    const rateSpy = vi.fn<SupportService['rateTicket']>(async () => makeRateResponse(4));
     holder.client = makeMockApiClient({
       supportService: {
         getTicket: async () => makeTicketDetail(),
@@ -234,7 +235,7 @@ describe('support rate — non-interactive submission', () => {
   });
 
   it('forwards --comment value to rateTicket', async () => {
-    const rateSpy = vi.fn(async () => makeRateResponse(5));
+    const rateSpy = vi.fn<SupportService['rateTicket']>(async () => makeRateResponse(5));
     holder.client = makeMockApiClient({
       supportService: {
         getTicket: async () => makeTicketDetail(),
@@ -264,7 +265,7 @@ describe('support rate — non-interactive submission', () => {
   });
 
   it('propagates the full metadata snapshot returned by getAssessmentCard', async () => {
-    const rateSpy = vi.fn(async () => makeRateResponse(5));
+    const rateSpy = vi.fn<SupportService['rateTicket']>(async () => makeRateResponse(5));
     holder.client = makeMockApiClient({
       supportService: {
         getTicket: async () => makeTicketDetail(),
@@ -750,7 +751,7 @@ describe('support rate — additional validation cases', () => {
   });
 
   it('accepts minimum valid rating of 1', async () => {
-    const rateSpy = vi.fn(async () => makeRateResponse(1));
+    const rateSpy = vi.fn<SupportService['rateTicket']>(async () => makeRateResponse(1));
     holder.client = makeMockApiClient({
       supportService: {
         getTicket: async () => makeTicketDetail(),
@@ -775,7 +776,7 @@ describe('support rate — additional validation cases', () => {
   });
 
   it('accepts maximum valid rating of 5', async () => {
-    const rateSpy = vi.fn(async () => makeRateResponse(5));
+    const rateSpy = vi.fn<SupportService['rateTicket']>(async () => makeRateResponse(5));
     holder.client = makeMockApiClient({
       supportService: {
         getTicket: async () => makeTicketDetail(),
@@ -958,7 +959,7 @@ describe('support rate — ticket-not-found precedes card classification (BUG-1)
 
 describe('support rate — editable card proceeds to submission (BUG-1)', () => {
   it('submits normally when the card is editable (rateTicket called with rating)', async () => {
-    const rateSpy = vi.fn(async () => makeRateResponse(4));
+    const rateSpy = vi.fn<SupportService['rateTicket']>(async () => makeRateResponse(4));
     holder.client = makeMockApiClient({
       supportService: {
         getTicket: async () => makeTicketDetail({ status: 'wait_score' }),
@@ -985,7 +986,7 @@ describe('support rate — editable card proceeds to submission (BUG-1)', () => 
 
 describe('support rate — comment boundary', () => {
   it('truncates --comment longer than 500 characters and emits a warning', async () => {
-    const rateSpy = vi.fn(async () => makeRateResponse(4));
+    const rateSpy = vi.fn<SupportService['rateTicket']>(async () => makeRateResponse(4));
     holder.client = makeMockApiClient({
       supportService: {
         getTicket: async () => makeTicketDetail(),
@@ -1041,7 +1042,7 @@ describe('support rate — interactive comment truncation (BUG-2)', () => {
   }
 
   it('truncates an over-500-char interactive comment to exactly 500 and warns on stderr', async () => {
-    const rateSpy = vi.fn(async () => makeRateResponse(4));
+    const rateSpy = vi.fn<SupportService['rateTicket']>(async () => makeRateResponse(4));
     interactiveHolder.rating = 4;
     interactiveHolder.comment = '字'.repeat(800); // 800 JS code units (CJK) → must clip to 500
     holder.client = makeMockApiClient(ratableClient(rateSpy));
@@ -1064,7 +1065,7 @@ describe('support rate — interactive comment truncation (BUG-2)', () => {
   });
 
   it('does not warn and forwards the full comment when interactive input is within 500', async () => {
-    const rateSpy = vi.fn(async () => makeRateResponse(4));
+    const rateSpy = vi.fn<SupportService['rateTicket']>(async () => makeRateResponse(4));
     interactiveHolder.rating = 4;
     interactiveHolder.comment = 'Resolved quickly, thank you.';
     holder.client = makeMockApiClient(ratableClient(rateSpy));
@@ -1084,7 +1085,7 @@ describe('support rate — interactive comment truncation (BUG-2)', () => {
   });
 
   it('treats empty interactive comment input as no comment (undefined)', async () => {
-    const rateSpy = vi.fn(async () => makeRateResponse(4));
+    const rateSpy = vi.fn<SupportService['rateTicket']>(async () => makeRateResponse(4));
     interactiveHolder.rating = 4;
     interactiveHolder.comment = '';
     holder.client = makeMockApiClient(ratableClient(rateSpy));
@@ -1103,7 +1104,7 @@ describe('support rate — interactive comment truncation (BUG-2)', () => {
   });
 
   it('treats a cancelled comment editor as no comment (undefined)', async () => {
-    const rateSpy = vi.fn(async () => makeRateResponse(4));
+    const rateSpy = vi.fn<SupportService['rateTicket']>(async () => makeRateResponse(4));
     interactiveHolder.rating = 4;
     interactiveHolder.commentCancelled = true;
     holder.client = makeMockApiClient(ratableClient(rateSpy));

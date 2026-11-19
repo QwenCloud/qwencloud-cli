@@ -320,7 +320,7 @@ describe('TTSService — CosyVoice WebSocket path', () => {
         exitCode: EXIT_CODES.GENERAL_ERROR,
       }),
     );
-    const wsClient = { synthesize } as unknown as Parameters<typeof makeDeps>[0]['wsClient'];
+    const wsClient = { synthesize } as unknown as NonNullable<Parameters<typeof makeDeps>[0]>['wsClient'];
     const svc = new TTSService(
       makeDeps({ modelResolver: makeResolver('cosyvoice-v3.5-flash'), wsClient }),
     );
@@ -475,7 +475,7 @@ describe('TTSService.generate — voice-clone/design hint on the HTTP path', () 
           exitCode: EXIT_CODES.GENERAL_ERROR,
         }),
       );
-      const client = { generate } as unknown as Parameters<typeof makeDeps>[0]['client'];
+      const client = { generate } as unknown as NonNullable<Parameters<typeof makeDeps>[0]>['client'];
       const svc = new TTSService(makeDeps({ client, modelResolver: makeResolver(model) }));
 
       await expect(svc.generate({ text: 'hi', model, voice: 'Cherry' })).rejects.toMatchObject({

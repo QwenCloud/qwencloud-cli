@@ -3,96 +3,110 @@ import { Box, Text } from 'ink';
 import { Section } from './Section.js';
 import { renderWithInk } from './render.js';
 import { colors } from './theme.js';
-import type { TokenPlanStatusViewModel } from '../types/tokenplan-subscription.js';
+import { TokenPlanDetailTables } from './TokenPlanDetailTables.js';
+import { TokenPlanSeatDetails } from './TokenPlanSeatDetails.js';
+import { useTerminalSize } from './useTerminalSize.js';
+import type { TokenPlanStatusViewModel as BaseTokenPlanStatusViewModel } from '../types/tokenplan-subscription.js';
+import type { TokenPlanStatusViewModel } from '../view-models/subscription/tokenplan-status.js';
 
 export interface SubscriptionTokenPlanStatusInkProps {
-  vm: TokenPlanStatusViewModel;
+  vm: BaseTokenPlanStatusViewModel | TokenPlanStatusViewModel;
 }
 
 export function SubscriptionTokenPlanStatusInk({ vm }: SubscriptionTokenPlanStatusInkProps) {
-  const hasData = vm.header !== undefined || (vm.seatLines && vm.seatLines.length > 0);
-
-  if (!hasData && vm.diagnostics.length > 0) {
-    return (
-      <Section title="Token Plan Subscription">
-        <Box flexDirection="column" paddingLeft={2}>
-          <Text color={colors.error}>Token Plan subscription data unavailable</Text>
-          {vm.diagnostics.map((d) => (
-            <Text key={d.api} color={colors.muted}>
-              · {d.api}: {d.errorCode} {d.errorMessage}
-            </Text>
-          ))}
-        </Box>
-      </Section>
-    );
-  }
-
+  const { columns } = useTerminalSize();
+  const sections = vm.editionSections ?? [];
+  const width = Math.max(1, columns - 4);
+  const seatLines = vm.seatLines ?? vm.table?.rows ?? [];
+  const totalLine = vm.totalLine ?? vm.footer?.total ?? vm.table?.totalRow;
+  const legacyRows = [...seatLines, ...(totalLine ? [totalLine] : [])];
   return (
-    <Section title="Token Plan Subscription" footer={vm.footnote ?? undefined}>
-      <Box flexDirection="column" paddingLeft={2}>
-        {vm.header && (
-          <>
-            <Text>
-              {'Product'.padEnd(16)}
-              {vm.header.product}
-            </Text>
-            <Text>
-              {'Period'.padEnd(16)}
-              {vm.header.period}
-            </Text>
-            <Text>
-              {'Auto-Renew'.padEnd(16)}
-              {vm.header.autoRenew}
-            </Text>
-            <Text>
-              {'Renewable'.padEnd(16)}
-              {vm.header.renewable}
-            </Text>
-          </>
-        )}
-        {vm.seatLines && vm.seatLines.length > 0 && (
-          <>
-            <Text> </Text>
-            <Text bold>Seat Summary</Text>
-            <Text>
-              {'  '}
-              {'Type'.padEnd(12)}
-              {'Seats'.padEnd(10)}
-              {'Total'.padEnd(20)}
-              {'Surplus'.padEnd(20)}
-              {'Next Cycle'.padEnd(12)}
-            </Text>
-            {vm.seatLines.map((row) => (
-              <Text key={row.specType}>
-                {'  '}
-                {row.specType.padEnd(12)}
-                {row.seats.padEnd(10)}
-                {row.totalValue.padEnd(20)}
-                {row.surplusValue.padEnd(20)}
-                {row.nextCycleFlushTime.padEnd(12)}
-              </Text>
-            ))}
-            {vm.totalLine && (
-              <Text bold>
-                {'  '}
-                {vm.totalLine.specType.padEnd(12)}
-                {vm.totalLine.seats.padEnd(10)}
-                {vm.totalLine.totalValue.padEnd(20)}
-                {vm.totalLine.surplusValue.padEnd(20)}
-                {vm.totalLine.nextCycleFlushTime.padEnd(12)}
-              </Text>
+    <Section title="TOKEN PLAN STATUS" footer={vm.footnote ?? undefined} maxWidth={columns}>
+      <Box flexDirection="column" width={Math.max(1, columns - 2)}>
+        {sections.map((section, index) => (
+          <Box key={section.edition} flexDirection="column" marginTop={index === 0 ? 0 : 1}>
+            <Text bold>{section.title}</Text>
+            <Box flexDirection="column" paddingLeft={2}>
+              {section.fields.map((field) => (
+                <Text key={field.label}>
+                  {field.label.padEnd(18)}
+                  {field.value}
+                </Text>
+              ))}
+              <TokenPlanDetailTables
+                tables={
+                  'detailTables' in section && Array.isArray(section.detailTables)
+                    ? section.detailTables
+                    : []
+                }
+                paddingLeft={0}
+                maxTotalWidth={width}
+                recordTitleGap={0}
+              />
+            </Box>
+          </Box>
+        ))}
+        {sections.length === 0 && (vm.header || legacyRows.length > 0 || vm.seatDetails) && (
+          <Box flexDirection="column" paddingLeft={2}>
+            {vm.header && (
+              <>
+                <Text>
+                  {'Product'.padEnd(16)}
+                  {vm.header.product}
+                </Text>
+                <Text>
+                  {'End At'.padEnd(16)}
+                  {vm.header.period}
+                </Text>
+                <Text>
+                  {'Auto-Renew'.padEnd(16)}
+                  {vm.header.autoRenew}
+                </Text>
+                <Text>
+                  {'Renewable'.padEnd(16)}
+                  {vm.header.renewable}
+                </Text>
+              </>
             )}
-          </>
+            {legacyRows.length > 0 && (
+              <TokenPlanDetailTables
+                tables={[
+                  {
+                    title: 'SEAT SUMMARY',
+                    headers: [
+                      'Seat Type',
+                      'Seats',
+                      'Total Credits',
+                      'Remaining Credits',
+                      'Reset At',
+                    ],
+                    rows: legacyRows.map((row) => [
+                      row.specType,
+                      row.seats,
+                      row.totalValue,
+                      row.surplusValue,
+                      row.nextCycleFlushTime,
+                    ]),
+                    emptyMessage: 'No seats available.',
+                    layout: 'records',
+                  },
+                ]}
+                paddingLeft={0}
+                maxTotalWidth={width}
+                recordTitleGap={0}
+              />
+            )}
+            {vm.seatDetails && <TokenPlanSeatDetails details={vm.seatDetails} />}
+          </Box>
         )}
         {vm.warnings && vm.warnings.length > 0 && (
-          <>
-            <Text> </Text>
-            {vm.warnings.map((w, idx) => (
-              <Text key={idx} color={colors.warning}>
-                {w}
+          <Box flexDirection="column" paddingLeft={2} marginTop={1}>
+            {vm.warnings.map((warning, index) => (
+              <Text key={index} color={colors.warning}>
+                {warning}
               </Text>
             ))}
-          </>
+          </Box>
         )}
       </Box>
     </Section>
@@ -100,7 +114,7 @@ export function SubscriptionTokenPlanStatusInk({ vm }: SubscriptionTokenPlanStat
 }
 
 export async function renderSubscriptionTokenPlanStatusInk(
-  vm: TokenPlanStatusViewModel,
+  vm: BaseTokenPlanStatusViewModel | TokenPlanStatusViewModel,
 ): Promise<void> {
   await renderWithInk(<SubscriptionTokenPlanStatusInk vm={vm} />);
 }

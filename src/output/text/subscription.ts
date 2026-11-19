@@ -4,90 +4,111 @@ import type {
 } from '../../view-models/subscription/index.js';
 import { formatTextTable } from '../format.js';
 
-function divider(title: string): string {
-  return `=== ${title} ===`;
-}
-
 export function renderTextSubscriptionStatus(vm: SubscriptionStatusViewModel): void {
   if (vm.banner) {
     console.log(`  ${vm.banner}`);
     if (vm.diagnostics.length > 0) {
       console.log('');
-      console.log('  Diagnostics:');
+      console.log('  Details:');
       for (const d of vm.diagnostics) {
-        console.log(`    - ${d.api}: ${d.errorCode} ${d.errorMessage}`);
+        console.log(`    - ${d.errorMessage}`);
       }
     }
     return;
   }
 
-  const hasNewSections =
-    vm.tokenPlanSection !== null ||
-    vm.creditPackSection !== null ||
-    vm.codingPlanSection !== null ||
-    vm.recentOrdersSection !== null;
-
-  if (!hasNewSections) {
-    for (const f of vm.fields) {
-      console.log(`  ${f.label.padEnd(18)}${f.value}`);
+  const editions = vm.sections.filter((section) => section.id.startsWith('tokenplan-'));
+  if (editions.length > 0) {
+    console.log('  Token Plans');
+    for (const section of editions) {
+      console.log(`    ${section.title}`);
+      for (const field of section.fields)
+        console.log(`      ${field.label.padEnd(18)}${field.value}`);
+      for (const table of section.detailTables ?? []) {
+        console.log(`\n      ${table.title}`);
+        console.log(
+          table.rows.length
+            ? formatTextTable(table.headers, table.rows, 6)
+            : `      ${table.emptyMessage}`,
+        );
+        if (table.note)
+          console.log(
+            table.note
+              .split('\n')
+              .map((line) => `      ${line}`)
+              .join('\n'),
+          );
+      }
+      if (
+        section.id === 'tokenplan-team' &&
+        vm.tokenPlanSection?.tiers.length &&
+        !section.detailTables?.length
+      ) {
+        console.log('      Seat Usage');
+        for (const tier of vm.tokenPlanSection.tiers) {
+          console.log(`        ${tier.label}`);
+          console.log(`          Remaining ${tier.bar}`);
+        }
+      }
     }
-
-    if (vm.quota) {
+  } else {
+    if (!vm.codingPlanSection)
+      for (const field of vm.fields) console.log(`  ${field.label.padEnd(18)}${field.value}`);
+    if (vm.tokenPlanSection) {
       console.log('');
-      console.log(`  ${'Quota'.padEnd(18)}${vm.quota.display}`);
-      console.log(`  ${''.padEnd(18)}${vm.quota.bar}`);
+      console.log('  Token Plan');
+      console.log(
+        `    Status: ${vm.tokenPlanSection.status}    Auto-Renew: ${vm.tokenPlanSection.autoRenew}    Expires: ${vm.tokenPlanSection.expires}`,
+      );
+      for (const tier of vm.tokenPlanSection.tiers) {
+        console.log(`    ${tier.label}`);
+        console.log(`      Remaining ${tier.bar}`);
+      }
     }
-
-    if (vm.footnote) {
-      console.log('');
-      console.log(`  ${vm.footnote}`);
-    }
-    return;
   }
 
-  if (vm.tokenPlanSection) {
-    const s = vm.tokenPlanSection;
-    console.log(`  ${divider('Token Plan')}`);
-    console.log(`  Status: ${s.status}    Auto-Renew: ${s.autoRenew}    Expires: ${s.expires}`);
+  if (editions.length === 0 && !vm.codingPlanSection && vm.quota) {
     console.log('');
-    s.tiers.forEach((tier, idx) => {
-      console.log(`  ${tier.label}:`);
-      console.log(`    ${tier.bar}`);
-      if (idx < s.tiers.length - 1) console.log('');
-    });
+    console.log(`  ${'Quota'.padEnd(18)}${vm.quota.display}`);
+    console.log(`  ${''.padEnd(18)}${vm.quota.bar}`);
   }
 
   if (vm.creditPackSection) {
-    const s = vm.creditPackSection;
     console.log('');
-    console.log(`  ${divider('Credit Pack')}`);
+    console.log('  Add-on Credit Packs');
     console.log(
-      `  ${s.count} pack${s.count === 1 ? '' : 's'}    Total Remaining: ${s.totalRemaining}`,
+      `    ${vm.creditPackSection.count} pack${vm.creditPackSection.count === 1 ? '' : 's'}; total remaining ${vm.creditPackSection.totalRemaining}`,
     );
-    console.log('');
-    console.log(`  ${'ID'.padEnd(16)}${'Remaining'.padEnd(24)}Expires`);
-    for (const pack of s.packs) {
-      console.log(`  ${pack.id.padEnd(16)}${pack.remaining.padEnd(24)}Expires: ${pack.expires}`);
+    for (const pack of vm.creditPackSection.packs) {
+      console.log(`    ${pack.id}  ${pack.remaining}  expires ${pack.expires}`);
     }
   }
 
   if (vm.codingPlanSection) {
-    const s = vm.codingPlanSection;
     console.log('');
-    console.log(`  ${divider('Coding Plan')}`);
-    console.log(`  Status: ${s.status}    Credits: ${s.credits}`);
+    console.log('  === Coding Plan ===');
+    console.log(
+      `  Status: ${vm.codingPlanSection.status}    Credits: ${vm.codingPlanSection.credits}`,
+    );
   }
 
   if (vm.recentOrdersSection) {
-    const s = vm.recentOrdersSection;
     console.log('');
-    console.log(`  ${divider(`Recent Orders (latest ${s.orders.length})`)}`);
-    console.log(`  ${'Order ID'.padEnd(16)}${'Type'.padEnd(10)}${'Date'.padEnd(13)}Amount`);
-    for (const order of s.orders) {
-      console.log(
-        `  ${order.id.padEnd(16)}${order.typeLabel.padEnd(10)}${order.date.padEnd(13)}${order.amount}`,
-      );
-    }
+    console.log(
+      `  ${vm.codingPlanSection ? 'Recent Orders' : 'Recent Token Plan Orders'} (latest ${vm.recentOrdersSection.orders.length})`,
+    );
+    console.log(
+      formatTextTable(
+        ['Order ID', 'Type', 'Date', 'Amount', 'Status'],
+        vm.recentOrdersSection.orders.map((order) => [
+          order.id,
+          order.typeLabel,
+          order.date,
+          order.amount,
+          order.statusLabel,
+        ]),
+      ),
+    );
   }
 
   if (vm.footnote) {
